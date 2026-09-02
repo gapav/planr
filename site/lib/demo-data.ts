@@ -1,4 +1,4 @@
-import type { Exercise, PlannedSession, Profile, Team } from "./types";
+import type { Exercise, PlannedSession, Profile, Team, TeamPlayer } from "./types";
 
 export const demoUser: Profile = {
   id: "user-gard", email: "gard@fjordvik.no", fullName: "Gard Pavel", initials: "GP", color: "#f0642e", isGlobalAdmin: true, teamRole: "admin",
@@ -15,19 +15,25 @@ export const demoTeams: Team[] = [
   { id: "team-u16", name: "Fjordvik HK — Girls U16", shortName: "Girls U16", role: "coach", members: [demoUser, demoProfiles[1]] },
 ];
 
+const playerNames = ["Ada L.", "Mina B.", "Thea S.", "Selma V.", "Lea N.", "Ingrid D.", "Sara H.", "Oda S.", "Emma L.", "Nora E.", "Live A.", "Tuva M."];
+export const demoPlayers: TeamPlayer[] = playerNames.map((fullName, index) => ({
+  id: `player-${index + 1}`, teamId: "team-senior", fullName,
+  jerseyNumber: String(index + 2), createdAt: "2026-08-20T08:00:00.000Z", updatedAt: "2026-08-20T08:00:00.000Z",
+}));
+
 const exerciseSeed = [
-  ["exercise-1", "Three-lane transition", "Fast break pattern with three clear running lanes. Focus on early ball movement and wide spacing.", "photo-1571019613454-1cb2f99b2d8b", "Nora Vik", "user-nora"],
-  ["exercise-2", "2 vs 2 channel defence", "Compact defensive footwork in a narrow channel. Attackers work to create a clean breakthrough.", "photo-1547347298-4074fc3086f0", "Sam Østby", "user-sam"],
-  ["exercise-3", "Shoulder activation circle", "Progressive partner passing with movement, shoulder activation and changes of direction.", "photo-1538805060514-97d9cc17730c", "Gard Pavel", "user-gard"],
-  ["exercise-4", "Wing finishing under pressure", "Repeated wing finishes after a long crossover, with passive then active defensive pressure.", "photo-1517466787929-bc90951d0974", "Nora Vik", "user-nora"],
-  ["exercise-5", "Four-corner reaction game", "A competitive warm-up for reaction speed, scanning and quick acceleration in small groups.", "photo-1517836357463-d25dfeac3438", "Gard Pavel", "user-gard"],
-  ["exercise-6", "6 vs 5 patient attack", "Controlled superiority play. The attack must create two defensive shifts before finishing.", "photo-1546519638-68e109498ffc", "Sam Østby", "user-sam"],
+  ["exercise-1", "Three-lane transition", "Fast break pattern with three clear running lanes. Focus on early ball movement and wide spacing.", "Angrep", "photo-1571019613454-1cb2f99b2d8b", "Nora Vik", "user-nora"],
+  ["exercise-2", "2 vs 2 channel defence", "Compact defensive footwork in a narrow channel. Attackers work to create a clean breakthrough.", "Forsvar", "photo-1547347298-4074fc3086f0", "Sam Østby", "user-sam"],
+  ["exercise-3", "Shoulder activation circle", "Progressive partner passing with movement, shoulder activation and changes of direction.", "Fysisk", "photo-1538805060514-97d9cc17730c", "Gard Pavel", "user-gard"],
+  ["exercise-4", "Wing finishing under pressure", "Repeated wing finishes after a long crossover, with passive then active defensive pressure.", "Angrep", "photo-1517466787929-bc90951d0974", "Nora Vik", "user-nora"],
+  ["exercise-5", "Four-corner reaction game", "A competitive warm-up for reaction speed, scanning and quick acceleration in small groups.", "Leker", "photo-1517836357463-d25dfeac3438", "Gard Pavel", "user-gard"],
+  ["exercise-6", "6 vs 5 patient attack", "Controlled superiority play. The attack must create two defensive shifts before finishing.", "Angrep", "photo-1546519638-68e109498ffc", "Sam Østby", "user-sam"],
 ] as const;
 
-export const demoExercises: Exercise[] = exerciseSeed.map(([id, name, description, photo, createdByName, createdBy], index) => {
+export const demoExercises: Exercise[] = exerciseSeed.map(([id, name, description, category, photo, createdByName, createdBy], index) => {
   const image = `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=1000&q=82`;
   return {
-    id, name, description, mediaUrl: image, mediaKind: "image", thumbnailUrl: image, createdBy, createdByName,
+    id, name, description, category, mediaUrl: image, mediaKind: "image", thumbnailUrl: image, createdBy, createdByName,
     archivedAt: null, createdAt: `2026-08-${30 - index * 2}T08:00:00.000Z`, updatedAt: `2026-08-${30 - index * 2}T08:00:00.000Z`,
   };
 });
@@ -41,21 +47,21 @@ export const demoSessions: PlannedSession[] = [
     createdBy: "user-gard", updatedBy: "user-nora", createdAt: "2026-08-30T10:00:00.000Z", updatedAt: "2026-09-02T06:42:00.000Z",
     blocks: [
       {
-        id: "block-warmup", sessionId: "session-friday", title: "Warm-up", position: 0, updatedBy: "user-gard",
+        id: "block-warmup", sessionId: "session-friday", title: "Warm-up", notes: "Balls ready along both sidelines before the players arrive.", position: 0, updatedBy: "user-gard",
         items: [
           { id: "item-activation", blockId: "block-warmup", kind: "exercise", exerciseId: "exercise-3", title: demoExercises[2].name, description: demoExercises[2].description, mediaUrl: demoExercises[2].mediaUrl, thumbnailUrl: demoExercises[2].thumbnailUrl, durationMinutes: 10, coachingNotes: "Start with two balls after three minutes.", position: 0, updatedBy: "user-gard" },
           { id: "item-reaction", blockId: "block-warmup", kind: "exercise", exerciseId: "exercise-5", title: demoExercises[4].name, description: demoExercises[4].description, mediaUrl: demoExercises[4].mediaUrl, thumbnailUrl: demoExercises[4].thumbnailUrl, durationMinutes: 10, coachingNotes: "Two rounds, change caller after each round.", position: 1, updatedBy: "user-nora" },
         ],
       },
       {
-        id: "block-main", sessionId: "session-friday", title: "Main block", position: 1, updatedBy: "user-nora",
+        id: "block-main", sessionId: "session-friday", title: "Main block", notes: "Keep the rotations short and the tempo high.", position: 1, updatedBy: "user-nora",
         items: [
           { id: "item-transition", blockId: "block-main", kind: "exercise", exerciseId: "exercise-1", title: demoExercises[0].name, description: demoExercises[0].description, mediaUrl: demoExercises[0].mediaUrl, thumbnailUrl: demoExercises[0].thumbnailUrl, durationMinutes: 25, coachingNotes: "Finish both directions before rotating groups.", position: 0, updatedBy: "user-nora" },
           { id: "item-defence", blockId: "block-main", kind: "exercise", exerciseId: "exercise-2", title: demoExercises[1].name, description: demoExercises[1].description, mediaUrl: demoExercises[1].mediaUrl, thumbnailUrl: demoExercises[1].thumbnailUrl, durationMinutes: 20, coachingNotes: "Defenders score for forcing a backwards pass.", position: 1, updatedBy: "user-sam" },
         ],
       },
       {
-        id: "block-game", sessionId: "session-friday", title: "Game", position: 2, updatedBy: "user-sam",
+        id: "block-game", sessionId: "session-friday", title: "Game", notes: "Use the full court and keep score across all three periods.", position: 2, updatedBy: "user-sam",
         items: [
           { id: "item-game", blockId: "block-game", kind: "custom", exerciseId: null, title: "6 vs 6 conditioned game", description: "A goal counts double when scored inside eight seconds of winning possession.", mediaUrl: null, thumbnailUrl: null, durationMinutes: 25, coachingNotes: "Three five-minute periods with quick feedback.", position: 0, updatedBy: "user-sam" },
         ],

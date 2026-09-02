@@ -340,9 +340,10 @@ create trigger sessions_broadcast after insert or update or delete on public.ses
 create trigger blocks_broadcast after insert or update or delete on public.session_blocks for each row execute function public.broadcast_session_change();
 create trigger items_broadcast after insert or update or delete on public.session_items for each row execute function public.broadcast_session_change();
 
-alter table realtime.messages enable row level security;
-create policy plannr_realtime_read on realtime.messages for select to authenticated using (public.can_access_session_topic(realtime.topic()));
-create policy plannr_realtime_write on realtime.messages for insert to authenticated with check (public.can_access_session_topic(realtime.topic()));
+-- Supabase owns this managed table and enables RLS on it by default.
+-- Project migrations may add authorization policies but cannot alter the table.
+create policy grep_realtime_read on realtime.messages for select to authenticated using (public.can_access_session_topic(realtime.topic()));
+create policy grep_realtime_write on realtime.messages for insert to authenticated with check (public.can_access_session_topic(realtime.topic()));
 
 -- After the first owner signs in, promote them once from the SQL editor:
 -- update public.profiles set is_global_admin = true where email = 'owner@example.com';

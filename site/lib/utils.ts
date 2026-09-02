@@ -3,7 +3,7 @@ import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 export function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join(""); }
-export function makeId(prefix: string) { return `${prefix}-${crypto.randomUUID()}`; }
+export function makeUuid() { return crypto.randomUUID(); }
 export function minutesLabel(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60); const rest = minutes % 60;

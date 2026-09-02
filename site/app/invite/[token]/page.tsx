@@ -4,13 +4,13 @@ import { CheckCircle2, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { usePlannr } from "@/components/app-provider";
+import { useGrep } from "@/components/app-provider";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function InvitePage() {
-  const { token } = useParams<{ token: string }>(); const { user, isDemoMode } = usePlannr(); const [remoteStatus, setRemoteStatus] = useState<"loading" | "accepted" | "error">("loading"); const [remoteMessage, setRemoteMessage] = useState("Accepting your team invitation…");
+  const { token } = useParams<{ token: string }>(); const { user, isDemoMode } = useGrep(); const [remoteStatus, setRemoteStatus] = useState<"loading" | "accepted" | "error">("loading"); const [remoteMessage, setRemoteMessage] = useState("Accepting your team invitation…");
   const status = !user ? "error" : isDemoMode ? "accepted" : remoteStatus;
   const message = !user ? "Sign in with the invited email before accepting this invitation." : remoteMessage;
   useEffect(() => { if (!user || isDemoMode) return; const supabase = getSupabaseBrowserClient(); if (!supabase) return; void supabase.rpc("accept_team_invitation", { invitation_token: token }).then(({ error }) => { if (error) { setRemoteStatus("error"); setRemoteMessage(error.message); } else setRemoteStatus("accepted"); }); }, [isDemoMode, token, user]);

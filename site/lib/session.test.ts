@@ -15,6 +15,10 @@ describe("session calculations", () => {
     expect(deriveSessionTab(session, new Date("2026-09-02T10:30:00.000Z"))).toBe("upcoming");
     expect(deriveSessionTab(session, new Date("2026-09-02T12:00:01.000Z"))).toBe("past");
   });
+  it("keeps a started workout visible in Upcoming until it is finished", () => {
+    const session = { ...demoSessions[1], status: "in_progress" as const };
+    expect(deriveSessionTab(session, new Date("2027-01-01"))).toBe("upcoming");
+  });
   it("requires the core publishing details", () => {
     const empty = { ...demoSessions[0], title: "", startsAt: null, plannedDurationMinutes: 0, blocks: [] };
     expect(validatePublish(empty)).toEqual(["Add a session title", "Choose a date and time", "Set a planned duration", "Add at least one block"]);

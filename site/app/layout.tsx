@@ -2,19 +2,19 @@ import type { Metadata, Viewport } from "next";
 import { AppProvider } from "@/components/app-provider";
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://plannr.app";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://grep.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Plannr — Handball sessions, built together",
-    template: "%s · Plannr",
+    default: "Grep — Handball sessions, built together",
+    template: "%s · Grep",
   },
   description:
     "Plan better handball sessions with a shared exercise library and live team collaboration.",
-  applicationName: "Plannr",
+  applicationName: "Grep",
   openGraph: {
-    title: "Plannr — Handball sessions, built together",
+    title: "Grep — Handball sessions, built together",
     description:
       "A shared exercise library and collaborative session planner for handball coaches.",
     type: "website",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Plannr — Handball sessions, built together",
+    title: "Grep — Handball sessions, built together",
     description:
       "A shared exercise library and collaborative session planner for handball coaches.",
     images: ["/og.png"],

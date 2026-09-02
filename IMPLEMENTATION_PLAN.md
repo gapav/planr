@@ -1,4 +1,4 @@
-# Plannr Handball — Implementation Plan and Checklist
+# Grep Handball — Implementation Plan and Checklist
 
 ## Summary
 
@@ -6,10 +6,11 @@ Build a responsive collaborative web app for handball coaches. The exercise libr
 
 ## Product checklist
 
-- [x] Scaffold the standard Next.js React project and establish the Plannr visual system.
+- [x] Scaffold the standard Next.js React project and establish the Grep visual system.
 - [x] Implement the public exercise library with search, media thumbnails, contribution, editing, and archival.
 - [x] Implement passwordless sign-in, profiles, protected routes, and session restoration.
 - [x] Implement multi-team creation, switching, invitations, membership, and role management.
+- [x] Add Hoopit roster import, player attendance, and one-click random teams and pairs.
 - [x] Implement Drafts, Upcoming, and Past session views.
 - [x] Implement the collaborative session builder, blocks, exercises, custom activities, durations, notes, totals, publishing, and deletion.
 - [x] Add optimistic autosave, Broadcast subscriptions, Presence, reconnect handling, and save-state feedback.
@@ -26,6 +27,7 @@ Build a responsive collaborative web app for handball coaches. The exercise libr
 - [x] Keep every team record and private Realtime channel restricted to current team members.
 - [x] Copy exercise display data into session items so later library edits do not rewrite existing plans.
 - [x] Store dates in UTC and derive Drafts, Upcoming, and Past views from status and calculated end time.
+- [x] Keep player rosters team-private and session attendance/groupings scoped to accessible sessions.
 
 ## Acceptance checklist
 
@@ -41,4 +43,4 @@ Build a responsive collaborative web app for handball coaches. The exercise libr
 
 ## V1 boundaries
 
-External media URLs are supported, but uploads are not. Rosters, attendance, player accounts, exercise tags, comments, version history, exports, recurring sessions, and full offline editing are outside v1. English is the initial interface language.
+External media URLs are supported, but uploads are not. Player accounts, exercise tags, comments, version history, session exports, recurring sessions, and full offline editing are outside v1. English is the initial interface language.

@@ -3,6 +3,7 @@ export function blockDuration(block: SessionBlock) { return block.items.reduce((
 export function sessionDuration(session: PlannedSession) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
 export function deriveSessionTab(session: PlannedSession, now = new Date()): SessionTab {
   if (session.status === "draft") return "drafts";
+  if (session.status === "in_progress") return "upcoming";
   if (!session.startsAt) return "drafts";
   const end = new Date(session.startsAt).getTime() + session.plannedDurationMinutes * 60_000;
   return end < now.getTime() ? "past" : "upcoming";
