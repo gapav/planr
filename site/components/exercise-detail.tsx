@@ -6,7 +6,16 @@ import { useState } from "react";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { Modal, Tag } from "./ui";
 import { getExerciseEmbedUrl, parseExerciseMedia } from "@/lib/media";
-import type { Exercise } from "@/lib/types";
+import type { Exercise, ExerciseCategory } from "@/lib/types";
+
+/**
+ * The library passes an `Exercise`; the session builder passes the copy a session item
+ * carries, which has no category or author. Both render the same view.
+ */
+export interface ExerciseDetailSubject {
+  name: string; description: string; mediaUrl: string | null; mediaKind: Exercise["mediaKind"];
+  thumbnailUrl: string | null; category?: ExerciseCategory | null; createdByName?: string | null;
+}
 
 function withAutoplay(embedUrl: string) {
   const url = new URL(embedUrl);
@@ -14,7 +23,7 @@ function withAutoplay(embedUrl: string) {
   return url.toString();
 }
 
-export function ExerciseDetail({ exercise, onClose }: { exercise: Exercise | null; onClose(): void }) {
+export function ExerciseDetail({ exercise, onClose }: { exercise: ExerciseDetailSubject | null; onClose(): void }) {
   const [playing, setPlaying] = useState(false);
   if (!exercise) return null;
 
@@ -44,12 +53,13 @@ export function ExerciseDetail({ exercise, onClose }: { exercise: Exercise | nul
         : <ExerciseThumbnail exercise={exercise} className="aspect-[16/9] w-full overflow-hidden rounded-[20px]" />}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Tag tone="orange">{exercise.category}</Tag>
+        {exercise.category && <Tag tone="orange">{exercise.category}</Tag>}
         {exercise.mediaKind ? <Tag tone={exercise.mediaKind === "image" ? "green" : "blue"}>{exercise.mediaKind === "image" ? "Bilde" : "Video"}</Tag> : <Tag tone="green">Uten medier</Tag>}
-        <span className="text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}</span>
+        {exercise.createdByName && <span className="text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}</span>}
       </div>
 
-      <section><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--orange)]">Beskrivelse</p><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{exercise.description}</p></section>
+      {exercise.description ? <section><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--orange)]">Beskrivelse</p><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{exercise.description}</p></section>
+        : <p className="rounded-2xl bg-[var(--paper)] px-5 py-6 text-center text-sm text-[var(--ink-soft)]">Denne aktiviteten har ingen beskrivelse.</p>}
 
       {exercise.mediaUrl && <a href={exercise.mediaUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--orange)] underline underline-offset-4">Åpne mediet i ny fane</a>}
     </div>
