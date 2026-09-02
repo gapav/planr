@@ -2,19 +2,25 @@
 
 import { KeyRound, ShieldCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useGrep } from "@/components/app-provider";
 import { Logo } from "@/components/logo";
 import { Button, Field, inputClass } from "@/components/ui";
 import { internalPath, MIN_PASSWORD_LENGTH, passwordProblem } from "@/lib/auth";
 
 function ChangePasswordForm() {
-  const { user, setPassword } = useGrep(); const router = useRouter(); const search = useSearchParams(); const [password, setNewPassword] = useState(""); const [confirmation, setConfirmation] = useState(""); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
+  const { user, authLoading, setPassword } = useGrep(); const router = useRouter(); const search = useSearchParams(); const [password, setNewPassword] = useState(""); const [confirmation, setConfirmation] = useState(""); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
   const forced = user?.mustSetPassword === true;
   // Whoever sent us here — the shell guard or the invite page — parked the
   // destination in `next` so a coach lands back on their invitation.
   const next = internalPath(search.get("next"));
   const joining = next.startsWith("/invite/");
+  // Changing a password invalidates the old refresh token, so a stale visit here
+  // can arrive with no session at all. Send them to sign in rather than leaving
+  // them on a form whose submit can only ever fail.
+  useEffect(() => {
+    if (!authLoading && !user) router.replace(`/sign-in?next=${encodeURIComponent(next)}`);
+  }, [authLoading, next, router, user]);
   async function submit(event: React.FormEvent) {
     event.preventDefault(); const problem = passwordProblem(password, confirmation);
     if (problem) { setError(problem); return; }
