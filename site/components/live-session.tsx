@@ -14,12 +14,13 @@ import {
   ListChecks,
   LockKeyhole,
   MapPin,
+  RotateCcw,
   Shuffle,
   UserRoundCheck,
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { makePairs, makeTeams } from "@/lib/grouping";
 import { getExerciseEmbedUrl, parseExerciseMedia } from "@/lib/media";
 import { blockDuration } from "@/lib/session";
@@ -89,8 +90,8 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
     }
   }
 
-  return <AppShell><div className="min-h-screen pb-16">
-    <header className="border-b border-[var(--line)] bg-[var(--surface)]/90 px-4 py-4 backdrop-blur-xl sm:px-8">
+  return <AppShell immersive><div className="min-h-screen pb-16">
+    <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]/90 px-4 py-4 backdrop-blur-xl sm:px-8">
       <div className="mx-auto flex max-w-[1180px] items-center gap-4">
         <Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[var(--line)] bg-white transition hover:border-[var(--ink)]" aria-label="Back to sessions"><ArrowLeft size={19} /></Link>
         <div className="min-w-0 flex-1"><p className="text-[11px] font-black uppercase tracking-[.14em] text-[var(--orange)]">Session setup</p><h1 className="mt-0.5 truncate text-xl font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div>
@@ -142,12 +143,40 @@ export function WorkoutSession({ sessionId }: { sessionId: string }) {
   const presentPlayers = players.filter((player) => presentIds.has(player.id));
   const groupingKind = session?.groupingKind ?? "teams";
   const groups = store.groupings.find((entry) => entry.sessionId === sessionId && entry.kind === groupingKind)?.groups ?? [];
+  const runnerTop = useRef<HTMLDivElement>(null);
+  const [activeBlockIndex, setActiveBlockIndex] = useState(0);
   const [teamsOpen, setTeamsOpen] = useState(false);
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SessionItem | null>(null);
+  const [confirmUndoStart, setConfirmUndoStart] = useState(false);
+  const [undoingStart, setUndoingStart] = useState(false);
+  const [undoStartError, setUndoStartError] = useState("");
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState("");
   const finished = session?.status === "completed";
+  const safeBlockIndex = session?.blocks.length ? Math.min(activeBlockIndex, session.blocks.length - 1) : 0;
+  const currentBlock = session?.blocks[safeBlockIndex];
+
+  function showBlock(index: number) {
+    if (!session?.blocks[index]) return;
+    setActiveBlockIndex(index);
+    setOverviewOpen(false);
+    runnerTop.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }
+
+  async function undoStart() {
+    setUndoingStart(true);
+    setUndoStartError("");
+    try {
+      await store.undoWorkoutStart(sessionId);
+      setConfirmUndoStart(false);
+    } catch (error) {
+      setUndoStartError(error instanceof Error ? error.message : "The workout start could not be undone.");
+    } finally {
+      setUndoingStart(false);
+    }
+  }
 
   async function finishWorkout() {
     setFinishing(true);
@@ -164,23 +193,38 @@ export function WorkoutSession({ sessionId }: { sessionId: string }) {
 
   if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<CalendarClock size={23} />} title="Session not found" body="It may have been removed or belong to another team." /></div></AppShell>;
 
-  return <AppShell><div className="min-h-screen pb-16">
-    <header className="sticky top-0 z-20 border-b border-white/10 bg-[var(--ink)] px-4 py-4 text-white shadow-lg sm:px-8">
-      <div className="mx-auto flex max-w-[1080px] items-center gap-3 sm:gap-4"><Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 transition hover:bg-white/15" aria-label="Back to sessions"><ArrowLeft size={19} /></Link><div className="min-w-0 flex-1">{finished ? <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-white/55"><CheckCircle2 size={13} />Workout finished</div> : <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[var(--lime)]"><span className="h-2 w-2 animate-pulse rounded-full bg-[var(--lime)]" />Workout in progress</div>}<h1 className="mt-0.5 truncate text-lg font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div><Button variant="secondary" onClick={() => setTeamsOpen(true)}><UsersRound size={17} /><span className="hidden sm:inline">Show {groupingKind === "pairs" ? "pairs" : "teams"}</span><span className="sm:hidden">Groups</span></Button>{!finished && <Button onClick={() => { setFinishError(""); setConfirmFinish(true); }}><Flag size={17} /><span className="hidden sm:inline">Finish workout</span><span className="sm:hidden">Finish</span></Button>}</div>
+  return <AppShell immersive><div className="min-h-screen pb-28 sm:pb-16">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[var(--ink)] px-3 py-3 text-white shadow-lg sm:px-8 sm:py-4">
+      <div className="mx-auto flex max-w-[1080px] items-center gap-2 sm:gap-4"><Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 transition hover:bg-white/15" aria-label="Back to sessions"><ArrowLeft size={19} /></Link><div className="min-w-0 flex-1">{finished ? <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.12em] text-white/55 sm:text-[11px]"><CheckCircle2 size={13} />Workout finished</div> : <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.12em] text-[var(--lime)] sm:text-[11px]"><span className="h-2 w-2 rounded-full bg-[var(--lime)]" />Workout in progress</div>}<h1 className="mt-0.5 truncate text-base font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div><Button variant="secondary" className="h-11 w-11 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setOverviewOpen(true)} aria-label="Session overview"><ListChecks size={17} /><span className="hidden sm:inline">Overview</span></Button><Button variant="secondary" className="h-11 w-11 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setTeamsOpen(true)} aria-label={`Show ${groupingKind === "pairs" ? "pairs" : "teams"}`}><UsersRound size={17} /><span className="hidden sm:inline">{groupingKind === "pairs" ? "Pairs" : "Teams"}</span></Button>{!finished && <Button className="hidden sm:inline-flex" onClick={() => { setFinishError(""); setConfirmFinish(true); }}><Flag size={17} />Finish workout</Button>}</div>
     </header>
 
-    <main className="mx-auto max-w-[1080px] px-4 pt-7 sm:px-8 sm:pt-9">
-      <div className="grid gap-3 sm:grid-cols-3"><InfoPill icon={<Clock3 size={18} />} label="Duration" value={minutesLabel(session.plannedDurationMinutes)} /><InfoPill icon={<MapPin size={18} />} label="Venue" value={session.venue || "Not set"} /><InfoPill icon={<UsersRound size={18} />} label="Checked in" value={`${presentPlayers.length} players`} /></div>
+    <main ref={runnerTop} className="mx-auto max-w-[1080px] scroll-mt-24 px-4 pt-5 sm:px-8 sm:pt-8">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3"><InfoPill icon={<Clock3 size={18} />} label="Duration" value={minutesLabel(session.plannedDurationMinutes)} /><InfoPill icon={<MapPin size={18} />} label="Venue" value={session.venue || "Not set"} /><InfoPill icon={<UsersRound size={18} />} label="Checked in" value={`${presentPlayers.length} players`} /></div>
 
-      <section className="mt-7 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_12px_40px_rgba(16,32,29,.07)] sm:p-7"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">Workout plan</p><h2 className="mt-1 text-3xl font-black tracking-[-.045em]">The whole session</h2>{session.objective && <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--ink-soft)]">{session.objective}</p>}{finished && <p className="mt-2 text-sm font-bold text-[var(--ink-soft)]">Finished {formatSessionDate(session.completedAt ?? null)}</p>}</div><Tag tone="neutral"><LockKeyhole size={12} className="mr-1" />{finished ? "Completed" : "Read only"}</Tag></div></section>
+      {session.blocks.length ? <>
+        <nav className="hide-scrollbar mt-5 flex gap-2 overflow-x-auto pb-1" aria-label="Session blocks">{session.blocks.map((block, index) => <button key={block.id} type="button" aria-current={index === safeBlockIndex ? "step" : undefined} onClick={() => showBlock(index)} className={cn("inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-sm font-black transition", index === safeBlockIndex ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-soft)] hover:border-[var(--ink)]")}><span className={cn("grid h-6 w-6 place-items-center rounded-lg text-[11px]", index === safeBlockIndex ? "bg-white/15" : "bg-[var(--paper-deep)] text-[var(--ink)]")}>{index + 1}</span>{block.title}</button>)}</nav>
 
-      {session.blocks.length ? <div className="mt-5 grid gap-5">{session.blocks.map((block, blockIndex) => <section key={block.id} className="overflow-hidden rounded-[26px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_8px_30px_rgba(16,32,29,.04)]"><header className="flex items-center gap-3 border-b border-[var(--line)] bg-[var(--paper-deep)] px-4 py-4 sm:px-6"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--ink)] text-xs font-black text-white">{blockIndex + 1}</span><h3 className="min-w-0 flex-1 truncate text-xl font-black tracking-[-.03em]">{block.title}</h3><Tag tone="neutral">{blockDuration(block)} min</Tag></header>{block.notes && <div className="border-b border-[var(--line)] bg-[#f8f5ed] px-4 py-3 text-sm font-semibold leading-6 text-[var(--ink-soft)] sm:px-6"><span className="mr-2 text-[10px] font-black uppercase tracking-[.11em] text-[var(--orange)]">Block note</span>{block.notes}</div>}<div className="grid gap-3 p-4 sm:p-5">{block.items.length ? block.items.map((item, itemIndex) => <button key={item.id} type="button" onClick={() => setSelectedItem(item)} className="group rounded-[20px] border border-[var(--line)] bg-white p-4 text-left transition hover:border-[var(--ink)] hover:shadow-sm sm:p-5"><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--paper-deep)] text-xs font-black">{itemIndex + 1}</span><div className="min-w-0 flex-1"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><h4 className="text-lg font-black tracking-[-.025em]">{item.title}</h4><span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span></div>{item.description && <p className="mt-2 clamp-2 text-sm leading-6 text-[var(--ink-soft)]">{item.description}</p>}{item.coachingNotes && <div className="mt-3 rounded-xl bg-[#fff0e8] px-3.5 py-3"><p className="text-[10px] font-black uppercase tracking-[.11em] text-[#9c3913]">Coaching point</p><p className="mt-1 text-sm font-semibold leading-6">{item.coachingNotes}</p></div>}<span className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-[var(--orange)]"><CirclePlay size={15} />View exercise</span></div></div></button>) : <p className="py-8 text-center text-sm text-[var(--ink-soft)]">No activities in this block.</p>}</div></section>)}</div> : <div className="mt-5"><EmptyState icon={<ListChecks size={24} />} title="No activities in this plan" body="The session is locked and has no workout blocks to display." /></div>}
+        {currentBlock && <section aria-labelledby="current-block-title" className="mt-4 overflow-hidden rounded-[26px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_12px_40px_rgba(16,32,29,.07)]"><header className="flex items-center gap-3 border-b border-[var(--line)] bg-[var(--paper-deep)] px-4 py-4 sm:px-6 sm:py-5"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--orange)] text-sm font-black text-white">{safeBlockIndex + 1}</span><div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.13em] text-[var(--ink-soft)]">Current block</p><h2 id="current-block-title" className="truncate text-2xl font-black tracking-[-.04em] sm:text-3xl">{currentBlock.title}</h2></div><Tag tone="neutral">{blockDuration(currentBlock)} min</Tag></header>{currentBlock.notes && <div className="border-b border-[var(--line)] bg-[#f8f5ed] px-4 py-3 text-sm font-semibold leading-6 text-[var(--ink-soft)] sm:px-6"><span className="mr-2 text-[10px] font-black uppercase tracking-[.11em] text-[var(--orange)]">Block note</span>{currentBlock.notes}</div>}<div className="grid gap-3 p-3 sm:p-5">{currentBlock.items.length ? currentBlock.items.map((item, itemIndex) => <button key={item.id} type="button" onClick={() => setSelectedItem(item)} className="group rounded-[20px] border border-[var(--line)] bg-white p-4 text-left transition hover:border-[var(--ink)] hover:shadow-sm sm:p-5"><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--paper-deep)] text-xs font-black">{itemIndex + 1}</span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h3 className="text-lg font-black tracking-[-.025em]">{item.title}</h3><span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span></div>{item.description && <p className="mt-2 clamp-2 text-sm leading-6 text-[var(--ink-soft)]">{item.description}</p>}{item.coachingNotes && <div className="mt-3 rounded-xl bg-[#fff0e8] px-3.5 py-3"><p className="text-[10px] font-black uppercase tracking-[.11em] text-[#9c3913]">Coaching point</p><p className="mt-1 text-sm font-semibold leading-6">{item.coachingNotes}</p></div>}<span className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-[var(--orange)]"><CirclePlay size={15} />View exercise</span></div></div></button>) : <p className="py-8 text-center text-sm text-[var(--ink-soft)]">No activities in this block.</p>}</div></section>}
 
-      {session.notes && <section className="mt-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 sm:p-6"><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">Session notes</p><p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{session.notes}</p></section>}
+        <div className="mt-5 hidden items-center justify-between gap-3 sm:flex">{safeBlockIndex === 0 && !finished ? <Button variant="secondary" onClick={() => { setUndoStartError(""); setConfirmUndoStart(true); }}><RotateCcw size={17} />Undo start</Button> : <Button variant="secondary" disabled={safeBlockIndex === 0} onClick={() => showBlock(safeBlockIndex - 1)}><ChevronLeft size={18} />Previous block</Button>}<p className="text-sm font-black text-[var(--ink-soft)]">Block {safeBlockIndex + 1} of {session.blocks.length}</p>{safeBlockIndex < session.blocks.length - 1 ? <Button onClick={() => showBlock(safeBlockIndex + 1)}>Next block<ChevronRight size={18} /></Button> : !finished ? <Button onClick={() => { setFinishError(""); setConfirmFinish(true); }}><Flag size={17} />Finish workout</Button> : <span />}</div>
+      </> : <div className="mt-5"><EmptyState icon={<ListChecks size={24} />} title="No activities in this plan" body="The session is locked and has no workout blocks to display." /></div>}
+
+      {finished && <p className="mt-5 text-center text-sm font-bold text-[var(--ink-soft)]">Finished {formatSessionDate(session.completedAt ?? null)}</p>}
     </main>
+
+    {session.blocks.length > 0 && <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-[var(--line)] bg-[var(--surface)]/95 px-3 pt-3 pb-[max(.75rem,env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(16,32,29,.1)] backdrop-blur-xl sm:hidden" aria-label="Block navigation">{safeBlockIndex === 0 && !finished ? <Button variant="secondary" className="min-w-0 px-3" onClick={() => { setUndoStartError(""); setConfirmUndoStart(true); }}><RotateCcw size={17} />Undo start</Button> : <Button variant="secondary" className="min-w-0 px-3" disabled={safeBlockIndex === 0} onClick={() => showBlock(safeBlockIndex - 1)}><ChevronLeft size={18} />Previous</Button>}<span className="px-1 text-center text-xs font-black text-[var(--ink-soft)]">{safeBlockIndex + 1} / {session.blocks.length}</span>{safeBlockIndex < session.blocks.length - 1 ? <Button className="min-w-0 px-3" onClick={() => showBlock(safeBlockIndex + 1)}>Next<ChevronRight size={18} /></Button> : !finished ? <Button className="min-w-0 px-3" onClick={() => { setFinishError(""); setConfirmFinish(true); }}><Flag size={17} />Finish</Button> : <Button className="min-w-0 px-3" variant="secondary" onClick={() => setOverviewOpen(true)}><ListChecks size={17} />Overview</Button>}</nav>}
 
     <Modal open={teamsOpen} onClose={() => setTeamsOpen(false)} title={groupingKind === "pairs" ? "Today’s pairs" : "Today’s teams"} description={`${presentPlayers.length} checked-in players · groups are locked for this workout`} size="lg">
       {groups.length ? <GroupsGrid groups={groups} players={players} /> : <div className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><UsersRound className="mx-auto text-[var(--ink-soft)]" size={25} /><p className="mt-2 text-sm font-bold">No saved groups are available.</p></div>}
+    </Modal>
+    <Modal open={overviewOpen} onClose={() => setOverviewOpen(false)} title="Session overview" description={`${session.blocks.length} ${session.blocks.length === 1 ? "block" : "blocks"} · ${minutesLabel(session.plannedDurationMinutes)}`} size="lg">
+      {session.objective && <section className="mb-4 rounded-2xl bg-[var(--paper)] p-4"><p className="text-[10px] font-black uppercase tracking-[.12em] text-[var(--orange)]">Session objective</p><p className="mt-1 text-sm font-semibold leading-6 text-[var(--ink-soft)]">{session.objective}</p></section>}
+      <div className="grid gap-3">{session.blocks.map((block, index) => <button key={block.id} type="button" onClick={() => showBlock(index)} aria-label={`Go to ${block.title}`} className={cn("rounded-2xl border p-4 text-left transition hover:border-[var(--ink)]", index === safeBlockIndex ? "border-[#83ad9c] bg-[#e8f3eb]" : "border-[var(--line)] bg-white")}><div className="flex items-center gap-3"><span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-black", index === safeBlockIndex ? "bg-[#34745f] text-white" : "bg-[var(--paper-deep)]")}>{index + 1}</span><span className="min-w-0 flex-1"><strong className="block truncate">{block.title}</strong><small className="text-[var(--ink-soft)]">{block.items.length} {block.items.length === 1 ? "activity" : "activities"}</small></span><span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{blockDuration(block)} min</span><ChevronRight size={17} className="shrink-0 text-[var(--ink-soft)]" /></div>{block.items.length > 0 && <ul className="mt-3 grid gap-1.5 pl-12 text-xs text-[var(--ink-soft)]">{block.items.map((item) => <li key={item.id} className="flex items-start justify-between gap-3"><span>{item.title}</span><span className="shrink-0 font-bold">{item.durationMinutes} min</span></li>)}</ul>}</button>)}</div>
+      {session.notes && <section className="mt-4 rounded-2xl border border-[var(--line)] p-4"><p className="text-[10px] font-black uppercase tracking-[.12em] text-[var(--orange)]">Session notes</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--ink-soft)]">{session.notes}</p></section>}
+    </Modal>
+    <Modal open={confirmUndoStart} onClose={() => { if (!undoingStart) setConfirmUndoStart(false); }} title="Undo workout start?" description="The session returns to Ready to start. Attendance and groups stay saved, so you can correct them or start again." size="sm">
+      {undoStartError && <p role="alert" className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">{undoStartError}</p>}
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="ghost" onClick={() => setConfirmUndoStart(false)} disabled={undoingStart}>Keep workout running</Button><Button onClick={() => void undoStart()} disabled={undoingStart}><RotateCcw size={17} />{undoingStart ? "Undoing…" : "Undo start"}</Button></div>
     </Modal>
     <Modal open={confirmFinish} onClose={() => { if (!finishing) setConfirmFinish(false); }} title="Finish this workout?" description="The session moves to Past. The plan, attendance and groups stay locked as a record of the session." size="sm">
       {finishError && <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">{finishError}</p>}
@@ -205,7 +249,7 @@ function GroupsGrid({ groups, players, className, compact = false }: { groups: P
 }
 
 function InfoPill({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--paper-deep)]">{icon}</span><span className="min-w-0"><small className="block text-[10px] font-black uppercase tracking-[.12em] text-[var(--ink-soft)]">{label}</small><strong className="mt-0.5 block truncate text-sm">{value}</strong></span></div>;
+  return <div className="min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-3 py-3 sm:flex sm:items-center sm:gap-3 sm:px-4"><span className="mb-2 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[var(--paper-deep)] sm:mb-0 sm:h-10 sm:w-10">{icon}</span><span className="min-w-0"><small className="block truncate text-[9px] font-black uppercase tracking-[.1em] text-[var(--ink-soft)] sm:text-[10px] sm:tracking-[.12em]">{label}</small><strong className="mt-0.5 block truncate text-xs sm:text-sm">{value}</strong></span></div>;
 }
 
 function ExerciseDetail({ item }: { item: SessionItem }) {

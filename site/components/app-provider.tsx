@@ -54,6 +54,7 @@ interface GrepContextValue {
   deleteSession(id: string): Promise<void>;
   publishSession(id: string): Promise<void>;
   startWorkout(id: string, groupingKind: SessionGroupingKind): Promise<void>;
+  undoWorkoutStart(id: string): Promise<void>;
   finishWorkout(id: string): Promise<void>;
   addBlock(sessionId: string, title: string): Promise<string>;
   updateBlock(sessionId: string, blockId: string, patch: BlockPatch): Promise<void>;
@@ -413,6 +414,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "in_progress", startedAt, groupingKind, updatedBy: user.id, updatedAt: startedAt } : session));
   }, [persist, supabase, user]);
 
+  const undoWorkoutStart = useCallback(async (id: string) => {
+    if (!user) return;
+    const updatedAt = new Date().toISOString();
+    await persist(supabase ? async () => {
+      const result = await supabase.rpc("undo_session_start", { target_session_id: id });
+      if (result.error?.code === "PGRST202") {
+        return { ...result, error: { message: "The undo-start database update is missing. Apply Supabase migration 014, then try again." } };
+      }
+      return result;
+    } : null);
+    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "published", startedAt: null, groupingKind: null, updatedBy: user.id, updatedAt } : session));
+  }, [persist, supabase, user]);
+
   const finishWorkout = useCallback(async (id: string) => {
     if (!user) return;
     const completedAt = new Date().toISOString();
@@ -477,7 +491,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
   }, [persist, supabase, user]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseVideo, discardExerciseVideo, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseVideo, discardExerciseVideo, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseVideo, discardExerciseVideo, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseVideo, discardExerciseVideo, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

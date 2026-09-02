@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(30);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -66,6 +66,18 @@ select throws_ok($$ delete from public.team_memberships where profile_id = '1000
 select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a published session with current groups can start');
 select throws_ok($$ update public.sessions set title = 'Changed while live', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'This workout is in progress and is locked', 'an in-progress plan is locked');
 select throws_ok($$ update public.session_attendance set is_present = false, updated_by = '10000000-0000-0000-0000-000000000001' where session_id = '30000000-0000-0000-0000-000000000001' and player_id = '40000000-0000-0000-0000-000000000001' $$, 'P0001', 'This workout is in progress and is locked', 'in-progress attendance is locked');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select throws_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Session not found', 'an unrelated coach cannot reset another team workout');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'an in-progress workout can return to setup');
+select is((select status::text from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'published', 'resetting marks the session ready to start');
+select ok((select started_at is null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'resetting clears when the workout started');
+select lives_ok($$ update public.sessions set title = 'Corrected after test start', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'a reset workout is editable again');
+select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a reset workout can be started again with its saved attendance and groups');
 select lives_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000001') $$, 'an in-progress workout can be finished');
 select is((select status::text from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'completed', 'finishing marks the session completed');
 select ok((select completed_at is not null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'finishing records when the workout ended');
