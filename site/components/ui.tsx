@@ -19,7 +19,7 @@ export function Modal({ open, title, description, children, onClose, size = "md"
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return <label className="grid gap-2 text-sm font-semibold"><span>{label}</span>{children}{hint && <span className="text-xs font-normal text-[var(--ink-soft)]">{hint}</span>}</label>;
+  return <label className="grid min-w-0 gap-2 text-sm font-semibold"><span>{label}</span>{children}{hint && <span className="text-xs font-normal text-[var(--ink-soft)]">{hint}</span>}</label>;
 }
 
 export const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3.5 text-[15px] text-[var(--ink)] shadow-sm transition placeholder:text-[#8b9692] hover:border-[#aaa69b] focus:border-[var(--orange)] focus:outline-none";
