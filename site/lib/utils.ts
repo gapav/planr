@@ -18,3 +18,14 @@ export function toDateTimeLocal(value: string | null) {
   const date = new Date(value); const offset = date.getTimezoneOffset();
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
 }
+
+// The session list shows the date as a calendar chip, so the pieces are
+// formatted separately rather than as one sentence. `timeZone` is only passed
+// by tests; the app always renders in the viewer's zone.
+export function sessionDateParts(startsAt: string | null, timeZone?: string) {
+  if (!startsAt) return null;
+  const date = new Date(startsAt);
+  if (Number.isNaN(date.getTime())) return null;
+  const part = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en", { ...options, ...(timeZone ? { timeZone } : {}) }).format(date);
+  return { weekday: part({ weekday: "short" }), day: part({ day: "numeric" }), month: part({ month: "short" }), time: part({ hour: "2-digit", minute: "2-digit" }) };
+}

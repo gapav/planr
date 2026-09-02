@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { internalPath, invitationUrl, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
+import { internalPath, invitationUrl, isIdentityChange, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
 
 describe("passwordProblem", () => {
   it("accepts a long enough matching password", () => {
@@ -45,5 +45,21 @@ describe("internalPath", () => {
 
   it("rejects a protocol-relative url that would leave the site", () => {
     expect(internalPath("//evil.example/steal")).toBe("/sessions");
+  });
+});
+
+describe("isIdentityChange", () => {
+  it("reloads when someone signs in or out", () => {
+    expect(isIdentityChange("SIGNED_IN")).toBe(true);
+    expect(isIdentityChange("SIGNED_OUT")).toBe(true);
+    expect(isIdentityChange("INITIAL_SESSION")).toBe(true);
+  });
+
+  it("ignores the event a password change emits, which would race the flag write", () => {
+    expect(isIdentityChange("USER_UPDATED")).toBe(false);
+  });
+
+  it("ignores routine token refreshes", () => {
+    expect(isIdentityChange("TOKEN_REFRESHED")).toBe(false);
   });
 });

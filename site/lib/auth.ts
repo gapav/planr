@@ -8,6 +8,16 @@ export function passwordProblem(password: string, confirmation: string): string 
   return null;
 }
 
+/**
+ * Whether an auth event changes *who* is signed in. Refetching on the others is
+ * not just wasted work: `updateUser` emits USER_UPDATED, and a reload racing the
+ * write that clears `must_set_password` reads the old value and puts a coach back
+ * on the password screen they just completed.
+ */
+export function isIdentityChange(event: string): boolean {
+  return event !== "TOKEN_REFRESHED" && event !== "USER_UPDATED";
+}
+
 /** Only a same-origin path is a safe post-auth redirect target. */
 export function internalPath(value: string | null | undefined, fallback = "/sessions"): string {
   return value && value.startsWith("/") && !value.startsWith("//") ? value : fallback;

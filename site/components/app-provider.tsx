@@ -2,7 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { invitationUrl } from "@/lib/auth";
+import { invitationUrl, isIdentityChange } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { resolveExerciseMedia } from "@/lib/media";
 import { minimizePlayerName } from "@/lib/roster";
@@ -181,7 +181,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.user) void loadPrivateData(data.user);
       setAuthLoading(false);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isIdentityChange(event)) return;
       setUser(session?.user ? profileFromUser(session.user) : null);
       if (session?.user) void loadPrivateData(session.user);
       setAuthLoading(false);
@@ -336,7 +337,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("sessions").update(row).eq("id", id) : null);
   }, [persist, supabase, user]);
 
-  const deleteSession = useCallback(async (id: string) => { setSessions((current) => current.filter((session) => session.id !== id)); await persist(supabase ? () => supabase.from("sessions").delete().eq("id", id) : null); }, [persist, supabase]);
+  // The DB refuses to delete a session that is in progress, so the optimistic
+  // removal is rolled back when the delete does not land.
+  const deleteSession = useCallback(async (id: string) => {
+    let removed: PlannedSession | undefined;
+    setSessions((current) => { removed = current.find((session) => session.id === id); return current.filter((session) => session.id !== id); });
+    try {
+      await persist(supabase ? () => supabase.from("sessions").delete().eq("id", id) : null);
+    } catch (error) {
+      if (removed) setSessions((current) => current.some((session) => session.id === id) ? current : [...current, removed as PlannedSession]);
+      throw error;
+    }
+  }, [persist, supabase]);
   const publishSession = useCallback(async (id: string) => { setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "published", updatedAt: new Date().toISOString() } : session)); await persist(supabase ? () => supabase.rpc("publish_session", { target_session_id: id }) : null); }, [persist, supabase]);
 
   const startWorkout = useCallback(async (id: string, groupingKind: SessionGroupingKind) => {
