@@ -12,7 +12,7 @@ export function Modal({ open, title, description, children, onClose, size = "md"
   if (!open) return null;
   return <div className="fixed inset-0 z-50 grid place-items-end bg-[#10201d]/45 p-0 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className={cn("max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-[var(--surface)] p-5 shadow-2xl soft-in sm:rounded-[28px] sm:p-7", size === "sm" && "sm:max-w-md", size === "md" && "sm:max-w-xl", size === "lg" && "sm:max-w-3xl")}>
-      <div className="mb-6 flex items-start justify-between gap-5"><div><h2 id="modal-title" className="text-2xl font-black tracking-[-.04em]">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">{description}</p>}</div><Button variant="ghost" size="sm" aria-label="Close dialog" onClick={onClose} className="-mr-2"><X size={19} /></Button></div>
+      <div className="mb-6 flex items-start justify-between gap-5"><div><h2 id="modal-title" className="text-2xl font-black tracking-[-.04em]">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">{description}</p>}</div><Button variant="ghost" size="sm" aria-label="Lukk dialogboksen" onClick={onClose} className="-mr-2"><X size={19} /></Button></div>
       {children}
     </section>
   </div>;

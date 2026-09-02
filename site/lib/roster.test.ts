@@ -29,6 +29,6 @@ describe("Hoopit roster parsing", () => {
   });
 
   it("explains an unrecognized export", () => {
-    expect(() => parseRosterRows([["Klubb", "Lag"], ["Fjordvik", "Senior"]])).toThrow("Could not find a name column");
+    expect(() => parseRosterRows([["Klubb", "Lag"], ["Fjordvik", "Senior"]])).toThrow("Fant ingen navnekolonne");
   });
 });

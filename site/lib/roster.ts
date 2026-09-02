@@ -50,7 +50,7 @@ export interface RosterParseResult {
 
 export function parseRosterRows(rows: readonly (readonly unknown[])[]): RosterParseResult {
   const headerIndex = rows.slice(0, 15).findIndex((row) => hasNameColumn(mapColumns(row)));
-  if (headerIndex < 0) throw new Error("Could not find a name column. Use ‘Navn’, or ‘Fornavn’ and ‘Etternavn’.");
+  if (headerIndex < 0) throw new Error("Fant ingen navnekolonne. Bruk «Navn», eller «Fornavn» og «Etternavn».");
   const columns = mapColumns(rows[headerIndex]);
   const players: TeamPlayerInput[] = [];
   const seen = new Set<string>();
@@ -68,6 +68,6 @@ export function parseRosterRows(rows: readonly (readonly unknown[])[]): RosterPa
     seen.add(key);
     players.push({ fullName, jerseyNumber });
   }
-  if (!players.length) throw new Error("The spreadsheet did not contain any player rows.");
+  if (!players.length) throw new Error("Regnearket inneholdt ingen spillerrader.");
   return { players, skippedRows, headerRow: headerIndex + 1 };
 }

@@ -8,11 +8,11 @@ describe("exercise filtering", () => {
   });
 
   it("searches names and descriptions without case sensitivity", () => {
-    expect(filterExercises(demoExercises, "DEFENSIVE FOOTWORK", null).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
+    expect(filterExercises(demoExercises, "FOTARBEID I FORSVAR", null).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
   });
 
   it("combines category and text filters", () => {
-    expect(filterExercises(demoExercises, "wing", "Angrep").map((exercise) => exercise.id)).toEqual(["exercise-4"]);
-    expect(filterExercises(demoExercises, "wing", "Forsvar")).toEqual([]);
+    expect(filterExercises(demoExercises, "kant", "Angrep").map((exercise) => exercise.id)).toEqual(["exercise-4"]);
+    expect(filterExercises(demoExercises, "kant", "Forsvar")).toEqual([]);
   });
 });

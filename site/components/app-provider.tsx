@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { invitationUrl, isIdentityChange, seedProfile } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
-import { resolveExerciseMedia, validateExerciseVideo } from "@/lib/media";
+import { resolveExerciseMedia, validateExerciseMediaUpload } from "@/lib/media";
 import { minimizePlayerName } from "@/lib/roster";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -38,8 +38,8 @@ interface GrepContextValue {
   signOut(): Promise<void>;
   addExercise(input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">): Promise<void>;
   updateExercise(id: string, input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">): Promise<void>;
-  uploadExerciseVideo(file: File): Promise<string>;
-  discardExerciseVideo(publicUrl: string): Promise<void>;
+  uploadExerciseMedia(file: File): Promise<string>;
+  discardExerciseMedia(publicUrl: string): Promise<void>;
   archiveExercise(id: string): Promise<void>;
   createTeam(name: string): Promise<string>;
   refreshWorkspace(): Promise<void>;
@@ -54,6 +54,7 @@ interface GrepContextValue {
   deleteSession(id: string): Promise<void>;
   publishSession(id: string): Promise<void>;
   startWorkout(id: string, groupingKind: SessionGroupingKind): Promise<void>;
+  startWorkoutWithoutSetup(id: string): Promise<void>;
   undoWorkoutStart(id: string): Promise<void>;
   finishWorkout(id: string): Promise<void>;
   addBlock(sessionId: string, title: string): Promise<string>;
@@ -71,6 +72,36 @@ interface GrepContextValue {
 }
 
 const GrepContext = createContext<GrepContextValue | null>(null);
+
+const serverMessageTranslations: Record<string, string> = {
+  "Authentication required": "Du må være logget inn",
+  "Team name is too short": "Lagnavnet er for kort",
+  "Invitation not found": "Invitasjonen ble ikke funnet",
+  "Invitation has already been used": "Invitasjonen er allerede brukt",
+  "Invitation has expired": "Invitasjonen har utløpt",
+  "Invitation belongs to another email address": "Invitasjonen tilhører en annen e-postadresse",
+  "Session not found": "Økten ble ikke funnet",
+  "Add a session title": "Legg til en økttittel",
+  "Choose a date and time": "Velg dato og klokkeslett",
+  "Add at least one block": "Legg til minst én bolk",
+  "Block list is incomplete": "Listen over bolker er ufullstendig",
+  "Block not found": "Bolken ble ikke funnet",
+  "Item list is incomplete": "Listen over aktiviteter er ufullstendig",
+  "Every team must keep at least one admin": "Hvert lag må ha minst én administrator",
+  "Only a published session can be started": "Bare en publisert økt kan startes",
+  "Generate groups before starting the workout": "Generer grupper før økten startes",
+  "Attendance changed — generate groups again": "Oppmøtet er endret — generer grupper på nytt",
+  "This workout is in progress and is locked": "Denne økten pågår og er låst",
+  "Only a workout in progress can be finished": "Bare en pågående økt kan avsluttes",
+  "This workout is finished and is locked": "Denne økten er avsluttet og låst",
+  "Only a workout in progress can be reset": "Bare en pågående økt kan tilbakestilles",
+};
+
+const norwegianServerMessages = new Set(Object.values(serverMessageTranslations));
+
+function norwegianServerMessage(message: string, fallback = "Handlingen kunne ikke fullføres.") {
+  return serverMessageTranslations[message] ?? (norwegianServerMessages.has(message) || /[æøå]/i.test(message) ? message : fallback);
+}
 
 interface DbExercise {
   id: string; name: string; description: string; category: Exercise["category"]; media_url: string | null; media_kind: Exercise["mediaKind"];
@@ -94,7 +125,7 @@ interface DbGrouping { session_id: string; kind: SessionGroupingKind; groups: Pl
 
 function mapExercise(row: DbExercise): Exercise {
   return { id: row.id, name: row.name, description: row.description, category: row.category, mediaUrl: row.media_url, mediaKind: row.media_kind,
-    thumbnailUrl: row.thumbnail_url, createdBy: row.created_by, createdByName: row.profiles?.full_name ?? "Community coach",
+    thumbnailUrl: row.thumbnail_url, createdBy: row.created_by, createdByName: row.profiles?.full_name ?? "Trenerfellesskapet",
     archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 function mapSession(row: DbSession): PlannedSession {
@@ -112,7 +143,7 @@ function mapSession(row: DbSession): PlannedSession {
     })) };
 }
 function profileFromUser(user: User): Profile {
-  const fullName = String(user.user_metadata.full_name ?? user.email?.split("@")[0] ?? "Coach");
+  const fullName = String(user.user_metadata.full_name ?? user.email?.split("@")[0] ?? "Trener");
   return { id: user.id, email: user.email ?? "", fullName, initials: initials(fullName), color: "#f0642e" };
 }
 function mapPlayer(row: DbPlayer): TeamPlayer {
@@ -156,7 +187,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (profileRow) setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: "#f0642e", isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password });
     // This row carries `must_set_password`, so losing it silently means a coach
     // signs in looking fine and skips the forced password change. Say so.
-    else if (profileError) setNotice(`Could not load your profile: ${profileError.message}`);
+    else if (profileError) setNotice("Profilen din kunne ikke lastes.");
     if (memberships) {
       type MembershipRow = { team_id: string; profile_id: string; role: TeamRole; teams: { id: string; name: string } | null; profiles: { id: string; email: string; full_name: string; avatar_url: string | null } | null };
       const grouped = new Map<string, Team>();
@@ -208,28 +239,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!operation) { setSaveState("saved"); return; }
     setSaveState("saving");
     const { error } = await operation();
-    if (error) { setSaveState("error"); setNotice(error.message); throw new Error(error.message); }
+    if (error) { const message = norwegianServerMessage(error.message); setSaveState("error"); setNotice(message); throw new Error(message); }
     setSaveState("saved");
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    if (!supabase) { setUser(demoUser); setNotice("Preview mode is active — any password opens the demo workspace."); return; }
+    if (!supabase) { setUser(demoUser); setNotice("Demomodus er aktiv — valgfritt passord åpner demoarbeidsområdet."); return; }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    if (error) throw new Error(norwegianServerMessage(error.message, "Feil e-postadresse eller passord."));
   }, [supabase]);
 
   // Accounts are created by an admin with a temporary password, so the first
   // sign-in is routed here before anything else in the app is reachable.
   const setPassword = useCallback(async (password: string) => {
-    if (!supabase) { setUser((current) => current && { ...current, mustSetPassword: false }); setNotice("Preview mode — no password was changed."); return; }
+    if (!supabase) { setUser((current) => current && { ...current, mustSetPassword: false }); setNotice("Demomodus — passordet ble ikke endret."); return; }
     // `updateUser` reads the session straight out of the cookie store and only
     // says "Auth session missing!" when it has gone, which strands a coach on a
     // form that can never succeed. Drop the stale local user instead so the page
     // sends them back to sign in with the password they were given.
     const { data: current } = await supabase.auth.getSession();
-    if (!current.session) { setUser(null); throw new Error("Your sign-in expired. Sign in again with the password your admin gave you, then choose your own."); }
+    if (!current.session) { setUser(null); throw new Error("Innloggingen din har utløpt. Logg inn på nytt med passordet du fikk av lagadministratoren, og velg deretter ditt eget."); }
     const { data, error } = await supabase.auth.updateUser({ password });
-    if (error) throw error;
+    if (error) throw new Error(norwegianServerMessage(error.message, "Passordet kunne ikke endres."));
     setUser((current) => current && { ...current, mustSetPassword: false });
     await persist(() => supabase.from("profiles").update({ must_set_password: false }).eq("id", data.user.id));
   }, [persist, supabase]);
@@ -240,7 +271,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const addExercise = useCallback(async (input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">) => {
-    if (!user) throw new Error("Sign in to add an exercise");
+    if (!user) throw new Error("Logg inn for å legge til en øvelse");
     const media = input.mediaUrl ? await resolveExerciseMedia(input.mediaUrl) : { kind: null, thumbnailUrl: null }; const now = new Date().toISOString(); const id = makeUuid();
     const exercise: Exercise = { id, ...input, mediaKind: media.kind, thumbnailUrl: media.thumbnailUrl, createdBy: user.id, createdByName: user.fullName, archivedAt: null, createdAt: now, updatedAt: now };
     setExercises((current) => [exercise, ...current]);
@@ -264,17 +295,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [exercises, persist, supabase]);
 
-  const uploadExerciseVideo = useCallback(async (file: File) => {
-    validateExerciseVideo(file);
-    if (!user) throw new Error("Sign in to upload a video");
-    if (!supabase) throw new Error("Video uploads require a connected Supabase project");
-    const path = `${user.id}/${makeUuid()}.mp4`;
-    const { error } = await supabase.storage.from("exercise-videos").upload(path, file, { cacheControl: "31536000", contentType: "video/mp4", upsert: false });
-    if (error) throw new Error(error.message);
+  const uploadExerciseMedia = useCallback(async (file: File) => {
+    const media = validateExerciseMediaUpload(file);
+    if (!user) throw new Error("Logg inn for å laste opp et bilde eller en video");
+    if (!supabase) throw new Error("Medieopplasting krever et tilkoblet Supabase-prosjekt");
+    const path = `${user.id}/${makeUuid()}.${media.extension}`;
+    const { error } = await supabase.storage.from("exercise-videos").upload(path, file, { cacheControl: "31536000", contentType: media.contentType, upsert: false });
+    if (error) throw new Error(norwegianServerMessage(error.message, "Mediet kunne ikke lastes opp."));
     return supabase.storage.from("exercise-videos").getPublicUrl(path).data.publicUrl;
   }, [supabase, user]);
 
-  const discardExerciseVideo = useCallback(async (publicUrl: string) => {
+  const discardExerciseMedia = useCallback(async (publicUrl: string) => {
     if (!supabase || !user) return;
     const marker = "/storage/v1/object/public/exercise-videos/";
     const url = new URL(publicUrl);
@@ -283,7 +314,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const path = decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
     if (!path.startsWith(`${user.id}/`)) return;
     const { error } = await supabase.storage.from("exercise-videos").remove([path]);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(norwegianServerMessage(error.message, "Mediet kunne ikke fjernes."));
   }, [supabase, user]);
 
   const archiveExercise = useCallback(async (id: string) => {
@@ -301,10 +332,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [loadPrivateData, supabase, user]);
 
   const createTeam = useCallback(async (name: string) => {
-    if (!user) throw new Error("Sign in to create a team");
+    if (!user) throw new Error("Logg inn for å opprette et lag");
     if (supabase) {
       const { data, error } = await supabase.rpc("create_team", { team_name: name });
-      if (error) throw error; await refreshWorkspace();
+      if (error) throw new Error(norwegianServerMessage(error.message, "Laget kunne ikke opprettes.")); await refreshWorkspace();
       return String(data);
     }
     const id = makeUuid(); setTeams((current) => [...current, { id, name, shortName: name, role: "admin", members: [user] }]); setCurrentTeamId(id); return id;
@@ -313,7 +344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Nothing is emailed: the admin copies the returned link and sends it from
   // their own mailbox. accept_team_invitation still binds it to this address.
   const inviteMember = useCallback(async (email: string, role: TeamRole) => {
-    if (!currentTeam || !user) throw new Error("Select a team before inviting a coach");
+    if (!currentTeam || !user) throw new Error("Velg et lag før du inviterer en trener");
     const id = makeUuid(); const token = makeUuid(); const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
     setInvitations((current) => [...current, { id, teamId: currentTeam.id, email: email.toLowerCase(), role, token, expiresAt, acceptedAt: null }]);
     try {
@@ -343,7 +374,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [currentTeam, persist, supabase]);
 
   const importPlayers = useCallback(async (input: TeamPlayerInput[]) => {
-    if (!currentTeam) throw new Error("Choose a team first");
+    if (!currentTeam) throw new Error("Velg et lag først");
     const teamPlayers = players.filter((player) => player.teamId === currentTeam.id);
     const now = new Date().toISOString();
     let added = 0; let updated = 0;
@@ -363,7 +394,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPlayers((current) => [...current.filter((player) => player.teamId !== currentTeam.id || !importedIds.has(player.id)), ...imported].sort((a, b) => a.fullName.localeCompare(b.fullName, "nb")));
     const rows = imported.map((player) => ({ id: player.id, team_id: player.teamId, full_name: player.fullName, jersey_number: player.jerseyNumber }));
     await persist(supabase ? () => supabase.from("team_players").upsert(rows, { onConflict: "id" }) : null);
-    setNotice(`${added} player${added === 1 ? "" : "s"} added${updated ? `, ${updated} updated` : ""}.`);
+    setNotice(`${added} ${added === 1 ? "spiller" : "spillere"} lagt til${updated ? `, ${updated} oppdatert` : ""}.`);
     return { added, updated };
   }, [currentTeam, persist, players, supabase]);
 
@@ -374,8 +405,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [persist, supabase]);
 
   const createSession = useCallback(async () => {
-    if (!currentTeam || !user) throw new Error("Choose a team first"); const id = makeUuid(); const now = new Date().toISOString();
-    const session: PlannedSession = { id, teamId: currentTeam.id, title: "Untitled session", startsAt: null, venue: "", plannedDurationMinutes: 90, objective: "", notes: "", status: "draft", blocks: [], createdBy: user.id, updatedBy: user.id, createdAt: now, updatedAt: now };
+    if (!currentTeam || !user) throw new Error("Velg et lag først"); const id = makeUuid(); const now = new Date().toISOString();
+    const session: PlannedSession = { id, teamId: currentTeam.id, title: "Økt uten tittel", startsAt: null, venue: "", plannedDurationMinutes: 90, objective: "", notes: "", status: "draft", blocks: [], createdBy: user.id, updatedBy: user.id, createdAt: now, updatedAt: now };
     setSessions((current) => [session, ...current]);
     await persist(supabase ? () => supabase.from("sessions").insert({ id, team_id: currentTeam.id, title: session.title, planned_duration_minutes: 90, created_by: user.id, updated_by: user.id }) : null);
     return id;
@@ -407,11 +438,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? async () => {
       const result = await supabase.rpc("start_session", { target_session_id: id, selected_grouping_kind: groupingKind });
       if (result.error?.code === "PGRST202") {
-        return { ...result, error: { message: "The session workflow database update is missing. Apply Supabase migrations 006 and 007, then try again." } };
+        return { ...result, error: { message: "Databaseoppdateringen for øktflyten mangler. Kjør Supabase-migrering 006 og 007, og prøv på nytt." } };
       }
       return result;
     } : null);
     setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "in_progress", startedAt, groupingKind, updatedBy: user.id, updatedAt: startedAt } : session));
+  }, [persist, supabase, user]);
+
+  const startWorkoutWithoutSetup = useCallback(async (id: string) => {
+    if (!user) return;
+    const startedAt = new Date().toISOString();
+    await persist(supabase ? async () => {
+      const result = await supabase.rpc("start_session_without_setup", { target_session_id: id });
+      if (result.error?.code === "PGRST202") {
+        return { ...result, error: { message: "Databaseoppdateringen for å hoppe over oppsett mangler. Kjør Supabase-migrering 016, og prøv på nytt." } };
+      }
+      return result;
+    } : null);
+    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "in_progress", startedAt, groupingKind: null, updatedBy: user.id, updatedAt: startedAt } : session));
   }, [persist, supabase, user]);
 
   const undoWorkoutStart = useCallback(async (id: string) => {
@@ -420,7 +464,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? async () => {
       const result = await supabase.rpc("undo_session_start", { target_session_id: id });
       if (result.error?.code === "PGRST202") {
-        return { ...result, error: { message: "The undo-start database update is missing. Apply Supabase migration 014, then try again." } };
+        return { ...result, error: { message: "Databaseoppdateringen for å angre øktstart mangler. Kjør Supabase-migrering 014, og prøv på nytt." } };
       }
       return result;
     } : null);
@@ -433,7 +477,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? async () => {
       const result = await supabase.rpc("finish_session", { target_session_id: id });
       if (result.error?.code === "PGRST202") {
-        return { ...result, error: { message: "The finish workout database update is missing. Apply Supabase migrations 009 and 010, then try again." } };
+        return { ...result, error: { message: "Databaseoppdateringen for å avslutte økter mangler. Kjør Supabase-migrering 009 og 010, og prøv på nytt." } };
       }
       return result;
     } : null);
@@ -464,7 +508,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addCustomItem = useCallback(async (sessionId: string, blockId: string) => {
     const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = block?.items.length ?? 0;
-    const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "New activity", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes: 10, coachingNotes: "", position, updatedBy: user?.id ?? demoUser.id };
+    const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "Ny aktivitet", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes: 10, coachingNotes: "", position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
     await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: "custom", title: item.title, duration_minutes: 10, position, updated_by: user?.id }) : null);
   }, [persist, sessions, supabase, user]);
@@ -491,7 +535,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
   }, [persist, supabase, user]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseVideo, discardExerciseVideo, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseVideo, discardExerciseVideo, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

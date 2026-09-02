@@ -11,11 +11,11 @@ describe("passwordProblem", () => {
   });
 
   it("rejects whitespace padded to the minimum length", () => {
-    expect(passwordProblem(" ".repeat(MIN_PASSWORD_LENGTH), " ".repeat(MIN_PASSWORD_LENGTH))).toBe("Use at least one non-space character.");
+    expect(passwordProblem(" ".repeat(MIN_PASSWORD_LENGTH), " ".repeat(MIN_PASSWORD_LENGTH))).toBe("Bruk minst ett tegn som ikke er et mellomrom.");
   });
 
   it("rejects a mismatched confirmation", () => {
-    expect(passwordProblem("correct horse battery", "correct horse batteru")).toBe("The two passwords do not match.");
+    expect(passwordProblem("correct horse battery", "correct horse batteru")).toBe("Passordene er ikke like.");
   });
 });
 

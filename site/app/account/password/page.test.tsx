@@ -13,9 +13,9 @@ vi.mock("next/link", () => ({
 }));
 
 function submit(password: string) {
-  fireEvent.change(screen.getByLabelText("New password"), { target: { value: password } });
-  fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: password } });
-  fireEvent.submit(screen.getByRole("button", { name: "Save password" }));
+  fireEvent.change(screen.getByLabelText("Nytt passord"), { target: { value: password } });
+  fireEvent.change(screen.getByLabelText("Bekreft nytt passord"), { target: { value: password } });
+  fireEvent.submit(screen.getByRole("button", { name: "Lagre passord" }));
 }
 
 describe("forced password change", () => {
@@ -26,7 +26,7 @@ describe("forced password change", () => {
     mocks.useGrep.mockReturnValue({ user: { ...demoUser, mustSetPassword: true }, authLoading: false, setPassword });
 
     render(<ChangePasswordPage />);
-    expect(screen.getByRole("heading", { name: "Choose your password" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Velg passord" })).toBeInTheDocument();
     submit("correct horse battery");
 
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/invite/abc"));
@@ -34,12 +34,12 @@ describe("forced password change", () => {
   });
 
   it("surfaces why the save failed instead of navigating away", async () => {
-    mocks.useGrep.mockReturnValue({ user: { ...demoUser, mustSetPassword: true }, authLoading: false, setPassword: vi.fn().mockRejectedValue(new Error("Your sign-in expired.")) });
+    mocks.useGrep.mockReturnValue({ user: { ...demoUser, mustSetPassword: true }, authLoading: false, setPassword: vi.fn().mockRejectedValue(new Error("Innloggingen din har utløpt.")) });
 
     render(<ChangePasswordPage />);
     submit("correct horse battery");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your sign-in expired.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Innloggingen din har utløpt.");
     expect(mocks.replace).not.toHaveBeenCalled();
   });
 

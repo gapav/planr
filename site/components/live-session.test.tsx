@@ -16,8 +16,8 @@ vi.mock("next/link", () => ({
 const liveSession = { ...demoSessions[0], status: "in_progress" as const, groupingKind: "teams" as const };
 const attendance = demoPlayers.slice(0, 4).map((player) => ({ sessionId: liveSession.id, playerId: player.id, isPresent: true, checkedInAt: null }));
 const groupings = [{ sessionId: liveSession.id, kind: "teams" as const, generatedAt: "2026-09-02T12:00:00.000Z", groups: [
-  { id: "group-1", label: "Team 1", playerIds: [demoPlayers[0].id, demoPlayers[1].id] },
-  { id: "group-2", label: "Team 2", playerIds: [demoPlayers[2].id, demoPlayers[3].id] },
+  { id: "group-1", label: "Lag 1", playerIds: [demoPlayers[0].id, demoPlayers[1].id] },
+  { id: "group-2", label: "Lag 2", playerIds: [demoPlayers[2].id, demoPlayers[3].id] },
 ] }];
 
 describe("live session runner", () => {
@@ -29,53 +29,53 @@ describe("live session runner", () => {
   it("shows one complete block and moves directly between blocks", () => {
     render(<WorkoutSession sessionId={liveSession.id} />);
 
-    expect(screen.getByRole("heading", { name: "Warm-up" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Shoulder activation circle" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Three-lane transition" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Oppvarming" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sirkel for skulderaktivering" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Tre rekker i kontring" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Next block" }));
+    fireEvent.click(screen.getByRole("button", { name: "Neste bolk" }));
 
-    expect(screen.getByRole("heading", { name: "Main block" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Three-lane transition" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Shoulder activation circle" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hoveddel" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Tre rekker i kontring" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sirkel for skulderaktivering" })).not.toBeInTheDocument();
   });
 
   it("opens the full timeline and jumps to a selected block", () => {
     render(<WorkoutSession sessionId={liveSession.id} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Session overview" }));
-    const overview = screen.getByRole("dialog", { name: "Session overview" });
-    expect(within(overview).getByText("Three-lane transition")).toBeInTheDocument();
-    expect(within(overview).getByText("6 vs 6 conditioned game")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Øktoversikt" }));
+    const overview = screen.getByRole("dialog", { name: "Øktoversikt" });
+    expect(within(overview).getByText("Tre rekker i kontring")).toBeInTheDocument();
+    expect(within(overview).getByText("6 mot 6 med betingelser")).toBeInTheDocument();
 
-    fireEvent.click(within(overview).getByRole("button", { name: "Go to Game" }));
+    fireEvent.click(within(overview).getByRole("button", { name: "Gå til Spill" }));
 
-    expect(screen.queryByRole("dialog", { name: "Session overview" })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Game" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "6 vs 6 conditioned game" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Øktoversikt" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Spill" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "6 mot 6 med betingelser" })).toBeInTheDocument();
   });
 
   it("keeps the saved teams one tap away", () => {
     render(<WorkoutSession sessionId={liveSession.id} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Show teams" }));
+    fireEvent.click(screen.getByRole("button", { name: "Vis lag" }));
 
-    const teams = screen.getByRole("dialog", { name: "Today’s teams" });
-    expect(within(teams).getByText("Team 1")).toBeInTheDocument();
+    const teams = screen.getByRole("dialog", { name: "Dagens lag" });
+    expect(within(teams).getByText("Lag 1")).toBeInTheDocument();
     expect(within(teams).getByText(demoPlayers[0].fullName)).toBeInTheDocument();
   });
 
   it("offers to undo the workout start instead of going back from the first block", async () => {
     render(<WorkoutSession sessionId={liveSession.id} />);
 
-    expect(screen.queryByRole("button", { name: "Previous block" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "Undo start" })[0]);
+    expect(screen.queryByRole("button", { name: "Forrige bolk" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Angre start" })[0]);
 
-    const confirmation = screen.getByRole("dialog", { name: "Undo workout start?" });
-    expect(within(confirmation).getByText(/Attendance and groups stay saved/)).toBeInTheDocument();
-    fireEvent.click(within(confirmation).getByRole("button", { name: "Undo start" }));
+    const confirmation = screen.getByRole("dialog", { name: "Vil du angre starten av økten?" });
+    expect(within(confirmation).getByText(/Oppmøte og grupper beholdes/)).toBeInTheDocument();
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Angre start" }));
 
     await waitFor(() => expect(undoWorkoutStart).toHaveBeenCalledWith(liveSession.id));
-    expect(screen.queryByRole("dialog", { name: "Undo workout start?" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Vil du angre starten av økten?" })).not.toBeInTheDocument();
   });
 });

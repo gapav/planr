@@ -6,11 +6,11 @@ interface VimeoOEmbedResponse {
 
 export async function GET(request: Request) {
   const mediaUrl = new URL(request.url).searchParams.get("url");
-  if (!mediaUrl) return Response.json({ error: "A media URL is required" }, { status: 400 });
+  if (!mediaUrl) return Response.json({ error: "En medielenke er påkrevd" }, { status: 400 });
 
   try {
     if (parseExerciseMedia(mediaUrl).kind !== "vimeo") {
-      return Response.json({ error: "Only Vimeo thumbnails are resolved here" }, { status: 400 });
+      return Response.json({ error: "Her kan bare miniatyrbilder fra Vimeo hentes" }, { status: 400 });
     }
 
     const oEmbedUrl = new URL("https://vimeo.com/api/oembed.json");

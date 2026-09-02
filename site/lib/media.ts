@@ -1,24 +1,35 @@
 import type { ExerciseMediaKind } from "./types";
 
-export const MAX_EXERCISE_VIDEO_BYTES = 5 * 1024 * 1024;
+export const MAX_EXERCISE_MEDIA_BYTES = 5 * 1024 * 1024;
 
-export function validateExerciseVideo(file: Pick<File, "name" | "size" | "type">): void {
-  if (!file.name.toLowerCase().endsWith(".mp4") || file.type !== "video/mp4") {
-    throw new Error("Choose an MP4 video file");
+const exerciseUploadTypes = {
+  "video/mp4": { extensions: ["mp4"], extension: "mp4" },
+  "image/jpeg": { extensions: ["jpg", "jpeg"], extension: "jpg" },
+  "image/png": { extensions: ["png"], extension: "png" },
+  "image/webp": { extensions: ["webp"], extension: "webp" },
+} as const;
+
+export function validateExerciseMediaUpload(file: Pick<File, "name" | "size" | "type">): { contentType: keyof typeof exerciseUploadTypes; extension: string } {
+  const type = file.type as keyof typeof exerciseUploadTypes;
+  const config = exerciseUploadTypes[type];
+  const extension = file.name.toLowerCase().split(".").at(-1) ?? "";
+  if (!config || !(config.extensions as readonly string[]).includes(extension)) {
+    throw new Error("Velg en MP4-, JPG-, PNG- eller WebP-fil");
   }
-  if (file.size > MAX_EXERCISE_VIDEO_BYTES) {
-    throw new Error("Video must be 5 MB or smaller");
+  if (file.size > MAX_EXERCISE_MEDIA_BYTES) {
+    throw new Error("Filen må være 5 MB eller mindre");
   }
+  return { contentType: type, extension: config.extension };
 }
 
 export interface ParsedMedia { kind: ExerciseMediaKind; thumbnailUrl: string | null; }
 export function parseExerciseMedia(rawUrl: string): ParsedMedia {
   const url = new URL(rawUrl);
-  if (url.protocol !== "https:") throw new Error("Use a secure HTTPS URL");
+  if (url.protocol !== "https:") throw new Error("Bruk en sikker HTTPS-lenke");
   const host = url.hostname.replace(/^www\./, "");
   if (host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com")) {
     const id = host === "youtu.be" ? url.pathname.split("/").filter(Boolean)[0] : url.searchParams.get("v") ?? url.pathname.split("/").filter(Boolean).at(-1);
-    if (!id) throw new Error("That YouTube URL is missing a video ID");
+    if (!id) throw new Error("YouTube-lenken mangler en video-ID");
     return { kind: "youtube", thumbnailUrl: `https://img.youtube.com/vi/${id}/hqdefault.jpg` };
   }
   if (host === "vimeo.com" || host.endsWith(".vimeo.com")) return { kind: "vimeo", thumbnailUrl: null };

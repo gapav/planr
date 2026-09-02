@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(34);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -15,6 +15,10 @@ reset role;
 
 insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)
 select '30000000-0000-0000-0000-000000000001', id, 'Live workflow test', now(), 'published', created_by, created_by
+from public.teams where created_by = '10000000-0000-0000-0000-000000000001';
+
+insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)
+select '30000000-0000-0000-0000-000000000002', id, 'Skip setup workflow test', now(), 'published', created_by, created_by
 from public.teams where created_by = '10000000-0000-0000-0000-000000000001';
 
 insert into public.team_players (id, team_id, full_name)
@@ -57,22 +61,26 @@ select throws_ok($$ insert into storage.objects (bucket_id, name) values ('exerc
 select lives_ok($$ delete from storage.objects where bucket_id = 'exercise-videos' and name = '10000000-0000-0000-0000-000000000003/own-video.mp4' $$, 'a coach can discard their own uploaded video');
 reset role;
 
-select is((select file_size_limit from storage.buckets where id = 'exercise-videos'), 5242880::bigint, 'exercise video uploads are capped at 5 MB');
+select is((select file_size_limit from storage.buckets where id = 'exercise-videos'), 5242880::bigint, 'exercise media uploads are capped at 5 MB');
+select is((select allowed_mime_types from storage.buckets where id = 'exercise-videos'), array['video/mp4', 'image/jpeg', 'image/png', 'image/webp']::text[], 'exercise uploads allow MP4 and supported image formats');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok($$ update public.exercises set description = 'An updated public exercise description.' where id = '20000000-0000-0000-0000-000000000001' $$, 'the exercise author can edit their exercise');
-select throws_ok($$ delete from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'P0001', 'Every team must keep at least one admin', 'the last team admin cannot be removed');
+select throws_ok($$ delete from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'P0001', 'Hvert lag må ha minst én administrator', 'the last team admin cannot be removed');
 select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a published session with current groups can start');
-select throws_ok($$ update public.sessions set title = 'Changed while live', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'This workout is in progress and is locked', 'an in-progress plan is locked');
-select throws_ok($$ update public.session_attendance set is_present = false, updated_by = '10000000-0000-0000-0000-000000000001' where session_id = '30000000-0000-0000-0000-000000000001' and player_id = '40000000-0000-0000-0000-000000000001' $$, 'P0001', 'This workout is in progress and is locked', 'in-progress attendance is locked');
+select throws_ok($$ update public.sessions set title = 'Changed while live', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'an in-progress plan is locked');
+select throws_ok($$ update public.session_attendance set is_present = false, updated_by = '10000000-0000-0000-0000-000000000001' where session_id = '30000000-0000-0000-0000-000000000001' and player_id = '40000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'in-progress attendance is locked');
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
-select throws_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Session not found', 'an unrelated coach cannot reset another team workout');
+select throws_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reset another team workout');
+select throws_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot skip setup for another team workout');
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'a published workout can start without attendance or groups');
+select is((select status::text || ':' || coalesce(grouping_kind::text, 'none') from public.sessions where id = '30000000-0000-0000-0000-000000000002'), 'in_progress:none', 'skipping setup starts the workout without a grouping kind');
 select lives_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'an in-progress workout can return to setup');
 select is((select status::text from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'published', 'resetting marks the session ready to start');
 select ok((select started_at is null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'resetting clears when the workout started');
@@ -81,8 +89,8 @@ select lives_ok($$ select public.start_session('30000000-0000-0000-0000-00000000
 select lives_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000001') $$, 'an in-progress workout can be finished');
 select is((select status::text from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'completed', 'finishing marks the session completed');
 select ok((select completed_at is not null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'finishing records when the workout ended');
-select throws_ok($$ update public.sessions set title = 'Changed after the whistle', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'This workout is finished and is locked', 'a finished plan stays locked');
-select throws_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Only a workout in progress can be finished', 'a finished workout cannot be finished twice');
+select throws_ok($$ update public.sessions set title = 'Changed after the whistle', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten er avsluttet og låst', 'a finished plan stays locked');
+select throws_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Bare en pågående økt kan avsluttes', 'a finished workout cannot be finished twice');
 select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000001' $$, 'a finished session can still be deleted with its attendance and groups');
 
 -- 202609020011 narrowed the profiles update grant. profiles_update_self still

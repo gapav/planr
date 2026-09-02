@@ -11,9 +11,9 @@ export function deriveSessionTab(session: PlannedSession, now = new Date()): Ses
 }
 export function validatePublish(session: PlannedSession) {
   const issues: string[] = [];
-  if (!session.title.trim()) issues.push("Add a session title");
-  if (!session.startsAt) issues.push("Choose a date and time");
-  if (session.plannedDurationMinutes <= 0) issues.push("Set a planned duration");
-  if (!session.blocks.length) issues.push("Add at least one block");
+  if (!session.title.trim()) issues.push("Legg til en økttittel");
+  if (!session.startsAt) issues.push("Velg dato og klokkeslett");
+  if (session.plannedDurationMinutes <= 0) issues.push("Angi planlagt varighet");
+  if (!session.blocks.length) issues.push("Legg til minst én bolk");
   return issues;
 }

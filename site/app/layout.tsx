@@ -7,25 +7,25 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://grep.app";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Grep — Handball sessions, built together",
+    default: "Grep — Håndballøkter, planlagt sammen",
     template: "%s · Grep",
   },
   description:
-    "Plan better handball sessions with a shared exercise library and live team collaboration.",
+    "Planlegg bedre håndballøkter med en felles øvelsesbank og direkte samarbeid i trenerteamet.",
   applicationName: "Grep",
   appleWebApp: { capable: true, title: "Grep", statusBarStyle: "default" },
   openGraph: {
-    title: "Grep — Handball sessions, built together",
+    title: "Grep — Håndballøkter, planlagt sammen",
     description:
-      "A shared exercise library and collaborative session planner for handball coaches.",
+      "En felles øvelsesbank og samarbeidsbasert øktplanlegger for håndballtrenere.",
     type: "website",
     images: ["/og.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Grep — Handball sessions, built together",
+    title: "Grep — Håndballøkter, planlagt sammen",
     description:
-      "A shared exercise library and collaborative session planner for handball coaches.",
+      "En felles øvelsesbank og samarbeidsbasert øktplanlegger for håndballtrenere.",
     images: ["/og.png"],
   },
 };
@@ -37,7 +37,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
+    <html lang="nb">
       <body>
         <AppProvider>{children}</AppProvider>
       </body>

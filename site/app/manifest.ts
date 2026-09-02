@@ -5,9 +5,9 @@ import type { MetadataRoute } from "next";
 // and needs the separate app/apple-icon.png for its home-screen tile.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Grep — Handball sessions, built together",
+    name: "Grep — Håndballøkter, planlagt sammen",
     short_name: "Grep",
-    description: "Plan handball sessions with a shared exercise library and live team collaboration.",
+    description: "Planlegg håndballøkter med en felles øvelsesbank og direkte samarbeid i trenerteamet.",
     start_url: "/sessions",
     scope: "/",
     display: "standalone",

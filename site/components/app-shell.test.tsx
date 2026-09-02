@@ -38,8 +38,8 @@ describe("AppShell navigation", () => {
     render(<AppShell publicPage><div>Exercise library</div></AppShell>);
 
     expect(screen.getByRole("complementary")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Exercises" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.getByRole("link", { name: "Øvelsesbank" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Skjul sidemenyen" }));
     expect(state.setSidebarCollapsed).toHaveBeenCalledWith(true);
   });
 
@@ -50,7 +50,7 @@ describe("AppShell navigation", () => {
 
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveTextContent("Exercise library");
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Logg inn" })).toBeInTheDocument();
   });
 
   it("sends a coach still on a temporary password to the password page", () => {

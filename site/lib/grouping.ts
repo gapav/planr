@@ -12,7 +12,7 @@ export function shufflePlayers(players: TeamPlayer[], random = Math.random) {
 export function makeTeams(players: TeamPlayer[], requestedTeamCount: number, random = Math.random): PlayerGroup[] {
   if (players.length < 2) return [];
   const teamCount = Math.min(players.length, Math.max(2, Math.floor(requestedTeamCount)));
-  const groups = Array.from({ length: teamCount }, (_, index) => ({ id: `team-${index + 1}`, label: `Team ${index + 1}`, playerIds: [] as string[] }));
+  const groups = Array.from({ length: teamCount }, (_, index) => ({ id: `team-${index + 1}`, label: `Lag ${index + 1}`, playerIds: [] as string[] }));
   shufflePlayers(players, random).forEach((player, index) => groups[index % teamCount].playerIds.push(player.id));
   return groups;
 }
@@ -27,7 +27,7 @@ export function makePairs(players: TeamPlayer[], random = Math.random): PlayerGr
       groups.push({ id: `pair-${groups.length + 1}`, label: `Trio ${groups.length + 1}`, playerIds: shuffled.slice(index).map((player) => player.id) });
       break;
     }
-    groups.push({ id: `pair-${groups.length + 1}`, label: `Pair ${groups.length + 1}`, playerIds: shuffled.slice(index, index + 2).map((player) => player.id) });
+    groups.push({ id: `pair-${groups.length + 1}`, label: `Par ${groups.length + 1}`, playerIds: shuffled.slice(index, index + 2).map((player) => player.id) });
   }
   return groups;
 }

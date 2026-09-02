@@ -7,11 +7,11 @@ export function makeUuid() { return crypto.randomUUID(); }
 export function minutesLabel(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60); const rest = minutes % 60;
-  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+  return rest ? `${hours} t ${rest} min` : `${hours} t`;
 }
 export function formatSessionDate(startsAt: string | null) {
-  if (!startsAt) return "Date not set";
-  return new Intl.DateTimeFormat("en", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(startsAt));
+  if (!startsAt) return "Dato ikke satt";
+  return new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(startsAt));
 }
 export function toDateTimeLocal(value: string | null) {
   if (!value) return "";
@@ -26,6 +26,6 @@ export function sessionDateParts(startsAt: string | null, timeZone?: string) {
   if (!startsAt) return null;
   const date = new Date(startsAt);
   if (Number.isNaN(date.getTime())) return null;
-  const part = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en", { ...options, ...(timeZone ? { timeZone } : {}) }).format(date);
+  const part = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("nb-NO", { ...options, ...(timeZone ? { timeZone } : {}) }).format(date);
   return { weekday: part({ weekday: "short" }), day: part({ day: "numeric" }), month: part({ month: "short" }), time: part({ hour: "2-digit", minute: "2-digit" }) };
 }

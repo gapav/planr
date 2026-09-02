@@ -25,7 +25,7 @@ describe("session calculations", () => {
   });
   it("requires the core publishing details", () => {
     const empty = { ...demoSessions[0], title: "", startsAt: null, plannedDurationMinutes: 0, blocks: [] };
-    expect(validatePublish(empty)).toEqual(["Add a session title", "Choose a date and time", "Set a planned duration", "Add at least one block"]);
+    expect(validatePublish(empty)).toEqual(["Legg til en økttittel", "Velg dato og klokkeslett", "Angi planlagt varighet", "Legg til minst én bolk"]);
     expect(validatePublish(demoSessions[0])).toEqual([]);
   });
 });
