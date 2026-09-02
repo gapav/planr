@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { parseRosterRows, type RosterParseResult } from "@/lib/roster";
 import type { TeamPlayer } from "@/lib/types";
 import { useGrep } from "./app-provider";
+import { HelpTip } from "./help-tip";
 import { Button, Modal, Tag } from "./ui";
 
 export function RosterManager({ players, canManage }: { players: TeamPlayer[]; canManage: boolean }) {
@@ -42,7 +43,7 @@ export function RosterManager({ players, canManage }: { players: TeamPlayer[]; c
   return <>
     <section className="mt-6 overflow-hidden rounded-[26px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_8px_30px_rgba(16,32,29,.04)]">
       <div className="flex flex-col justify-between gap-4 border-b border-[var(--line)] p-5 sm:flex-row sm:items-center sm:p-6">
-        <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#dcecdf] text-[#285546]"><UsersRound size={21} /></span><div><h2 className="text-xl font-black">Spillerliste</h2><p className="mt-1 text-sm text-[var(--ink-soft)]">{players.length} {players.length === 1 ? "spiller" : "spillere"} tilgjengelig for oppmøteregistrering</p></div></div>
+        <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#dcecdf] text-[#285546]"><UsersRound size={21} /></span><div><div className="flex items-center gap-2"><h2 className="text-xl font-black">Spillerliste</h2><HelpTip topic="roster-import" /></div><p className="mt-1 text-sm text-[var(--ink-soft)]">{players.length} {players.length === 1 ? "spiller" : "spillere"} tilgjengelig for oppmøteregistrering</p></div></div>
         {canManage && <Button variant="secondary" onClick={() => setOpen(true)}><Upload size={17} />Importer fra Hoopit</Button>}
       </div>
       {players.length ? <div className="divide-y divide-[var(--line)]">{players.map((player) => <div key={player.id} className="grid grid-cols-[minmax(0,1fr)_90px_40px] items-center gap-3 px-5 py-3.5 sm:px-6">

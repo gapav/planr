@@ -29,6 +29,7 @@ import type { PlayerGroup, SessionGroupingKind, SessionItem, TeamPlayer } from "
 import { cn, formatSessionDate, minutesLabel } from "@/lib/utils";
 import { AppShell } from "./app-shell";
 import { useGrep } from "./app-provider";
+import { HelpTip } from "./help-tip";
 import { TeamCrest } from "./team-crest";
 import { Button, EmptyState, Modal, Tag } from "./ui";
 
@@ -119,6 +120,7 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
         {sessionTeam && <TeamCrest team={sessionTeam} />}
         <div className="min-w-0 flex-1"><p className="text-[11px] font-black uppercase tracking-[.14em] text-[var(--orange)]">Klargjør økten</p><h1 className="mt-0.5 truncate text-xl font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div>
         <Tag tone={session.status === "published" ? "green" : "orange"}>{session.status === "published" ? "Klar til start" : "Utkast"}</Tag>
+        <HelpTip topic="session-day" />
       </div>
     </header>
 
