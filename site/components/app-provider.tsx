@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { invitationUrl, isIdentityChange, seedProfile } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
-import { resolveExerciseMedia } from "@/lib/media";
+import { resolveExerciseMedia, validateExerciseVideo } from "@/lib/media";
 import { minimizePlayerName } from "@/lib/roster";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -38,6 +38,8 @@ interface GrepContextValue {
   signOut(): Promise<void>;
   addExercise(input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">): Promise<void>;
   updateExercise(id: string, input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">): Promise<void>;
+  uploadExerciseVideo(file: File): Promise<string>;
+  discardExerciseVideo(publicUrl: string): Promise<void>;
   archiveExercise(id: string): Promise<void>;
   createTeam(name: string): Promise<string>;
   refreshWorkspace(): Promise<void>;
@@ -250,10 +252,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [persist, supabase, user]);
 
   const updateExercise = useCallback(async (id: string, input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">) => {
+    const previous = exercises.find((exercise) => exercise.id === id);
     const media = input.mediaUrl ? await resolveExerciseMedia(input.mediaUrl) : { kind: null, thumbnailUrl: null }; const updatedAt = new Date().toISOString();
     setExercises((current) => current.map((exercise) => exercise.id === id ? { ...exercise, ...input, mediaKind: media.kind, thumbnailUrl: media.thumbnailUrl, updatedAt } : exercise));
-    await persist(supabase ? () => supabase.from("exercises").update({ name: input.name, description: input.description, category: input.category, media_url: input.mediaUrl, media_kind: media.kind, thumbnail_url: media.thumbnailUrl }).eq("id", id) : null);
-  }, [persist, supabase]);
+    try {
+      await persist(supabase ? () => supabase.from("exercises").update({ name: input.name, description: input.description, category: input.category, media_url: input.mediaUrl, media_kind: media.kind, thumbnail_url: media.thumbnailUrl }).eq("id", id) : null);
+    } catch (error) {
+      if (previous) setExercises((current) => current.map((exercise) => exercise.id === id ? previous : exercise));
+      throw error;
+    }
+  }, [exercises, persist, supabase]);
+
+  const uploadExerciseVideo = useCallback(async (file: File) => {
+    validateExerciseVideo(file);
+    if (!user) throw new Error("Sign in to upload a video");
+    if (!supabase) throw new Error("Video uploads require a connected Supabase project");
+    const path = `${user.id}/${makeUuid()}.mp4`;
+    const { error } = await supabase.storage.from("exercise-videos").upload(path, file, { cacheControl: "31536000", contentType: "video/mp4", upsert: false });
+    if (error) throw new Error(error.message);
+    return supabase.storage.from("exercise-videos").getPublicUrl(path).data.publicUrl;
+  }, [supabase, user]);
+
+  const discardExerciseVideo = useCallback(async (publicUrl: string) => {
+    if (!supabase || !user) return;
+    const marker = "/storage/v1/object/public/exercise-videos/";
+    const url = new URL(publicUrl);
+    const markerIndex = url.pathname.indexOf(marker);
+    if (markerIndex < 0) return;
+    const path = decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
+    if (!path.startsWith(`${user.id}/`)) return;
+    const { error } = await supabase.storage.from("exercise-videos").remove([path]);
+    if (error) throw new Error(error.message);
+  }, [supabase, user]);
 
   const archiveExercise = useCallback(async (id: string) => {
     const archivedAt = new Date().toISOString(); setExercises((current) => current.filter((exercise) => exercise.id !== id));
@@ -447,7 +477,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
   }, [persist, supabase, user]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseVideo, discardExerciseVideo, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseVideo, discardExerciseVideo, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

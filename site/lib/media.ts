@@ -1,4 +1,16 @@
 import type { ExerciseMediaKind } from "./types";
+
+export const MAX_EXERCISE_VIDEO_BYTES = 5 * 1024 * 1024;
+
+export function validateExerciseVideo(file: Pick<File, "name" | "size" | "type">): void {
+  if (!file.name.toLowerCase().endsWith(".mp4") || file.type !== "video/mp4") {
+    throw new Error("Choose an MP4 video file");
+  }
+  if (file.size > MAX_EXERCISE_VIDEO_BYTES) {
+    throw new Error("Video must be 5 MB or smaller");
+  }
+}
+
 export interface ParsedMedia { kind: ExerciseMediaKind; thumbnailUrl: string | null; }
 export function parseExerciseMedia(rawUrl: string): ParsedMedia {
   const url = new URL(rawUrl);

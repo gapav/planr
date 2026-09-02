@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getExerciseEmbedUrl, parseExerciseMedia } from "./media";
+import { getExerciseEmbedUrl, MAX_EXERCISE_VIDEO_BYTES, parseExerciseMedia, validateExerciseVideo } from "./media";
 
 describe("exercise media", () => {
   it("extracts YouTube thumbnails", () => {
@@ -24,5 +24,12 @@ describe("exercise media", () => {
     expect(getExerciseEmbedUrl("https://youtu.be/dQw4w9WgXcQ")).toBe("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ");
     expect(getExerciseEmbedUrl("https://vimeo.com/123456?share=copy")).toBe("https://player.vimeo.com/video/123456");
     expect(getExerciseEmbedUrl("https://example.com/exercise.jpg")).toBeNull();
+  });
+  it("accepts MP4 uploads up to and including 5 MB", () => {
+    expect(() => validateExerciseVideo({ name: "shooting-drill.mp4", size: MAX_EXERCISE_VIDEO_BYTES, type: "video/mp4" })).not.toThrow();
+  });
+  it("rejects oversized or non-MP4 uploads", () => {
+    expect(() => validateExerciseVideo({ name: "shooting-drill.mp4", size: MAX_EXERCISE_VIDEO_BYTES + 1, type: "video/mp4" })).toThrow("5 MB");
+    expect(() => validateExerciseVideo({ name: "shooting-drill.mov", size: 1024, type: "video/quicktime" })).toThrow("MP4");
   });
 });

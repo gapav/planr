@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(24);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -52,7 +52,12 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
 select is((select count(*)::integer from public.teams), 0, 'an unrelated coach cannot read another team');
 select is((select count(*)::integer from public.sessions), 0, 'an unrelated coach cannot read another team session');
+select lives_ok($$ insert into storage.objects (bucket_id, name) values ('exercise-videos', '10000000-0000-0000-0000-000000000003/own-video.mp4') $$, 'a coach can upload into their own video folder');
+select throws_ok($$ insert into storage.objects (bucket_id, name) values ('exercise-videos', '10000000-0000-0000-0000-000000000001/other-video.mp4') $$, '42501', null, 'a coach cannot upload into another coach folder');
+select lives_ok($$ delete from storage.objects where bucket_id = 'exercise-videos' and name = '10000000-0000-0000-0000-000000000003/own-video.mp4' $$, 'a coach can discard their own uploaded video');
 reset role;
+
+select is((select file_size_limit from storage.buckets where id = 'exercise-videos'), 5242880::bigint, 'exercise video uploads are capped at 5 MB');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
