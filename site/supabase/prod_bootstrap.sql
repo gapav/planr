@@ -782,5 +782,16 @@ update public.profiles set must_set_password = false;
 revoke update on public.profiles from authenticated;
 grant update (full_name, avatar_url, must_set_password) on public.profiles to authenticated;
 
--- Make the new schema visible to PostgREST immediately after a manual SQL Editor run.
+-- ============================================================
+-- 202609020012_shooting_skills_exercise_category.sql
+-- ============================================================
+alter table public.exercises
+  drop constraint if exists exercises_category_check;
+
+alter table public.exercises
+  add constraint exercises_category_check
+  check (category in ('Forsvar', 'Angrep', 'Skuddferdigheter', 'Målvakt', 'Fysisk', 'Leker'));
+
+-- Make the updated constraint visible to PostgREST immediately when this
+-- migration is run directly in the hosted Supabase SQL editor.
 notify pgrst, 'reload schema';

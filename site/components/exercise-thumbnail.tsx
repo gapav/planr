@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const categoryPlaceholder: Record<ExerciseCategory, { emoji: string; background: string }> = {
   Forsvar: { emoji: "🛡️", background: "bg-[#eaf5fb]" },
   Angrep: { emoji: "⚡", background: "bg-[#fff0e8]" },
+  Skuddferdigheter: { emoji: "🥅", background: "bg-[#fceef4]" },
   Målvakt: { emoji: "🧤", background: "bg-[#f5effb]" },
   Fysisk: { emoji: "💪", background: "bg-[#edf7f0]" },
   Leker: { emoji: "🎯", background: "bg-[#fff7dc]" },

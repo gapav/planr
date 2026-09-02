@@ -9,6 +9,8 @@ describe("ExerciseCategoryFilter", () => {
     expect(screen.getByRole("button", { name: "Forsvar" })).toHaveClass("bg-[#eaf5fb]");
     expect(screen.getByRole("button", { name: "Forsvar" })).toHaveTextContent("🛡️");
     expect(screen.getByRole("button", { name: "Angrep" })).toHaveClass("bg-[#c44d24]", "text-white");
+    expect(screen.getByRole("button", { name: "Skuddferdigheter" })).toHaveClass("bg-[#fceef4]");
+    expect(screen.getByRole("button", { name: "Skuddferdigheter" })).toHaveTextContent("🥅");
     expect(screen.getByRole("button", { name: "Målvakt" })).toHaveClass("bg-[#f5effb]");
     expect(screen.getByRole("button", { name: "Fysisk" })).toHaveClass("bg-[#edf7f0]");
     expect(screen.getByRole("button", { name: "Leker" })).toHaveClass("bg-[#fff7dc]");
