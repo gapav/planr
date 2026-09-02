@@ -1,10 +1,10 @@
 "use client";
 
-import type { User } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { invitationUrl, isIdentityChange, seedProfile } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
-import { resolveExerciseMedia, validateExerciseMediaUpload } from "@/lib/media";
+import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { norwegianServerMessage } from "@/lib/server-messages";
 import { minimizePlayerName } from "@/lib/roster";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -15,6 +15,21 @@ import { initials, makeUuid } from "@/lib/utils";
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
 type BlockPatch = Partial<Pick<SessionBlock, "title" | "notes">>;
 type ItemPatch = Partial<Pick<SessionItem, "title" | "description" | "durationMinutes" | "coachingNotes">>;
+
+const TEAM_LOGO_BUCKET = "team-logos";
+
+// Only remove an object this team actually owns: `logo_url` is a plain column,
+// so a crafted URL must not turn into a delete against someone else's folder.
+async function removeTeamLogo(supabase: SupabaseClient, teamId: string, publicUrl: string) {
+  const marker = `/storage/v1/object/public/${TEAM_LOGO_BUCKET}/`;
+  let pathname: string;
+  try { pathname = new URL(publicUrl).pathname; } catch { return; }
+  const markerIndex = pathname.indexOf(marker);
+  if (markerIndex < 0) return;
+  const path = decodeURIComponent(pathname.slice(markerIndex + marker.length));
+  if (!path.startsWith(`${teamId}/`)) return;
+  await supabase.storage.from(TEAM_LOGO_BUCKET).remove([path]);
+}
 
 interface GrepContextValue {
   user: Profile | null;
@@ -43,6 +58,7 @@ interface GrepContextValue {
   discardExerciseMedia(publicUrl: string): Promise<void>;
   archiveExercise(id: string): Promise<void>;
   createTeam(name: string): Promise<string>;
+  saveTeamLogo(file: File | null): Promise<void>;
   refreshWorkspace(): Promise<void>;
   inviteMember(email: string, role: TeamRole): Promise<string>;
   revokeInvitation(id: string): Promise<void>;
@@ -147,7 +163,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loadPrivateData = useCallback(async (authUser: User) => {
     if (!supabase) return;
     const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: attendanceRows }, { data: groupingRows }] = await Promise.all([
-      supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name), profiles(id, email, full_name, avatar_url)"),
+      supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name, logo_url), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
       supabase.from("profiles").select("id, email, full_name, is_global_admin, must_set_password").eq("id", authUser.id).single(),
@@ -160,11 +176,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // signs in looking fine and skips the forced password change. Say so.
     else if (profileError) setNotice("Profilen din kunne ikke lastes.");
     if (memberships) {
-      type MembershipRow = { team_id: string; profile_id: string; role: TeamRole; teams: { id: string; name: string } | null; profiles: { id: string; email: string; full_name: string; avatar_url: string | null } | null };
+      type MembershipRow = { team_id: string; profile_id: string; role: TeamRole; teams: { id: string; name: string; logo_url: string | null } | null; profiles: { id: string; email: string; full_name: string; avatar_url: string | null } | null };
       const grouped = new Map<string, Team>();
       for (const membership of memberships as unknown as MembershipRow[]) {
         if (!membership.teams) continue;
-        const existing = grouped.get(membership.team_id) ?? { id: membership.team_id, name: membership.teams.name, shortName: membership.teams.name.split("—").at(-1)?.trim() ?? membership.teams.name, role: "coach" as TeamRole, members: [] };
+        const existing = grouped.get(membership.team_id) ?? { id: membership.team_id, name: membership.teams.name, shortName: membership.teams.name.split("—").at(-1)?.trim() ?? membership.teams.name, logoUrl: membership.teams.logo_url, role: "coach" as TeamRole, members: [] };
         if (membership.profile_id === authUser.id) existing.role = membership.role;
         if (membership.profiles && !existing.members.some((member) => member.id === membership.profile_id)) {
           existing.members.push({ id: membership.profiles.id, email: membership.profiles.email, fullName: membership.profiles.full_name, initials: initials(membership.profiles.full_name), color: membership.profile_id === authUser.id ? "#f0642e" : "#477b70", teamRole: membership.role });
@@ -309,8 +325,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (error) throw new Error(norwegianServerMessage(error.message, "Laget kunne ikke opprettes.")); await refreshWorkspace();
       return String(data);
     }
-    const id = makeUuid(); setTeams((current) => [...current, { id, name, shortName: name, role: "admin", members: [user] }]); setCurrentTeamId(id); return id;
+    const id = makeUuid(); setTeams((current) => [...current, { id, name, shortName: name, logoUrl: null, role: "admin", members: [user] }]); setCurrentTeamId(id); return id;
   }, [refreshWorkspace, supabase, user]);
+
+  // Upload, repoint the team row, then drop the file the team no longer uses.
+  // The path starts with the team id because the storage policy reads that
+  // folder to decide whether the caller administers this team. `null` clears
+  // the logo. Any leftover object is a stale file in a public bucket, never a
+  // broken logo, so cleanup failures stay quiet.
+  const saveTeamLogo = useCallback(async (file: File | null) => {
+    if (!currentTeam) throw new Error("Velg et lag før du endrer klubblogoen");
+    if (currentTeam.role !== "admin") throw new Error("Bare en lagadministrator kan endre klubblogoen");
+    const teamId = currentTeam.id; const previousUrl = currentTeam.logoUrl;
+    let logoUrl: string | null = null;
+    if (file) {
+      const logo = validateTeamLogoUpload(file);
+      if (!supabase) logoUrl = URL.createObjectURL(file);
+      else {
+        const path = `${teamId}/${makeUuid()}.${logo.extension}`;
+        const { error } = await supabase.storage.from(TEAM_LOGO_BUCKET).upload(path, file, { cacheControl: "31536000", contentType: logo.contentType, upsert: false });
+        if (error) throw new Error(norwegianServerMessage(error.message, "Klubblogoen kunne ikke lastes opp."));
+        logoUrl = supabase.storage.from(TEAM_LOGO_BUCKET).getPublicUrl(path).data.publicUrl;
+      }
+    }
+    setTeams((current) => current.map((team) => team.id === teamId ? { ...team, logoUrl } : team));
+    try {
+      await persist(supabase ? () => supabase.from("teams").update({ logo_url: logoUrl }).eq("id", teamId) : null);
+    } catch (error) {
+      setTeams((current) => current.map((team) => team.id === teamId ? { ...team, logoUrl: previousUrl } : team));
+      if (supabase && logoUrl) await removeTeamLogo(supabase, teamId, logoUrl).catch(() => undefined);
+      throw error;
+    }
+    if (supabase && previousUrl) await removeTeamLogo(supabase, teamId, previousUrl).catch(() => undefined);
+    else if (!supabase && previousUrl?.startsWith("blob:")) URL.revokeObjectURL(previousUrl);
+  }, [currentTeam, persist, supabase]);
 
   // Nothing is emailed: the admin copies the returned link and sends it from
   // their own mailbox. accept_team_invitation still binds it to this address.
@@ -506,7 +554,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
   }, [persist, supabase, user]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

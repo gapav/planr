@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { demoPlayers, demoSessions } from "@/lib/demo-data";
+import { demoPlayers, demoSessions, demoTeams } from "@/lib/demo-data";
 import { WorkoutSession } from "./live-session";
 
 const mocks = vi.hoisted(() => ({ useGrep: vi.fn() }));
@@ -23,7 +23,7 @@ const groupings = [{ sessionId: liveSession.id, kind: "teams" as const, generate
 describe("live session runner", () => {
   beforeEach(() => {
     undoWorkoutStart.mockReset().mockResolvedValue(undefined);
-    mocks.useGrep.mockReturnValue({ sessions: [liveSession], players: demoPlayers, attendance, groupings, undoWorkoutStart, finishWorkout: vi.fn() });
+    mocks.useGrep.mockReturnValue({ sessions: [liveSession], teams: demoTeams, players: demoPlayers, attendance, groupings, undoWorkoutStart, finishWorkout: vi.fn() });
   });
 
   it("shows one complete block and moves directly between blocks", () => {

@@ -22,6 +22,30 @@ export function validateExerciseMediaUpload(file: Pick<File, "name" | "size" | "
   return { contentType: type, extension: config.extension };
 }
 
+export const MAX_TEAM_LOGO_BYTES = 2 * 1024 * 1024;
+
+const teamLogoUploadTypes = {
+  "image/jpeg": { extensions: ["jpg", "jpeg"], extension: "jpg" },
+  "image/png": { extensions: ["png"], extension: "png" },
+  "image/webp": { extensions: ["webp"], extension: "webp" },
+} as const;
+
+// A club logo is only ever an image, and it is served from a public bucket, so
+// SVG stays out: it would let an admin upload script into an origin the app
+// loads images from.
+export function validateTeamLogoUpload(file: Pick<File, "name" | "size" | "type">): { contentType: keyof typeof teamLogoUploadTypes; extension: string } {
+  const type = file.type as keyof typeof teamLogoUploadTypes;
+  const config = teamLogoUploadTypes[type];
+  const extension = file.name.toLowerCase().split(".").at(-1) ?? "";
+  if (!config || !(config.extensions as readonly string[]).includes(extension)) {
+    throw new Error("Velg en JPG-, PNG- eller WebP-fil");
+  }
+  if (file.size > MAX_TEAM_LOGO_BYTES) {
+    throw new Error("Logoen må være 2 MB eller mindre");
+  }
+  return { contentType: type, extension: config.extension };
+}
+
 export interface ParsedMedia { kind: ExerciseMediaKind; thumbnailUrl: string | null; }
 export function parseExerciseMedia(rawUrl: string): ParsedMedia {
   const url = new URL(rawUrl);

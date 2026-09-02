@@ -9,7 +9,7 @@ export type SaveState = "saved" | "saving" | "offline" | "error";
 export type SessionGroupingKind = "teams" | "pairs";
 
 export interface Profile { id: string; email: string; fullName: string; initials: string; color: string; isGlobalAdmin?: boolean; mustSetPassword?: boolean; teamRole?: TeamRole; }
-export interface Team { id: string; name: string; shortName: string; role: TeamRole; members: Profile[]; }
+export interface Team { id: string; name: string; shortName: string; logoUrl: string | null; role: TeamRole; members: Profile[]; }
 export interface TeamPlayer {
   id: string; teamId: string; fullName: string; jerseyNumber: string | null; createdAt: string; updatedAt: string;
 }

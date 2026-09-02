@@ -11,8 +11,8 @@ export const demoProfiles: Profile[] = [
 ];
 
 export const demoTeams: Team[] = [
-  { id: "team-senior", name: "Fjordvik HK — Senior kvinner", shortName: "Senior kvinner", role: "admin", members: demoProfiles },
-  { id: "team-u16", name: "Fjordvik HK — Jenter 16", shortName: "Jenter 16", role: "coach", members: [demoUser, demoProfiles[1]] },
+  { id: "team-senior", name: "Fjordvik HK — Senior kvinner", shortName: "Senior kvinner", logoUrl: null, role: "admin", members: demoProfiles },
+  { id: "team-u16", name: "Fjordvik HK — Jenter 16", shortName: "Jenter 16", logoUrl: null, role: "coach", members: [demoUser, demoProfiles[1]] },
 ];
 
 const playerNames = ["Ada L.", "Mina B.", "Thea S.", "Selma V.", "Lea N.", "Ingrid D.", "Sara H.", "Oda S.", "Emma L.", "Nora E.", "Live A.", "Tuva M."];

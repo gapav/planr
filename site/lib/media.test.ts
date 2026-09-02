@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getExerciseEmbedUrl, MAX_EXERCISE_MEDIA_BYTES, parseExerciseMedia, validateExerciseMediaUpload } from "./media";
+import { getExerciseEmbedUrl, MAX_EXERCISE_MEDIA_BYTES, MAX_TEAM_LOGO_BYTES, parseExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "./media";
 
 describe("exercise media", () => {
   it("extracts YouTube thumbnails", () => {
@@ -35,5 +35,21 @@ describe("exercise media", () => {
     expect(() => validateExerciseMediaUpload({ name: "diagram.jpg", size: MAX_EXERCISE_MEDIA_BYTES + 1, type: "image/jpeg" })).toThrow("5 MB");
     expect(() => validateExerciseMediaUpload({ name: "shooting-drill.mov", size: 1024, type: "video/quicktime" })).toThrow("MP4");
     expect(() => validateExerciseMediaUpload({ name: "unsafe.svg", size: 1024, type: "image/svg+xml" })).toThrow("JPG");
+  });
+});
+
+describe("team logo uploads", () => {
+  it("accepts supported image formats up to and including 2 MB", () => {
+    expect(validateTeamLogoUpload({ name: "klubb.png", size: MAX_TEAM_LOGO_BYTES, type: "image/png" })).toEqual({ contentType: "image/png", extension: "png" });
+    expect(validateTeamLogoUpload({ name: "klubb.JPEG", size: 1024, type: "image/jpeg" })).toEqual({ contentType: "image/jpeg", extension: "jpg" });
+    expect(validateTeamLogoUpload({ name: "klubb.webp", size: 1024, type: "image/webp" })).toEqual({ contentType: "image/webp", extension: "webp" });
+  });
+  it("rejects oversized logos, video and SVG", () => {
+    expect(() => validateTeamLogoUpload({ name: "klubb.png", size: MAX_TEAM_LOGO_BYTES + 1, type: "image/png" })).toThrow("2 MB");
+    expect(() => validateTeamLogoUpload({ name: "klubb.mp4", size: 1024, type: "video/mp4" })).toThrow("JPG");
+    expect(() => validateTeamLogoUpload({ name: "klubb.svg", size: 1024, type: "image/svg+xml" })).toThrow("JPG");
+  });
+  it("rejects a file whose extension contradicts its type", () => {
+    expect(() => validateTeamLogoUpload({ name: "klubb.png", size: 1024, type: "image/jpeg" })).toThrow("JPG");
   });
 });

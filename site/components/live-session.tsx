@@ -29,6 +29,7 @@ import type { PlayerGroup, SessionGroupingKind, SessionItem, TeamPlayer } from "
 import { cn, formatSessionDate, minutesLabel } from "@/lib/utils";
 import { AppShell } from "./app-shell";
 import { useGrep } from "./app-provider";
+import { TeamCrest } from "./team-crest";
 import { Button, EmptyState, Modal, Tag } from "./ui";
 
 type SetupStep = "check-in" | "groups";
@@ -46,6 +47,9 @@ export function LiveSession({ sessionId }: { sessionId: string }) {
 function SessionSetup({ sessionId }: { sessionId: string }) {
   const store = useGrep();
   const session = store.sessions.find((entry) => entry.id === sessionId)!;
+  // The plan's own team, not whichever team the sidebar has selected: a coach
+  // can open a session link for a team they are not currently switched to.
+  const sessionTeam = store.teams.find((team) => team.id === session.teamId);
   const players = useMemo(() => store.players.filter((player) => player.teamId === session.teamId).sort((a, b) => a.fullName.localeCompare(b.fullName, "nb")), [session.teamId, store.players]);
   const presentIds = useMemo(() => new Set(store.attendance.filter((entry) => entry.sessionId === sessionId && entry.isPresent).map((entry) => entry.playerId)), [sessionId, store.attendance]);
   const presentPlayers = players.filter((player) => presentIds.has(player.id));
@@ -112,6 +116,7 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
     <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]/90 px-4 py-4 backdrop-blur-xl sm:px-8">
       <div className="mx-auto flex max-w-[1180px] items-center gap-4">
         <Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[var(--line)] bg-white transition hover:border-[var(--ink)]" aria-label="Tilbake til øktkalenderen"><ArrowLeft size={19} /></Link>
+        {sessionTeam && <TeamCrest team={sessionTeam} />}
         <div className="min-w-0 flex-1"><p className="text-[11px] font-black uppercase tracking-[.14em] text-[var(--orange)]">Klargjør økten</p><h1 className="mt-0.5 truncate text-xl font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div>
         <Tag tone={session.status === "published" ? "green" : "orange"}>{session.status === "published" ? "Klar til start" : "Utkast"}</Tag>
       </div>
@@ -162,6 +167,9 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
 export function WorkoutSession({ sessionId }: { sessionId: string }) {
   const store = useGrep();
   const session = store.sessions.find((entry) => entry.id === sessionId);
+  // The plan's own team, not whichever team the sidebar has selected: a coach
+  // can open a session link for a team they are not currently switched to.
+  const sessionTeam = store.teams.find((team) => team.id === session?.teamId);
   const players = useMemo(() => store.players.filter((player) => player.teamId === session?.teamId).sort((a, b) => a.fullName.localeCompare(b.fullName, "nb")), [session?.teamId, store.players]);
   const presentIds = useMemo(() => new Set(store.attendance.filter((entry) => entry.sessionId === sessionId && entry.isPresent).map((entry) => entry.playerId)), [sessionId, store.attendance]);
   const presentPlayers = players.filter((player) => presentIds.has(player.id));
@@ -220,7 +228,7 @@ export function WorkoutSession({ sessionId }: { sessionId: string }) {
 
   return <AppShell immersive><div className="min-h-screen pb-28 sm:pb-16">
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[var(--ink)] px-3 py-3 text-white shadow-lg sm:px-8 sm:py-4">
-      <div className="mx-auto flex max-w-[1080px] items-center gap-2 sm:gap-4"><Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 transition hover:bg-white/15" aria-label="Tilbake til øktkalenderen"><ArrowLeft size={19} /></Link><div className="min-w-0 flex-1">{finished ? <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.12em] text-white/55 sm:text-[11px]"><CheckCircle2 size={13} />Økten er avsluttet</div> : <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.12em] text-[var(--lime)] sm:text-[11px]"><span className="h-2 w-2 rounded-full bg-[var(--lime)]" />Økten pågår</div>}<h1 className="mt-0.5 truncate text-base font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div><Button variant="secondary" className="h-11 w-11 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setOverviewOpen(true)} aria-label="Øktoversikt"><ListChecks size={17} /><span className="hidden sm:inline">Oversikt</span></Button>{!setupSkipped && <Button variant="secondary" className="h-11 w-11 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setTeamsOpen(true)} aria-label={`Vis ${groupingKind === "pairs" ? "par" : "lag"}`}><UsersRound size={17} /><span className="hidden sm:inline">{groupingKind === "pairs" ? "Par" : "Lag"}</span></Button>}{!finished && <Button className="hidden sm:inline-flex" onClick={() => { setFinishError(""); setConfirmFinish(true); }}><Flag size={17} />Avslutt økten</Button>}</div>
+      <div className="mx-auto flex max-w-[1080px] items-center gap-2 sm:gap-4"><Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 transition hover:bg-white/15" aria-label="Tilbake til øktkalenderen"><ArrowLeft size={19} /></Link>{sessionTeam && <TeamCrest team={sessionTeam} className="border-white/15 bg-white/10 text-white" />}<div className="min-w-0 flex-1">{finished ? <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.12em] text-white/55 sm:text-[11px]"><CheckCircle2 size={13} />Økten er avsluttet</div> : <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.12em] text-[var(--lime)] sm:text-[11px]"><span className="h-2 w-2 rounded-full bg-[var(--lime)]" />Økten pågår</div>}<h1 className="mt-0.5 truncate text-base font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div><Button variant="secondary" className="h-11 w-11 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setOverviewOpen(true)} aria-label="Øktoversikt"><ListChecks size={17} /><span className="hidden sm:inline">Oversikt</span></Button>{!setupSkipped && <Button variant="secondary" className="h-11 w-11 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setTeamsOpen(true)} aria-label={`Vis ${groupingKind === "pairs" ? "par" : "lag"}`}><UsersRound size={17} /><span className="hidden sm:inline">{groupingKind === "pairs" ? "Par" : "Lag"}</span></Button>}{!finished && <Button className="hidden sm:inline-flex" onClick={() => { setFinishError(""); setConfirmFinish(true); }}><Flag size={17} />Avslutt økten</Button>}</div>
     </header>
 
     <main ref={runnerTop} className="mx-auto max-w-[1080px] scroll-mt-24 px-4 pt-5 sm:px-8 sm:pt-8">

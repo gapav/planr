@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(43);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -12,6 +12,8 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok($$ select public.create_team('Test Team') $$, 'an authenticated coach can create a team');
 reset role;
+
+select set_config('plannr.test_team', (select id::text from public.teams where created_by = '10000000-0000-0000-0000-000000000001'), true);
 
 insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)
 select '30000000-0000-0000-0000-000000000001', id, 'Live workflow test', now(), 'published', created_by, created_by
@@ -59,14 +61,23 @@ select is((select count(*)::integer from public.sessions), 0, 'an unrelated coac
 select lives_ok($$ insert into storage.objects (bucket_id, name) values ('exercise-videos', '10000000-0000-0000-0000-000000000003/own-video.mp4') $$, 'a coach can upload into their own video folder');
 select throws_ok($$ insert into storage.objects (bucket_id, name) values ('exercise-videos', '10000000-0000-0000-0000-000000000001/other-video.mp4') $$, '42501', null, 'a coach cannot upload into another coach folder');
 select lives_ok($$ delete from storage.objects where bucket_id = 'exercise-videos' and name = '10000000-0000-0000-0000-000000000003/own-video.mp4' $$, 'a coach can discard their own uploaded video');
+select throws_ok(format($$ insert into storage.objects (bucket_id, name) values ('team-logos', '%s/logo.png') $$, current_setting('plannr.test_team')), '42501', null, 'a coach outside the team cannot upload a club logo for it');
+select throws_ok($$ insert into storage.objects (bucket_id, name) values ('team-logos', 'not-a-team-id/logo.png') $$, '42501', null, 'a club-logo folder that is not a team id is denied, not an invalid-uuid error');
 reset role;
 
 select is((select file_size_limit from storage.buckets where id = 'exercise-videos'), 5242880::bigint, 'exercise media uploads are capped at 5 MB');
 select is((select allowed_mime_types from storage.buckets where id = 'exercise-videos'), array['video/mp4', 'image/jpeg', 'image/png', 'image/webp']::text[], 'exercise uploads allow MP4 and supported image formats');
+select is((select file_size_limit from storage.buckets where id = 'team-logos'), 2097152::bigint, 'club logos are capped at 2 MB');
+select is((select allowed_mime_types from storage.buckets where id = 'team-logos'), array['image/jpeg', 'image/png', 'image/webp']::text[], 'club logos are limited to raster image formats');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok($$ update public.exercises set description = 'An updated public exercise description.' where id = '20000000-0000-0000-0000-000000000001' $$, 'the exercise author can edit their exercise');
+select lives_ok(format($$ insert into storage.objects (bucket_id, name) values ('team-logos', '%s/logo.png') $$, current_setting('plannr.test_team')), 'a team admin can upload a club logo into their team folder');
+select lives_ok($$ update public.teams set logo_url = 'https://cdn.example.com/storage/v1/object/public/team-logos/logo.png' $$, 'a team admin can set the club logo');
+select throws_ok($$ update public.teams set logo_url = 'http://cdn.example.com/logo.png' $$, '23514', null, 'a club logo must be an HTTPS URL');
+select lives_ok($$ update public.teams set logo_url = null $$, 'a team admin can clear the club logo');
+select lives_ok($$ delete from storage.objects where bucket_id = 'team-logos' $$, 'a team admin can delete their club logo file');
 select throws_ok($$ delete from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'P0001', 'Hvert lag må ha minst én administrator', 'the last team admin cannot be removed');
 select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a published session with current groups can start');
 select throws_ok($$ update public.sessions set title = 'Changed while live', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'an in-progress plan is locked');
