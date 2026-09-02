@@ -2,8 +2,8 @@
 
 import { BookOpen, CalendarDays, ChevronDown, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, Wifi, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useGrep } from "./app-provider";
 import { Logo } from "./logo";
 import { Avatar, Button } from "./ui";
@@ -17,15 +17,21 @@ const nav = [
 
 export function AppShell({ children, publicPage = false }: { children: React.ReactNode; publicPage?: boolean }) {
   const { user, authLoading, isDemoMode, teams, currentTeam, setCurrentTeamId, sidebarCollapsed, setSidebarCollapsed, signOut, notice, clearNotice } = useGrep();
-  const pathname = usePathname(); const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname(); const router = useRouter(); const [mobileOpen, setMobileOpen] = useState(false);
   const protectedPage = !publicPage;
+  // An admin-created account starts on a temporary password; nothing else in the
+  // app is reachable until the coach has replaced it.
+  const mustSetPassword = user?.mustSetPassword === true && !pathname.startsWith("/account/password");
+
+  useEffect(() => { if (mustSetPassword) router.replace("/account/password"); }, [mustSetPassword, router]);
 
   function toggleDesktopSidebar() {
     setSidebarCollapsed(!sidebarCollapsed);
   }
 
+  if (mustSetPassword) return <div className="grid min-h-screen place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--orange)]" aria-label="Loading" /></div>;
   if (authLoading && protectedPage) return <div className="grid min-h-screen place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--orange)]" aria-label="Loading" /></div>;
-  if (!user && protectedPage) return <div className="grid min-h-screen place-items-center p-6"><div className="w-full max-w-md rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow)]"><Logo /><h1 className="mt-8 text-3xl font-black tracking-[-.04em]">Your team plans live here</h1><p className="mt-3 leading-7 text-[var(--ink-soft)]">Sign in to see your teams, build sessions and work together with the coaching staff.</p><Link href={`/sign-in?next=${encodeURIComponent(pathname)}`} className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl bg-[var(--orange)] px-6 font-bold text-white">Sign in with email</Link><Link href="/exercises" className="mt-4 block text-sm font-semibold underline underline-offset-4">Browse exercises first</Link></div></div>;
+  if (!user && protectedPage) return <div className="grid min-h-screen place-items-center p-6"><div className="w-full max-w-md rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow)]"><Logo /><h1 className="mt-8 text-3xl font-black tracking-[-.04em]">Your team plans live here</h1><p className="mt-3 leading-7 text-[var(--ink-soft)]">Sign in to see your teams, build sessions and work together with the coaching staff.</p><Link href={`/sign-in?next=${encodeURIComponent(pathname)}`} className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl bg-[var(--orange)] px-6 font-bold text-white">Sign in</Link><Link href="/exercises" className="mt-4 block text-sm font-semibold underline underline-offset-4">Browse exercises first</Link></div></div>;
 
   if (publicPage && !user) return <div className="min-h-screen"><header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--paper)]/92 backdrop-blur-xl"><div className="mx-auto flex h-[74px] max-w-[1440px] items-center justify-between px-4 sm:px-7"><Logo /><nav className="flex items-center gap-2"><Link href="/sign-in" className="inline-flex min-h-10 items-center rounded-xl bg-[var(--ink)] px-4 text-sm font-bold text-white">Sign in</Link></nav></div></header><main>{children}</main>{notice && <Notice message={notice} onClose={clearNotice} />}</div>;
 

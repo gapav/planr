@@ -12,7 +12,7 @@ import { AppShell } from "./app-shell";
 import { useGrep } from "./app-provider";
 import { ExerciseCategoryFilter } from "./exercise-category-filter";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
-import { InProgressSession } from "./live-session";
+import { WorkoutSession } from "./live-session";
 import { Avatar, Button, EmptyState, Field, inputClass, Modal, Tag, textareaClass } from "./ui";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
 import { filterExercises } from "@/lib/exercises";
@@ -25,7 +25,7 @@ const blockPresets = ["Warm-up", "Main block", "Game", "Cool-down"];
 export function SessionScreen({ sessionId }: { sessionId: string }) {
   const { sessions } = useGrep();
   const session = sessions.find((entry) => entry.id === sessionId);
-  return session?.status === "in_progress" ? <InProgressSession sessionId={sessionId} /> : <SessionBuilder sessionId={sessionId} />;
+  return session?.status === "in_progress" || session?.status === "completed" ? <WorkoutSession sessionId={sessionId} /> : <SessionBuilder sessionId={sessionId} />;
 }
 
 export function SessionBuilder({ sessionId }: { sessionId: string }) {

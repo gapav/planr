@@ -10,6 +10,7 @@ import {
   ChevronRight,
   CirclePlay,
   Clock3,
+  Flag,
   ListChecks,
   LockKeyhole,
   MapPin,
@@ -23,7 +24,7 @@ import { makePairs, makeTeams } from "@/lib/grouping";
 import { getExerciseEmbedUrl, parseExerciseMedia } from "@/lib/media";
 import { blockDuration } from "@/lib/session";
 import type { PlayerGroup, SessionGroupingKind, SessionItem, TeamPlayer } from "@/lib/types";
-import { cn, minutesLabel } from "@/lib/utils";
+import { cn, formatSessionDate, minutesLabel } from "@/lib/utils";
 import { AppShell } from "./app-shell";
 import { useGrep } from "./app-provider";
 import { Button, EmptyState, Modal, Tag } from "./ui";
@@ -34,7 +35,7 @@ export function LiveSession({ sessionId }: { sessionId: string }) {
   const store = useGrep();
   const session = store.sessions.find((entry) => entry.id === sessionId);
 
-  if (session?.status === "in_progress") return <InProgressSession sessionId={sessionId} />;
+  if (session?.status === "in_progress" || session?.status === "completed") return <WorkoutSession sessionId={sessionId} />;
   if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<CalendarClock size={23} />} title="Session not found" body="It may have been removed or belong to another team." action={<Link href="/sessions" className="font-bold underline">Back to sessions</Link>} /></div></AppShell>;
 
   return <SessionSetup sessionId={sessionId} />;
@@ -133,7 +134,7 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
   </div></AppShell>;
 }
 
-export function InProgressSession({ sessionId }: { sessionId: string }) {
+export function WorkoutSession({ sessionId }: { sessionId: string }) {
   const store = useGrep();
   const session = store.sessions.find((entry) => entry.id === sessionId);
   const players = useMemo(() => store.players.filter((player) => player.teamId === session?.teamId).sort((a, b) => a.fullName.localeCompare(b.fullName, "nb")), [session?.teamId, store.players]);
@@ -143,18 +144,35 @@ export function InProgressSession({ sessionId }: { sessionId: string }) {
   const groups = store.groupings.find((entry) => entry.sessionId === sessionId && entry.kind === groupingKind)?.groups ?? [];
   const [teamsOpen, setTeamsOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SessionItem | null>(null);
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState("");
+  const finished = session?.status === "completed";
+
+  async function finishWorkout() {
+    setFinishing(true);
+    setFinishError("");
+    try {
+      await store.finishWorkout(sessionId);
+      setConfirmFinish(false);
+    } catch (error) {
+      setFinishError(error instanceof Error ? error.message : "The workout could not be finished.");
+    } finally {
+      setFinishing(false);
+    }
+  }
 
   if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<CalendarClock size={23} />} title="Session not found" body="It may have been removed or belong to another team." /></div></AppShell>;
 
   return <AppShell><div className="min-h-screen pb-16">
     <header className="sticky top-0 z-20 border-b border-white/10 bg-[var(--ink)] px-4 py-4 text-white shadow-lg sm:px-8">
-      <div className="mx-auto flex max-w-[1080px] items-center gap-3 sm:gap-4"><Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 transition hover:bg-white/15" aria-label="Back to sessions"><ArrowLeft size={19} /></Link><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[var(--lime)]"><span className="h-2 w-2 animate-pulse rounded-full bg-[var(--lime)]" />Workout in progress</div><h1 className="mt-0.5 truncate text-lg font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div><Button variant="secondary" onClick={() => setTeamsOpen(true)}><UsersRound size={17} /><span className="hidden sm:inline">Show {groupingKind === "pairs" ? "pairs" : "teams"}</span><span className="sm:hidden">Groups</span></Button></div>
+      <div className="mx-auto flex max-w-[1080px] items-center gap-3 sm:gap-4"><Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 transition hover:bg-white/15" aria-label="Back to sessions"><ArrowLeft size={19} /></Link><div className="min-w-0 flex-1">{finished ? <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-white/55"><CheckCircle2 size={13} />Workout finished</div> : <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[var(--lime)]"><span className="h-2 w-2 animate-pulse rounded-full bg-[var(--lime)]" />Workout in progress</div>}<h1 className="mt-0.5 truncate text-lg font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div><Button variant="secondary" onClick={() => setTeamsOpen(true)}><UsersRound size={17} /><span className="hidden sm:inline">Show {groupingKind === "pairs" ? "pairs" : "teams"}</span><span className="sm:hidden">Groups</span></Button>{!finished && <Button onClick={() => { setFinishError(""); setConfirmFinish(true); }}><Flag size={17} /><span className="hidden sm:inline">Finish workout</span><span className="sm:hidden">Finish</span></Button>}</div>
     </header>
 
     <main className="mx-auto max-w-[1080px] px-4 pt-7 sm:px-8 sm:pt-9">
       <div className="grid gap-3 sm:grid-cols-3"><InfoPill icon={<Clock3 size={18} />} label="Duration" value={minutesLabel(session.plannedDurationMinutes)} /><InfoPill icon={<MapPin size={18} />} label="Venue" value={session.venue || "Not set"} /><InfoPill icon={<UsersRound size={18} />} label="Checked in" value={`${presentPlayers.length} players`} /></div>
 
-      <section className="mt-7 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_12px_40px_rgba(16,32,29,.07)] sm:p-7"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">Workout plan</p><h2 className="mt-1 text-3xl font-black tracking-[-.045em]">The whole session</h2>{session.objective && <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--ink-soft)]">{session.objective}</p>}</div><Tag tone="neutral"><LockKeyhole size={12} className="mr-1" />Read only</Tag></div></section>
+      <section className="mt-7 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_12px_40px_rgba(16,32,29,.07)] sm:p-7"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">Workout plan</p><h2 className="mt-1 text-3xl font-black tracking-[-.045em]">The whole session</h2>{session.objective && <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--ink-soft)]">{session.objective}</p>}{finished && <p className="mt-2 text-sm font-bold text-[var(--ink-soft)]">Finished {formatSessionDate(session.completedAt ?? null)}</p>}</div><Tag tone="neutral"><LockKeyhole size={12} className="mr-1" />{finished ? "Completed" : "Read only"}</Tag></div></section>
 
       {session.blocks.length ? <div className="mt-5 grid gap-5">{session.blocks.map((block, blockIndex) => <section key={block.id} className="overflow-hidden rounded-[26px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_8px_30px_rgba(16,32,29,.04)]"><header className="flex items-center gap-3 border-b border-[var(--line)] bg-[var(--paper-deep)] px-4 py-4 sm:px-6"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--ink)] text-xs font-black text-white">{blockIndex + 1}</span><h3 className="min-w-0 flex-1 truncate text-xl font-black tracking-[-.03em]">{block.title}</h3><Tag tone="neutral">{blockDuration(block)} min</Tag></header>{block.notes && <div className="border-b border-[var(--line)] bg-[#f8f5ed] px-4 py-3 text-sm font-semibold leading-6 text-[var(--ink-soft)] sm:px-6"><span className="mr-2 text-[10px] font-black uppercase tracking-[.11em] text-[var(--orange)]">Block note</span>{block.notes}</div>}<div className="grid gap-3 p-4 sm:p-5">{block.items.length ? block.items.map((item, itemIndex) => <button key={item.id} type="button" onClick={() => setSelectedItem(item)} className="group rounded-[20px] border border-[var(--line)] bg-white p-4 text-left transition hover:border-[var(--ink)] hover:shadow-sm sm:p-5"><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--paper-deep)] text-xs font-black">{itemIndex + 1}</span><div className="min-w-0 flex-1"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><h4 className="text-lg font-black tracking-[-.025em]">{item.title}</h4><span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span></div>{item.description && <p className="mt-2 clamp-2 text-sm leading-6 text-[var(--ink-soft)]">{item.description}</p>}{item.coachingNotes && <div className="mt-3 rounded-xl bg-[#fff0e8] px-3.5 py-3"><p className="text-[10px] font-black uppercase tracking-[.11em] text-[#9c3913]">Coaching point</p><p className="mt-1 text-sm font-semibold leading-6">{item.coachingNotes}</p></div>}<span className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-[var(--orange)]"><CirclePlay size={15} />View exercise</span></div></div></button>) : <p className="py-8 text-center text-sm text-[var(--ink-soft)]">No activities in this block.</p>}</div></section>)}</div> : <div className="mt-5"><EmptyState icon={<ListChecks size={24} />} title="No activities in this plan" body="The session is locked and has no workout blocks to display." /></div>}
 
@@ -163,6 +181,10 @@ export function InProgressSession({ sessionId }: { sessionId: string }) {
 
     <Modal open={teamsOpen} onClose={() => setTeamsOpen(false)} title={groupingKind === "pairs" ? "Today’s pairs" : "Today’s teams"} description={`${presentPlayers.length} checked-in players · groups are locked for this workout`} size="lg">
       {groups.length ? <GroupsGrid groups={groups} players={players} /> : <div className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><UsersRound className="mx-auto text-[var(--ink-soft)]" size={25} /><p className="mt-2 text-sm font-bold">No saved groups are available.</p></div>}
+    </Modal>
+    <Modal open={confirmFinish} onClose={() => { if (!finishing) setConfirmFinish(false); }} title="Finish this workout?" description="The session moves to Past. The plan, attendance and groups stay locked as a record of the session." size="sm">
+      {finishError && <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">{finishError}</p>}
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end"><Button variant="ghost" onClick={() => setConfirmFinish(false)} disabled={finishing}>Keep going</Button><Button onClick={() => void finishWorkout()} disabled={finishing}><Flag size={17} />{finishing ? "Finishing…" : "Finish workout"}</Button></div>
     </Modal>
     <Modal open={Boolean(selectedItem)} onClose={() => setSelectedItem(null)} title={selectedItem?.title ?? "Exercise"} description={selectedItem ? `${selectedItem.durationMinutes} minutes · read only` : undefined} size="lg">
       {selectedItem && <ExerciseDetail item={selectedItem} />}

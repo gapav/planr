@@ -2,6 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { invitationUrl } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { resolveExerciseMedia } from "@/lib/media";
 import { minimizePlayerName } from "@/lib/roster";
@@ -32,14 +33,14 @@ interface GrepContextValue {
   setSidebarCollapsed(collapsed: boolean): void;
   setCurrentTeamId(id: string): void;
   clearNotice(): void;
-  signIn(email: string, next?: string): Promise<void>;
+  signIn(email: string, password: string): Promise<void>;
+  setPassword(password: string): Promise<void>;
   signOut(): Promise<void>;
   addExercise(input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">): Promise<void>;
   updateExercise(id: string, input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">): Promise<void>;
   archiveExercise(id: string): Promise<void>;
   createTeam(name: string): Promise<string>;
-  inviteMember(email: string, role: TeamRole): Promise<void>;
-  resendInvitation(invitation: TeamInvitation): Promise<void>;
+  inviteMember(email: string, role: TeamRole): Promise<string>;
   revokeInvitation(id: string): Promise<void>;
   updateMemberRole(profileId: string, role: TeamRole): Promise<void>;
   removeMember(profileId: string): Promise<void>;
@@ -50,6 +51,7 @@ interface GrepContextValue {
   deleteSession(id: string): Promise<void>;
   publishSession(id: string): Promise<void>;
   startWorkout(id: string, groupingKind: SessionGroupingKind): Promise<void>;
+  finishWorkout(id: string): Promise<void>;
   addBlock(sessionId: string, title: string): Promise<string>;
   updateBlock(sessionId: string, blockId: string, patch: BlockPatch): Promise<void>;
   deleteBlock(sessionId: string, blockId: string): Promise<void>;
@@ -79,7 +81,7 @@ interface DbBlock { id: string; session_id: string; title: string; notes?: strin
 interface DbSession {
   id: string; team_id: string; title: string; starts_at: string | null; venue: string; planned_duration_minutes: number;
   objective: string; notes: string; status: PlannedSession["status"]; created_by: string; updated_by: string;
-  started_at?: string | null; grouping_kind?: SessionGroupingKind | null;
+  started_at?: string | null; completed_at?: string | null; grouping_kind?: SessionGroupingKind | null;
   created_at: string; updated_at: string; session_blocks?: DbBlock[];
 }
 interface DbPlayer { id: string; team_id: string; full_name: string; jersey_number: string | null; created_at: string; updated_at: string; }
@@ -94,7 +96,7 @@ function mapExercise(row: DbExercise): Exercise {
 function mapSession(row: DbSession): PlannedSession {
   return { id: row.id, teamId: row.team_id, title: row.title, startsAt: row.starts_at, venue: row.venue,
     plannedDurationMinutes: row.planned_duration_minutes, objective: row.objective, notes: row.notes, status: row.status,
-    startedAt: row.started_at ?? null, groupingKind: row.grouping_kind ?? null,
+    startedAt: row.started_at ?? null, completedAt: row.completed_at ?? null, groupingKind: row.grouping_kind ?? null,
     createdBy: row.created_by, updatedBy: row.updated_by, createdAt: row.created_at, updatedAt: row.updated_at,
     blocks: (row.session_blocks ?? []).sort((a, b) => a.position - b.position).map((block) => ({
       id: block.id, sessionId: block.session_id, title: block.title, notes: block.notes ?? "", position: block.position, updatedBy: block.updated_by,
@@ -141,13 +143,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow }, { data: playerRows }, { data: attendanceRows }, { data: groupingRows }] = await Promise.all([
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
-      supabase.from("team_invitations").select("id, team_id, email, role, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
-      supabase.from("profiles").select("id, email, full_name, is_global_admin").eq("id", authUser.id).single(),
+      supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
+      supabase.from("profiles").select("id, email, full_name, is_global_admin, must_set_password").eq("id", authUser.id).single(),
       supabase.from("team_players").select("id, team_id, full_name, jersey_number, created_at, updated_at").order("full_name"),
       supabase.from("session_attendance").select("session_id, player_id, is_present, checked_in_at"),
       supabase.from("session_groupings").select("session_id, kind, groups, generated_at"),
     ]);
-    if (profileRow) setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: "#f0642e", isGlobalAdmin: profileRow.is_global_admin });
+    if (profileRow) setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: "#f0642e", isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password });
     if (memberships) {
       type MembershipRow = { team_id: string; profile_id: string; role: TeamRole; teams: { id: string; name: string } | null; profiles: { id: string; email: string; full_name: string; avatar_url: string | null } | null };
       const grouped = new Map<string, Team>();
@@ -165,7 +167,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (mapped[0]) setCurrentTeamId(mapped[0].id);
     }
     if (sessionRows) setSessions((sessionRows as unknown as DbSession[]).map(mapSession));
-    if (invitationRows) setInvitations((invitationRows as unknown as Array<{ id: string; team_id: string; email: string; role: TeamRole; expires_at: string; accepted_at: string | null }>).map((row) => ({ id: row.id, teamId: row.team_id, email: row.email, role: row.role, expiresAt: row.expires_at, acceptedAt: row.accepted_at })));
+    if (invitationRows) setInvitations((invitationRows as unknown as Array<{ id: string; team_id: string; email: string; role: TeamRole; token: string; expires_at: string; accepted_at: string | null }>).map((row) => ({ id: row.id, teamId: row.team_id, email: row.email, role: row.role, token: row.token, expiresAt: row.expires_at, acceptedAt: row.accepted_at })));
     if (playerRows) setPlayers((playerRows as unknown as DbPlayer[]).map(mapPlayer));
     if (attendanceRows) setAttendance((attendanceRows as unknown as DbAttendance[]).map((row) => ({ sessionId: row.session_id, playerId: row.player_id, isPresent: row.is_present, checkedInAt: row.checked_in_at })));
     if (groupingRows) setGroupings((groupingRows as unknown as DbGrouping[]).map((row) => ({ sessionId: row.session_id, kind: row.kind, groups: row.groups, generatedAt: row.generated_at })));
@@ -202,13 +204,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSaveState("saved");
   }, []);
 
-  const signIn = useCallback(async (email: string, next = "/sessions") => {
-    if (!supabase) { setUser(demoUser); setNotice("Preview mode is active — no email was sent."); return; }
-    const emailRedirectTo = `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`;
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo } });
+  const signIn = useCallback(async (email: string, password: string) => {
+    if (!supabase) { setUser(demoUser); setNotice("Preview mode is active — any password opens the demo workspace."); return; }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    setNotice("Check your email for a secure sign-in link.");
   }, [supabase]);
+
+  // Accounts are created by an admin with a temporary password, so the first
+  // sign-in is routed here before anything else in the app is reachable.
+  const setPassword = useCallback(async (password: string) => {
+    if (!supabase) { setUser((current) => current && { ...current, mustSetPassword: false }); setNotice("Preview mode — no password was changed."); return; }
+    const { data, error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+    setUser((current) => current && { ...current, mustSetPassword: false });
+    await persist(() => supabase.from("profiles").update({ must_set_password: false }).eq("id", data.user.id));
+  }, [persist, supabase]);
 
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
@@ -249,27 +259,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const id = makeUuid(); setTeams((current) => [...current, { id, name, shortName: name, role: "admin", members: [user] }]); setCurrentTeamId(id); return id;
   }, [loadPrivateData, supabase, user]);
 
+  // Nothing is emailed: the admin copies the returned link and sends it from
+  // their own mailbox. accept_team_invitation still binds it to this address.
   const inviteMember = useCallback(async (email: string, role: TeamRole) => {
-    if (!currentTeam || !user) return; const id = crypto.randomUUID(); const token = crypto.randomUUID(); const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
-    setInvitations((current) => [...current, { id, teamId: currentTeam.id, email: email.toLowerCase(), role, expiresAt, acceptedAt: null }]);
-    if (supabase) {
-      await persist(() => supabase.from("team_invitations").insert({ id, token, team_id: currentTeam.id, email: email.toLowerCase(), role, invited_by: user.id, expires_at: expiresAt }));
-      const emailRedirectTo = `${window.location.origin}/auth/confirm?next=${encodeURIComponent(`/invite/${token}`)}`;
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo } }); if (error) throw error;
-    } else {
-      setNotice(`Preview invite prepared for ${email}.`);
+    if (!currentTeam || !user) throw new Error("Select a team before inviting a coach");
+    const id = makeUuid(); const token = makeUuid(); const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
+    setInvitations((current) => [...current, { id, teamId: currentTeam.id, email: email.toLowerCase(), role, token, expiresAt, acceptedAt: null }]);
+    try {
+      await persist(supabase ? () => supabase.from("team_invitations").insert({ id, token, team_id: currentTeam.id, email: email.toLowerCase(), role, invited_by: user.id, expires_at: expiresAt }) : null);
+    } catch (error) {
+      setInvitations((current) => current.filter((invitation) => invitation.id !== id));
+      throw error;
     }
+    return invitationUrl(window.location.origin, token);
   }, [currentTeam, persist, supabase, user]);
-
-  const resendInvitation = useCallback(async (invitation: TeamInvitation) => {
-    if (!supabase) { setNotice(`Preview invite resent to ${invitation.email}.`); return; }
-    const { data, error } = await supabase.from("team_invitations").select("token").eq("id", invitation.id).single();
-    if (error) throw error;
-    const emailRedirectTo = `${window.location.origin}/auth/confirm?next=${encodeURIComponent(`/invite/${data.token}`)}`;
-    const result = await supabase.auth.signInWithOtp({ email: invitation.email, options: { emailRedirectTo } });
-    if (result.error) throw result.error;
-    setNotice(`Invitation resent to ${invitation.email}.`);
-  }, [supabase]);
 
   const revokeInvitation = useCallback(async (id: string) => {
     setInvitations((current) => current.filter((invitation) => invitation.id !== id));
@@ -349,6 +352,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "in_progress", startedAt, groupingKind, updatedBy: user.id, updatedAt: startedAt } : session));
   }, [persist, supabase, user]);
 
+  const finishWorkout = useCallback(async (id: string) => {
+    if (!user) return;
+    const completedAt = new Date().toISOString();
+    await persist(supabase ? async () => {
+      const result = await supabase.rpc("finish_session", { target_session_id: id });
+      if (result.error?.code === "PGRST202") {
+        return { ...result, error: { message: "The finish workout database update is missing. Apply Supabase migrations 009 and 010, then try again." } };
+      }
+      return result;
+    } : null);
+    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "completed", completedAt, updatedBy: user.id, updatedAt: completedAt } : session));
+  }, [persist, supabase, user]);
+
   const addBlock = useCallback(async (sessionId: string, title: string) => {
     const id = makeUuid(); const session = sessions.find((entry) => entry.id === sessionId); const position = session?.blocks.length ?? 0;
     const block: SessionBlock = { id, sessionId, title, notes: "", position, items: [], updatedBy: user?.id ?? demoUser.id };
@@ -400,7 +416,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
   }, [persist, supabase, user]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, signOut, addExercise, updateExercise, archiveExercise, createTeam, inviteMember, resendInvitation, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, signOut, addExercise, updateExercise, archiveExercise, createTeam, inviteMember, resendInvitation, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, archiveExercise, createTeam, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, archiveExercise, createTeam, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }
