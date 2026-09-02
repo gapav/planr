@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   description:
     "Plan better handball sessions with a shared exercise library and live team collaboration.",
   applicationName: "Grep",
+  appleWebApp: { capable: true, title: "Grep", statusBarStyle: "default" },
   openGraph: {
     title: "Grep — Handball sessions, built together",
     description:

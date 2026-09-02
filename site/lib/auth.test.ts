@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { invitationUrl, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
+import { internalPath, invitationUrl, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
 
 describe("passwordProblem", () => {
   it("accepts a long enough matching password", () => {
@@ -26,5 +26,24 @@ describe("invitationUrl", () => {
 
   it("does not double the slash when the origin has a trailing one", () => {
     expect(invitationUrl("https://plannr.no/", "abc")).toBe("https://plannr.no/invite/abc");
+  });
+});
+
+describe("internalPath", () => {
+  it("keeps a same-origin path so an invite survives the password change", () => {
+    expect(internalPath("/invite/abc")).toBe("/invite/abc");
+  });
+
+  it("falls back when there is no destination", () => {
+    expect(internalPath(null)).toBe("/sessions");
+    expect(internalPath("")).toBe("/sessions");
+  });
+
+  it("rejects an absolute url", () => {
+    expect(internalPath("https://evil.example/steal")).toBe("/sessions");
+  });
+
+  it("rejects a protocol-relative url that would leave the site", () => {
+    expect(internalPath("//evil.example/steal")).toBe("/sessions");
   });
 });

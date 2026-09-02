@@ -193,6 +193,20 @@ Repeat per coach:
 4. They sign in, are forced to set their own password, then open the invite link
    and land in the team.
 
+Their display name defaults to the email local part, because `handle_new_user` has
+no better source — `nora@club.no` shows up as "nora". Fix it in SQL after creating
+them (the trigger only fires on insert or email change, so editing user metadata
+later does nothing):
+
+```sql
+update public.profiles set full_name = 'Nora Vik' where email = 'nora@club.no';
+```
+
+Things that bite: the invited email must match the signed-in one or
+`accept_team_invitation` refuses (which is also why forwarding a link is harmless);
+invitations are single-use and expire after 7 days; a lost link can be re-copied
+from the pending invitation row in `/team`.
+
 Removing a coach: remove them from the team in Plannr (drops the membership), and
 delete the user in Supabase Auth if they should lose the login entirely.
 

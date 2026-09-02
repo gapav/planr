@@ -58,7 +58,7 @@ describe("AppShell navigation", () => {
 
     render(<AppShell publicPage><div>Exercise library</div></AppShell>);
 
-    expect(mocks.replace).toHaveBeenCalledWith("/account/password");
+    expect(mocks.replace).toHaveBeenCalledWith("/account/password?next=%2Fexercises");
     expect(screen.queryByRole("main")).not.toBeInTheDocument();
   });
 

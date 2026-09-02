@@ -8,6 +8,11 @@ export function passwordProblem(password: string, confirmation: string): string 
   return null;
 }
 
+/** Only a same-origin path is a safe post-auth redirect target. */
+export function internalPath(value: string | null | undefined, fallback = "/sessions"): string {
+  return value && value.startsWith("/") && !value.startsWith("//") ? value : fallback;
+}
+
 /** The link an admin sends to a coach so they can join a team once signed in. */
 export function invitationUrl(origin: string, token: string): string {
   return `${origin.replace(/\/+$/, "")}/invite/${token}`;

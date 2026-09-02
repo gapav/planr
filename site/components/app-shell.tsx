@@ -23,7 +23,7 @@ export function AppShell({ children, publicPage = false }: { children: React.Rea
   // app is reachable until the coach has replaced it.
   const mustSetPassword = user?.mustSetPassword === true && !pathname.startsWith("/account/password");
 
-  useEffect(() => { if (mustSetPassword) router.replace("/account/password"); }, [mustSetPassword, router]);
+  useEffect(() => { if (mustSetPassword) router.replace(`/account/password?next=${encodeURIComponent(pathname)}`); }, [mustSetPassword, pathname, router]);
 
   function toggleDesktopSidebar() {
     setSidebarCollapsed(!sidebarCollapsed);
