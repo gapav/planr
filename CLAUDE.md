@@ -49,7 +49,9 @@ If `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are absen
 
 ### Auth
 
-Passwordless magic links. `signIn` calls `signInWithOtp` with a redirect to `/auth/confirm`, which handles both the PKCE `code` flow and the `token_hash` flow, then redirects to a same-origin `next`. `proxy.ts` runs `supabase.auth.getClaims()` on every non-asset request purely to refresh the session cookies (Server Components cannot set cookies — `lib/supabase/server.ts` swallows that error and relies on the proxy). Browser client: `lib/supabase/client.ts`; server: `lib/supabase/server.ts`.
+Email and password, no self-service signup or reset. An admin creates the coach's account in the Supabase dashboard with a temporary password; `profiles.must_set_password` starts `true`, and `app-shell.tsx` plus `app/invite/[token]/page.tsx` divert to `/account/password?next=…` until `setPassword` clears it. `internalPath` keeps `next` same-origin.
+
+**The browser client is the only writer of the auth cookie.** `proxy.ts` is a pass-through: nothing server-side reads the session (`lib/supabase/server.ts` has no callers, there are no server actions), so refreshing there only added a second racer for one rotating refresh token — concurrent RSC/prefetch proxy runs lose the race, and @supabase/ssr answers a rejected refresh by clearing the auth cookies, silently signing out a healthy browser. Do not reintroduce a server-side refresh without deciding who the single writer is. Browser client: `lib/supabase/client.ts`; server: `lib/supabase/server.ts`.
 
 ### Security model lives in Postgres, not in the app
 

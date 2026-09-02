@@ -1,3 +1,5 @@
+import type { Profile } from "./types";
+
 export const MIN_PASSWORD_LENGTH = 10;
 
 /** Returns a message describing why the password is unusable, or null when it is fine. */
@@ -16,6 +18,22 @@ export function passwordProblem(password: string, confirmation: string): string 
  */
 export function isIdentityChange(event: string): boolean {
   return event !== "TOKEN_REFRESHED" && event !== "USER_UPDATED";
+}
+
+/**
+ * The identity to hold while `loadPrivateData` is in flight.
+ *
+ * An auth event only carries the Supabase auth user, which knows nothing about
+ * `profiles` — so the placeholder built from it has no `mustSetPassword`. Those
+ * events fire repeatedly for one signed-in coach (`getUser` and
+ * `INITIAL_SESSION` both on load, `SIGNED_IN` again whenever the tab is
+ * refocused), and overwriting the loaded profile each time blanks the flag back
+ * to "unknown", which reads as "no password change needed" and lets a coach
+ * walk straight past the forced screen. Keep what is already loaded for the
+ * same id; only a different coach replaces it.
+ */
+export function seedProfile(current: Profile | null, next: Profile | null): Profile | null {
+  return next && current && current.id === next.id ? current : next;
 }
 
 /** Only a same-origin path is a safe post-auth redirect target. */

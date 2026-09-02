@@ -2,7 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { invitationUrl, isIdentityChange } from "@/lib/auth";
+import { invitationUrl, isIdentityChange, seedProfile } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { resolveExerciseMedia } from "@/lib/media";
 import { minimizePlayerName } from "@/lib/roster";
@@ -141,7 +141,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadPrivateData = useCallback(async (authUser: User) => {
     if (!supabase) return;
-    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow }, { data: playerRows }, { data: attendanceRows }, { data: groupingRows }] = await Promise.all([
+    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: attendanceRows }, { data: groupingRows }] = await Promise.all([
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
@@ -151,6 +151,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       supabase.from("session_groupings").select("session_id, kind, groups, generated_at"),
     ]);
     if (profileRow) setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: "#f0642e", isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password });
+    // This row carries `must_set_password`, so losing it silently means a coach
+    // signs in looking fine and skips the forced password change. Say so.
+    else if (profileError) setNotice(`Could not load your profile: ${profileError.message}`);
     if (memberships) {
       type MembershipRow = { team_id: string; profile_id: string; role: TeamRole; teams: { id: string; name: string } | null; profiles: { id: string; email: string; full_name: string; avatar_url: string | null } | null };
       const grouped = new Map<string, Team>();
@@ -178,13 +181,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return;
     const loadTimer = window.setTimeout(() => void loadPublicExercises(), 0);
     void supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ? profileFromUser(data.user) : null);
+      setUser((current) => seedProfile(current, data.user ? profileFromUser(data.user) : null));
       if (data.user) void loadPrivateData(data.user);
       setAuthLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isIdentityChange(event)) return;
-      setUser(session?.user ? profileFromUser(session.user) : null);
+      setUser((current) => seedProfile(current, session?.user ? profileFromUser(session.user) : null));
       if (session?.user) void loadPrivateData(session.user);
       setAuthLoading(false);
     });
@@ -216,6 +219,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // sign-in is routed here before anything else in the app is reachable.
   const setPassword = useCallback(async (password: string) => {
     if (!supabase) { setUser((current) => current && { ...current, mustSetPassword: false }); setNotice("Preview mode — no password was changed."); return; }
+    // `updateUser` reads the session straight out of the cookie store and only
+    // says "Auth session missing!" when it has gone, which strands a coach on a
+    // form that can never succeed. Drop the stale local user instead so the page
+    // sends them back to sign in with the password they were given.
+    const { data: current } = await supabase.auth.getSession();
+    if (!current.session) { setUser(null); throw new Error("Your sign-in expired. Sign in again with the password your admin gave you, then choose your own."); }
     const { data, error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
     setUser((current) => current && { ...current, mustSetPassword: false });

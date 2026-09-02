@@ -12,7 +12,10 @@ export async function getSupabaseServerClient() {
         try {
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
-          // Server Components cannot set response cookies. Proxy refreshes them.
+          // Server Components cannot set response cookies. Nothing refreshes
+          // them here either: the browser client owns the auth cookie so it is
+          // the only refresher (see proxy.ts). A future server-side reader has
+          // to settle who writes before relying on a refresh happening.
         }
       },
     },

@@ -5,7 +5,7 @@ A collaborative handball session planner built with Next.js and Supabase.
 ## What is included
 
 - Public, searchable exercise library with author-controlled editing and media previews.
-- Passwordless email sign-in using Supabase Auth PKCE links.
+- Email and password sign-in. Accounts are created by an administrator in the Supabase dashboard with a temporary password; the first sign-in forces the coach to choose their own.
 - Multi-team workspaces with admin/coach roles and email-bound invitations.
 - Privacy-minimized Hoopit `.xls` and `.xlsx` roster imports that retain only first name, surname initial and jersey number.
 - Drafts, Upcoming and Past session views derived from status and session end time.
@@ -22,11 +22,12 @@ Preview data is intentionally non-persistent. The production source of truth is 
 1. Copy `.env.example` to `.env.local`.
 2. Create a Supabase project and paste its URL and publishable key into `.env.local`.
 3. Apply every file in `supabase/migrations` in filename order using the Supabase CLI or dashboard.
-4. In Supabase Auth URL configuration, set the site URL and add `http://localhost:3000/auth/confirm` as an allowed redirect.
-5. The default Supabase Magic Link template works for local testing. After configuring custom SMTP, optionally replace it with the branded token-hash template in `supabase/templates/magic-link.html`.
-6. Start the app with `npm run dev`.
+4. In Supabase Auth URL configuration, set the site URL. The app sends no auth emails, so no redirect allow-list entry or email template is required.
+5. Start the app with `npm run dev`.
 
-For production, configure the same three public environment values on the host, add the production `/auth/confirm` redirect, and configure custom SMTP in Supabase before inviting real coaches.
+For production, configure the same three public environment values on the host.
+
+To add a coach: create their user in the Supabase dashboard (Authentication -> Users -> Add user) with a temporary password and *Auto Confirm User* enabled, then create an invite link from Team settings and send them the link and the temporary password. The link only resolves while signed in as the invited address.
 
 When upgrading an existing database, apply only the migration files that have not already run. The player roster starts in `202609020003_player_rosters_and_live_sessions.sql`; migrations `202609020006` and `202609020007` add the in-progress status and locked workout transition.
 
