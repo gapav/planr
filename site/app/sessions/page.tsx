@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, CirclePlay, Clock3, Eye, LayoutList, MapPin, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, CirclePlay, Clock3, Eye, LayoutList, MapPin, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -18,6 +18,7 @@ const tabs: Array<{ id: SessionTab; label: string }> = [{ id: "upcoming", label:
 export default function SessionsPage() {
   const { sessions, currentTeam, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>("upcoming"); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const router = useRouter();
   const current = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === tab).sort((a, b) => tab === "drafts" ? b.updatedAt.localeCompare(a.updatedAt) : tab === "upcoming" ? (a.startsAt ?? "").localeCompare(b.startsAt ?? "") : (b.startsAt ?? "").localeCompare(a.startsAt ?? "")), [sessions, currentTeam, tab]);
+  const counts = useMemo(() => tabs.reduce((acc, entry) => { acc[entry.id] = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return acc; }, {} as Record<SessionTab, number>), [sessions, currentTeam]);
   // The nearest session is lifted out of its month so the one plan being
   // prepared for is not one card among ten identical ones.
   const hero = tab === "upcoming" ? current[0] : undefined; const listed = hero ? current.slice(1) : current;
@@ -27,7 +28,7 @@ export default function SessionsPage() {
   async function confirmDelete() { if (!pendingDelete) return; setDeleting(true); try { await deleteSession(pendingDelete.id); } catch { /* notice is shown by the provider */ } finally { setDeleting(false); setPendingDelete(null); } }
   if (!currentTeam) return <AppShell><div className="mx-auto max-w-3xl px-4 py-20"><EmptyState icon={<CalendarDays size={22} />} title="Opprett ditt første lag" body="Øktene tilhører et lag, slik at de riktige trenerne kan se og redigere dem." action={<Link href="/team" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white">Opprett et lag</Link>} /></div></AppShell>;
   return <AppShell><div className="mx-auto max-w-[1100px] px-4 pb-16 pt-7 sm:px-8 sm:pt-10"><header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div className="flex items-start gap-4"><TeamCrest team={currentTeam} size="lg" className="mt-1" /><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">{currentTeam?.shortName}</p><div className="mt-2 flex items-center gap-2.5"><h1 className="text-4xl font-black tracking-[-.055em] sm:text-5xl">Øktkalender</h1><HelpTip topic="sessions-calendar" /></div><p className="mt-3 text-[var(--ink-soft)]">Alle øktplaner, fra første idé til siste heiarop.</p></div></div><Button size="lg" onClick={() => void startSession()} disabled={creating}><Plus size={19} />{creating ? "Oppretter…" : "Opprett økt"}</Button></header>
-    <div className="mt-10 flex gap-1 overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--paper-deep)] p-1.5 sm:w-fit">{tabs.map((entry) => { const count = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return <button key={entry.id} onClick={() => setTab(entry.id)} className={cn("inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-bold text-[var(--ink-soft)] transition", tab === entry.id && "bg-[var(--surface)] text-[var(--ink)] shadow-sm")}>{entry.label}<span className={cn("rounded-full px-2 py-0.5 text-[10px]", tab === entry.id ? "bg-[var(--ink)] text-white" : "bg-black/5")}>{count}</span></button>; })}</div>
+    <TabSelect tab={tab} onSelect={setTab} counts={counts} />
     {current.length ? (tab === "drafts"
       // Drafts sort by when they were last touched, so a calendar heading would
       // group them by a date the order does not follow.
@@ -46,6 +47,35 @@ export default function SessionsPage() {
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="secondary" onClick={() => setPendingDelete(null)} disabled={deleting}>Behold økten</Button><Button variant="danger" onClick={() => void confirmDelete()} disabled={deleting}><Trash2 size={17} />{deleting ? "Sletter…" : "Slett økt"}</Button></div>
     </Modal>
   </div></AppShell>;
+}
+
+// One dropdown instead of a three-way segmented control: the labels are long
+// enough that the strip had to scroll sideways on a phone, and the tab you are
+// on is the only one worth showing at rest.
+function TabSelect({ tab, onSelect, counts }: { tab: SessionTab; onSelect(tab: SessionTab): void; counts: Record<SessionTab, number> }) {
+  const [open, setOpen] = useState(false); const ref = useRef<HTMLDivElement>(null);
+  const active = tabs.find((entry) => entry.id === tab) ?? tabs[0];
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: Event) => { if (!ref.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", close); document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
+  }, [open]);
+  return <div ref={ref} className="relative mt-10 w-full sm:w-72">
+    <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)} className={cn("inline-flex min-h-12 w-full items-center gap-2.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 text-left text-[15px] font-bold text-[var(--ink)] shadow-sm transition hover:border-[#aaa69b]", open && "border-[var(--orange)]")}>
+      <span className="flex-1 truncate">{active.label}</span>
+      <span className="rounded-full bg-[var(--ink)] px-2 py-0.5 text-[10px] text-white">{counts[active.id]}</span>
+      <ChevronDown size={17} className={cn("shrink-0 text-[var(--ink-soft)] transition", open && "rotate-180")} />
+    </button>
+    {open && <div role="listbox" className="absolute left-0 top-[calc(100%+6px)] z-30 w-full rounded-2xl border border-[var(--line)] bg-white p-1.5 shadow-xl">
+      {tabs.map((entry) => <button key={entry.id} type="button" role="option" aria-selected={entry.id === tab} onClick={() => { onSelect(entry.id); setOpen(false); }} className={cn("flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-sm font-bold text-[var(--ink-soft)] transition hover:bg-[var(--paper)]", entry.id === tab && "bg-[var(--paper)] text-[var(--ink)]")}>
+        <Check size={16} className={cn("shrink-0 text-[var(--orange)]", entry.id !== tab && "opacity-0")} />
+        <span className="flex-1 truncate">{entry.label}</span>
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px]", entry.id === tab ? "bg-[var(--ink)] text-white" : "bg-black/5")}>{counts[entry.id]}</span>
+      </button>)}
+    </div>}
+  </div>;
 }
 
 function SessionRow({ session, tab, hero = false, onDelete }: { session: PlannedSession; tab: SessionTab; hero?: boolean; onDelete(): void }) {
