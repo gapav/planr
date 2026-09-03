@@ -53,6 +53,20 @@ export function isSessionStartable(session: PlannedSession, now = new Date(), ti
   return calendarDaysUntil(session.startsAt, now, timeZone) === 0;
 }
 
+// The installed app opens straight into the hall, so "today" has to resolve to
+// the one plan a coach is about to run. Startability is the same test the
+// calendar's Start button uses, so a draft dated today never qualifies: it has
+// no agreed time and the database refuses to start it. A workout already under
+// way wins outright, whatever day it was started on — finishing it is the only
+// thing the coach can do next.
+export function pickTodaySession(sessions: PlannedSession[], now = new Date(), timeZone?: string) {
+  const startable = sessions.filter((session) => isSessionStartable(session, now, timeZone));
+  return [...startable].sort((a, b) => {
+    if ((a.status === "in_progress") !== (b.status === "in_progress")) return a.status === "in_progress" ? -1 : 1;
+    return (a.startsAt ?? "").localeCompare(b.startsAt ?? "");
+  })[0] ?? null;
+}
+
 // Rows further out than the coming week shrink to a single line: still listed
 // in full, but no longer competing with the sessions being prepared for.
 export function isNearTerm(session: PlannedSession, now = new Date(), timeZone?: string) {

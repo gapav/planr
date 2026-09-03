@@ -31,12 +31,12 @@ export default function SessionsPage() {
     {current.length ? (tab === "drafts"
       // Drafts sort by when they were last touched, so a calendar heading would
       // group them by a date the order does not follow.
-      ? <ul className="mt-7 grid gap-2.5">{current.map((session) => <SessionRow key={session.id} session={session} tab={tab} onDelete={() => setPendingDelete(session)} />)}</ul>
-      : <div className="mt-7 grid gap-6">
+      ? <ul className="mt-7 flex flex-col gap-2.5">{current.map((session) => <SessionRow key={session.id} session={session} tab={tab} onDelete={() => setPendingDelete(session)} />)}</ul>
+      : <div className="mt-7 flex flex-col gap-6">
         {hero && <section><h2 className="mb-2.5 text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">Neste økt</h2><ul><SessionRow session={hero} tab={tab} hero onDelete={() => setPendingDelete(hero)} /></ul></section>}
         {groupSessionsByMonth(listed).map((group) => <section key={group.key}>
           <h2 className="sticky top-16 z-10 -mx-1 rounded-lg bg-[var(--paper)]/90 px-1 py-2 text-xs font-black uppercase tracking-[.16em] text-[var(--ink-soft)] backdrop-blur-sm lg:top-0">{group.label}<span className="opacity-60">{" · "}{group.sessions.length} {group.sessions.length === 1 ? "økt" : "økter"}</span></h2>
-          <ul className="mt-1.5 grid gap-2.5">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
+          <ul className="mt-1.5 flex flex-col gap-2.5">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
             ? <SessionRow key={session.id} session={session} tab={tab} onDelete={() => setPendingDelete(session)} />
             : <CompactSessionRow key={session.id} session={session} onDelete={() => setPendingDelete(session)} />)}</ul>
         </section>)}
@@ -63,13 +63,13 @@ function SessionRow({ session, tab, hero = false, onDelete }: { session: Planned
   // pointer events. An open menu has to outrank the rows stacked after it.
   return <li className={cn("group relative rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_6px_20px_rgba(16,32,29,.03)] transition hover:border-[#b7b2a6] hover:shadow-[var(--shadow)] sm:p-5", hero && "border-[#e9b79c] shadow-[0_10px_30px_rgba(240,100,46,.10)] hover:border-[var(--orange)]", menuOpen && "z-20")}>
     <Link href={`/sessions/${session.id}`} aria-label={`Åpne ${session.title}`} className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--orange)]" />
-    <div className="pointer-events-none relative flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
-      <div className={cn("grid h-16 w-16 shrink-0 place-content-center justify-items-center rounded-2xl border border-[var(--line)] text-center", inProgress ? "border-transparent bg-[var(--orange)] text-white" : "bg-[var(--paper-deep)]")}>
+    <div className="pointer-events-none relative flex flex-wrap items-start gap-x-4 gap-y-3.5 sm:flex-nowrap sm:items-center sm:gap-5">
+      <div className={cn("grid h-14 w-14 shrink-0 place-content-center justify-items-center rounded-2xl border border-[var(--line)] text-center sm:h-16 sm:w-16", inProgress ? "border-transparent bg-[var(--orange)] text-white" : "bg-[var(--paper-deep)]")}>
         {date ? <><span className={cn("text-[10px] font-black uppercase tracking-[.14em]", inProgress ? "text-white/70" : "text-[var(--ink-soft)]")}>{date.weekday}</span><span className="text-2xl font-black leading-none tracking-[-.05em]">{date.day}</span><span className={cn("text-[10px] font-bold uppercase tracking-[.1em]", inProgress ? "text-white/70" : "text-[var(--ink-soft)]")}>{date.month}</span></> : <span className="text-[10px] font-black uppercase tracking-[.14em] text-[var(--ink-soft)]">Ingen dato</span>}
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2"><h3 className="truncate text-xl font-black tracking-[-.035em] transition group-hover:text-[var(--orange)]">{session.title}</h3>{inProgress && <Tag tone="orange">Pågår</Tag>}{relative && <Tag tone={relative === "I dag" && !inProgress ? "orange" : "neutral"}>{relative}</Tag>}</div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[var(--ink-soft)]">
+      <div className="min-w-0 flex-1 basis-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2"><h3 className="truncate text-lg font-black tracking-[-.035em] transition group-hover:text-[var(--orange)] sm:text-xl">{session.title}</h3>{inProgress && <Tag tone="orange">Pågår</Tag>}{relative && <Tag tone={relative === "I dag" && !inProgress ? "orange" : "neutral"}>{relative}</Tag>}</div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-sm text-[var(--ink-soft)] sm:gap-x-4">
           <span className="flex items-center gap-1.5"><Clock3 size={15} />{date ? `${date.time} · ${minutesLabel(session.plannedDurationMinutes)}` : `${minutesLabel(session.plannedDurationMinutes)} planlagt`}</span>
           <span className="flex min-w-0 items-center gap-1.5"><MapPin size={15} /><span className="truncate">{session.venue || "Sted ikke angitt"}</span></span>
           <span className="flex items-center gap-1.5"><LayoutList size={15} />{session.blocks.length} {session.blocks.length === 1 ? "bolk" : "bolker"}</span>
@@ -78,9 +78,9 @@ function SessionRow({ session, tab, hero = false, onDelete }: { session: Planned
         {blockTitles.length > 0 && <p className="mt-2.5 truncate text-sm font-semibold text-[var(--ink-soft)]">{blockTitles.join(" · ")}</p>}
         {tab === "drafts" && <div className="mt-3 flex items-center gap-3"><div className="h-1.5 w-full max-w-56 overflow-hidden rounded-full bg-[var(--paper-deep)]"><div className="h-full rounded-full bg-[var(--orange)] transition-all" style={{ width: `${progress}%` }} /></div><span className="text-xs font-bold text-[var(--ink-soft)]">{built} av {session.plannedDurationMinutes} min planlagt</span></div>}
       </div>
-      <div className="pointer-events-auto flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-        {tab === "upcoming" && isSessionStartable(session) && <Link href={`/sessions/${session.id}/live`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(240,100,46,.22)] transition hover:-translate-y-0.5 hover:bg-[var(--orange-dark)]"><CirclePlay size={17} />{inProgress ? "Fortsett" : "Start"}</Link>}
-        <Link href={`/sessions/${session.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)]">{locked ? <><Eye size={17} />Se planen</> : <><Pencil size={16} />Rediger</>}</Link>
+      <div className="pointer-events-auto flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
+        {tab === "upcoming" && isSessionStartable(session) && <Link href={`/sessions/${session.id}/live`} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(240,100,46,.22)] transition hover:-translate-y-0.5 hover:bg-[var(--orange-dark)] sm:flex-none"><CirclePlay size={17} />{inProgress ? "Fortsett" : "Start"}</Link>}
+        <Link href={`/sessions/${session.id}`} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)] sm:flex-none">{locked ? <><Eye size={17} />Se planen</> : <><Pencil size={16} />Rediger</>}</Link>
         <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} deleteDisabled={inProgress} onDelete={onDelete} />
       </div>
     </div>

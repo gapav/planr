@@ -34,6 +34,12 @@ async function removeTeamLogo(supabase: SupabaseClient, teamId: string, publicUr
 interface GrepContextValue {
   user: Profile | null;
   authLoading: boolean;
+  // `authLoading` only covers knowing *who* is signed in; `loadPrivateData` is
+  // fired without being awaited, so the workspace arrays are still empty for a
+  // moment after it clears. Anything that reads emptiness as an answer rather
+  // than as "not here yet" — /today picking tonight's session — has to wait for
+  // this instead. It latches once and stays true across later refetches.
+  workspaceLoaded: boolean;
   isDemoMode: boolean;
   teams: Team[];
   currentTeam: Team | null;
@@ -140,6 +146,8 @@ function mapPlayer(row: DbPlayer): TeamPlayer {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<Profile | null>(isSupabaseConfigured ? null : demoUser);
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
+  // Demo mode seeds every array synchronously below, so it starts settled.
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(!isSupabaseConfigured);
   const [teams, setTeams] = useState<Team[]>(() => isSupabaseConfigured ? [] : structuredClone(demoTeams));
   const [currentTeamId, setCurrentTeamId] = useState(demoTeams[0].id);
   const [exercises, setExercises] = useState<Exercise[]>(() => isSupabaseConfigured ? [] : structuredClone(demoExercises));
@@ -203,13 +211,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const loadTimer = window.setTimeout(() => void loadPublicExercises(), 0);
     void supabase.auth.getUser().then(({ data }) => {
       setUser((current) => seedProfile(current, data.user ? profileFromUser(data.user) : null));
-      if (data.user) void loadPrivateData(data.user);
+      // `finally`, not `then`: a failed load still settles the workspace, or a
+      // waiting page spins for ever on the arena wifi this app is used on.
+      if (data.user) void loadPrivateData(data.user).finally(() => setWorkspaceLoaded(true));
+      else setWorkspaceLoaded(true);
       setAuthLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isIdentityChange(event)) return;
       setUser((current) => seedProfile(current, session?.user ? profileFromUser(session.user) : null));
-      if (session?.user) void loadPrivateData(session.user);
+      if (session?.user) void loadPrivateData(session.user).finally(() => setWorkspaceLoaded(true));
+      else setWorkspaceLoaded(true);
       setAuthLoading(false);
     });
     return () => { window.clearTimeout(loadTimer); listener.subscription.unsubscribe(); };
@@ -554,7 +566,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
   }, [persist, supabase, user]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

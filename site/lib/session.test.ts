@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoSessions } from "./demo-data";
 import type { PlannedSession } from "./types";
-import { blockDuration, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, relativeDayLabel, sessionDuration, validatePublish } from "./session";
+import { blockDuration, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, pickTodaySession, relativeDayLabel, sessionDuration, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -97,5 +97,36 @@ describe("row emphasis", () => {
     expect(isNearTerm(at(null), now, "UTC")).toBe(false);
     // A session running since yesterday is the one thing you are doing.
     expect(isNearTerm(at("2026-09-01T18:00:00.000Z", "in_progress"), now, "UTC")).toBe(true);
+  });
+});
+
+describe("pickTodaySession", () => {
+  const now = new Date("2026-09-02T09:00:00.000Z");
+  const at = (id: string, startsAt: string | null, status: PlannedSession["status"] = "published") => ({ ...demoSessions[1], id, startsAt, status });
+
+  it("resolves today's plan and leaves the other days alone", () => {
+    const sessions = [at("yesterday", "2026-09-01T18:00:00.000Z"), at("today", "2026-09-02T18:00:00.000Z"), at("tomorrow", "2026-09-03T18:00:00.000Z")];
+    expect(pickTodaySession(sessions, now, "UTC")?.id).toBe("today");
+  });
+  it("takes the earliest of two sessions on the same day", () => {
+    const sessions = [at("evening", "2026-09-02T18:00:00.000Z"), at("morning", "2026-09-02T08:00:00.000Z")];
+    expect(pickTodaySession(sessions, now, "UTC")?.id).toBe("morning");
+  });
+  it("puts a workout already running ahead of a plan that starts sooner", () => {
+    const sessions = [at("later-today", "2026-09-02T18:00:00.000Z"), at("running", "2026-08-31T18:00:00.000Z", "in_progress")];
+    expect(pickTodaySession(sessions, now, "UTC")?.id).toBe("running");
+  });
+  it("ignores a draft dated today, which cannot be started", () => {
+    expect(pickTodaySession([at("draft", "2026-09-02T18:00:00.000Z", "draft")], now, "UTC")).toBeNull();
+  });
+  it("returns null on a day with nothing to run", () => {
+    expect(pickTodaySession([at("tomorrow", "2026-09-03T18:00:00.000Z"), at("undated", null)], now, "UTC")).toBeNull();
+    expect(pickTodaySession([], now, "UTC")).toBeNull();
+  });
+  it("resolves the day in the viewer zone", () => {
+    // 23:30 UTC on the 2nd is already the 3rd in Oslo, so it is no longer today.
+    const sessions = [at("late", "2026-09-02T23:30:00.000Z")];
+    expect(pickTodaySession(sessions, now, "UTC")?.id).toBe("late");
+    expect(pickTodaySession(sessions, now, "Europe/Oslo")).toBeNull();
   });
 });
