@@ -27,7 +27,7 @@ export default function SessionsPage() {
   // the dialog closes either way.
   async function confirmDelete() { if (!pendingDelete) return; setDeleting(true); try { await deleteSession(pendingDelete.id); } catch { /* notice is shown by the provider */ } finally { setDeleting(false); setPendingDelete(null); } }
   if (!currentTeam) return <AppShell><div className="mx-auto max-w-3xl px-4 py-20"><EmptyState icon={<CalendarDays size={22} />} title="Opprett ditt første lag" body="Øktene tilhører et lag, slik at de riktige trenerne kan se og redigere dem." action={<Link href="/team" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white">Opprett et lag</Link>} /></div></AppShell>;
-  return <AppShell><div className="mx-auto max-w-[1100px] px-4 pb-16 pt-7 sm:px-8 sm:pt-10"><header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div className="flex items-start gap-4"><TeamCrest team={currentTeam} size="lg" className="mt-1" /><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">{currentTeam?.shortName}</p><div className="mt-2 flex items-center gap-2.5"><h1 className="text-4xl font-black tracking-[-.055em] sm:text-5xl">Øktkalender</h1><HelpTip topic="sessions-calendar" /></div><p className="mt-3 text-[var(--ink-soft)]">Alle øktplaner, fra første idé til siste heiarop.</p></div></div><Button size="lg" onClick={() => void startSession()} disabled={creating}><Plus size={19} />{creating ? "Oppretter…" : "Opprett økt"}</Button></header>
+  return <AppShell><div className="mx-auto max-w-[1100px] px-4 pb-16 pt-7 sm:px-8 sm:pt-10"><header className="flex items-start gap-4"><TeamCrest team={currentTeam} size="lg" className="mt-1" /><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">{currentTeam?.shortName}</p><div className="mt-2 flex items-center gap-2.5"><h1 className="text-4xl font-black tracking-[-.055em] sm:text-5xl">Øktkalender</h1><HelpTip topic="sessions-calendar" /></div><p className="mt-3 text-[var(--ink-soft)]">Alle øktplaner, fra første idé til siste heiarop.</p></div></header>
     <TabSelect tab={tab} onSelect={setTab} counts={counts} />
     {current.length ? (tab === "drafts"
       // Drafts sort by when they were last touched, so a calendar heading would
@@ -41,12 +41,23 @@ export default function SessionsPage() {
             ? <SessionRow key={session.id} session={session} tab={tab} onDelete={() => setPendingDelete(session)} />
             : <CompactSessionRow key={session.id} session={session} onDelete={() => setPendingDelete(session)} />)}</ul>
         </section>)}
-      </div>) : <div className="mt-7"><EmptyState icon={tab === "drafts" ? <Sparkles size={22} /> : <CalendarDays size={22} />} title={tab === "drafts" ? "Ingen økter under planlegging" : tab === "upcoming" ? "Ingen planlagte økter ennå" : "Ingen gjennomførte økter"} body={tab === "drafts" ? "Start en øktplan og inviter trenerteamet til å bidra." : tab === "upcoming" ? "Publiser et utkast, så vises det automatisk her." : "Gjennomførte økter samles her for senere bruk."} action={tab !== "past" ? <Button onClick={() => void startSession()}><Plus size={17} />Opprett økt</Button> : undefined} /></div>}
+      </div>) : <div className="mt-7"><EmptyState icon={tab === "drafts" ? <Sparkles size={22} /> : <CalendarDays size={22} />} title={tab === "drafts" ? "Ingen økter under planlegging" : tab === "upcoming" ? "Ingen planlagte økter ennå" : "Ingen gjennomførte økter"} body={tab === "drafts" ? "Start en øktplan og inviter trenerteamet til å bidra." : tab === "upcoming" ? "Publiser et utkast, så vises det automatisk her." : "Gjennomførte økter samles her for senere bruk."} /></div>}
+    <CreateSessionCard onCreate={() => void startSession()} creating={creating} />
     <Modal open={Boolean(pendingDelete)} onClose={() => { if (!deleting) setPendingDelete(null); }} title="Vil du slette denne økten?" description="Planen, alle bolkene og aktivitetene blir slettet for hele laget. Dette kan ikke angres." size="sm">
       <p className="rounded-xl bg-[var(--paper)] px-4 py-3 text-sm font-bold">{pendingDelete?.title}</p>
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="secondary" onClick={() => setPendingDelete(null)} disabled={deleting}>Behold økten</Button><Button variant="danger" onClick={() => void confirmDelete()} disabled={deleting}><Trash2 size={17} />{deleting ? "Sletter…" : "Slett økt"}</Button></div>
     </Modal>
   </div></AppShell>;
+}
+
+// Creating a session is the only action here that is not a session, so it takes
+// the shape of the rows it sits under rather than a header button: at the end of
+// the list, separated and orange, it leaves the top of a phone screen to the
+// next session — the thing the coach actually came to look at.
+function CreateSessionCard({ onCreate, creating }: { onCreate(): void; creating: boolean }) {
+  return <button type="button" onClick={onCreate} disabled={creating} className="mt-6 flex min-h-16 w-full items-center justify-center gap-2.5 rounded-2xl border border-[#efc7b1] bg-[#fdece3] px-4 text-[15px] font-black tracking-[-.015em] text-[#9c3913] shadow-[0_6px_20px_rgba(16,32,29,.03)] transition hover:-translate-y-0.5 hover:border-[var(--orange)] hover:bg-[#fbe1d3] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
+    <Plus size={19} />{creating ? "Oppretter…" : "Opprett økt"}
+  </button>;
 }
 
 // One dropdown instead of a three-way segmented control: the labels are long
