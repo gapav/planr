@@ -1,11 +1,11 @@
 "use client";
 
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { invitationUrl, isIdentityChange, seedProfile } from "@/lib/auth";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { claimableInvitations, invitationUrl, isIdentityChange, seedProfile } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
-import { norwegianServerMessage } from "@/lib/server-messages";
+import { isInvitationAlreadyUsed, norwegianServerMessage } from "@/lib/server-messages";
 import { minimizePlayerName } from "@/lib/roster";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -330,6 +330,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await loadPrivateData({ id: user.id, email: user.email, user_metadata: { full_name: user.fullName } } as unknown as User);
   }, [loadPrivateData, supabase, user]);
 
+  // Onboarding no longer depends on the coach holding an /invite link. Their
+  // account is created from the Supabase dashboard, and `invitations_read` lets
+  // them select the row addressed to their own email — token included — so the
+  // membership can be claimed the moment the workspace loads. The link still
+  // works; it is just no longer the only way onto a team.
+  const claimedInvitations = useRef(new Set<string>());
+  useEffect(() => {
+    if (!supabase || !user || !workspaceLoaded) return;
+    const waiting = claimableInvitations(user.email, teams.map((team) => team.id), invitations).filter((invitation) => !claimedInvitations.current.has(invitation.id));
+    if (waiting.length === 0) return;
+    // Claim before awaiting: `teams` and `invitations` both change underneath
+    // this effect while the RPCs are in flight, and a second pass would only
+    // fail the single-use check.
+    for (const invitation of waiting) claimedInvitations.current.add(invitation.id);
+    void (async () => {
+      let joined = 0;
+      for (const invitation of waiting) {
+        const { error } = await supabase.rpc("accept_team_invitation", { invitation_token: invitation.token });
+        // "Already used" means the /invite page or another tab got there first,
+        // which is still a membership — anything else stays quiet rather than
+        // interrupting a coach who never asked for this to happen.
+        if (!error || isInvitationAlreadyUsed(error.message)) joined += 1;
+      }
+      if (joined === 0) return;
+      await refreshWorkspace();
+      setNotice(joined === 1 ? "Du er nå med på laget du ble invitert til." : "Du er nå med på lagene du ble invitert til.");
+    })();
+  }, [invitations, refreshWorkspace, supabase, teams, user, workspaceLoaded]);
+
   const createTeam = useCallback(async (name: string) => {
     if (!user) throw new Error("Logg inn for å opprette et lag");
     if (supabase) {
@@ -372,8 +401,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     else if (!supabase && previousUrl?.startsWith("blob:")) URL.revokeObjectURL(previousUrl);
   }, [currentTeam, persist, supabase]);
 
-  // Nothing is emailed: the admin copies the returned link and sends it from
-  // their own mailbox. accept_team_invitation still binds it to this address.
+  // Nothing is emailed from here. The row grants the team and role; Supabase's
+  // own invite email creates the account. The returned link stays a fallback for
+  // a coach who already has one, and accept_team_invitation binds either route
+  // to this address.
   const inviteMember = useCallback(async (email: string, role: TeamRole) => {
     if (!currentTeam || !user) throw new Error("Velg et lag før du inviterer en trener");
     const id = makeUuid(); const token = makeUuid(); const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();

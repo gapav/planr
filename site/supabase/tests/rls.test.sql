@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(48);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -110,6 +110,27 @@ select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-00
 select lives_ok($$ update public.profiles set full_name = 'Renamed Admin' where id = '10000000-0000-0000-0000-000000000001' $$, 'a coach can rename themselves');
 select lives_ok($$ update public.profiles set must_set_password = false where id = '10000000-0000-0000-0000-000000000001' $$, 'a coach can clear their own temporary-password flag');
 select throws_ok($$ update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'a coach cannot make themselves a global admin');
+reset role;
+
+-- The Supabase-dashboard onboarding leans entirely on invitations_read: a coach
+-- who never received an /invite link must still be able to select the row
+-- addressed to their own email — token included — and claim it unaided. That
+-- token must stay invisible to everyone else.
+insert into public.team_invitations (team_id, email, role, token, invited_by, expires_at)
+select id, 'coach@example.com', 'coach', '50000000-0000-0000-0000-000000000001', created_by, now() + interval '7 days'
+from public.teams where created_by = '10000000-0000-0000-0000-000000000001';
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.team_invitations), 0, 'an unrelated coach cannot see an invitation addressed to someone else');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select is((select token::text from public.team_invitations where email = 'coach@example.com'), '50000000-0000-0000-0000-000000000001', 'an invited coach can read their own invitation token without holding the link');
+select lives_ok($$ select public.accept_team_invitation('50000000-0000-0000-0000-000000000001') $$, 'an invited coach can accept an invitation they found for themselves');
+select is((select count(*)::integer from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000002'), 1, 'accepting the invitation puts the coach on the team');
+select throws_ok($$ select public.accept_team_invitation('50000000-0000-0000-0000-000000000001') $$, 'P0001', 'Invitasjonen er allerede brukt', 'an invitation cannot be claimed twice');
 reset role;
 
 select * from finish();

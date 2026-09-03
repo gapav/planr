@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { internalPath, invitationUrl, isIdentityChange, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
+import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
+import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
   it("accepts a long enough matching password", () => {
@@ -61,5 +62,46 @@ describe("isIdentityChange", () => {
 
   it("ignores routine token refreshes", () => {
     expect(isIdentityChange("TOKEN_REFRESHED")).toBe(false);
+  });
+});
+
+describe("claimableInvitations", () => {
+  const now = new Date("2026-09-03T12:00:00Z");
+  const invitation = (patch: Partial<TeamInvitation> = {}): TeamInvitation => ({
+    id: "inv-1", teamId: "team-1", email: "kari@klubb.no", role: "coach", token: "tok-1",
+    expiresAt: "2026-09-10T12:00:00Z", acceptedAt: null, ...patch,
+  });
+
+  it("claims the invitation addressed to this coach", () => {
+    expect(claimableInvitations("kari@klubb.no", [], [invitation()], now)).toHaveLength(1);
+  });
+
+  it("ignores case and padding on both addresses", () => {
+    expect(claimableInvitations("  Kari@Klubb.no ", [], [invitation({ email: "KARI@klubb.no" })], now)).toHaveLength(1);
+  });
+
+  it("leaves another coach's invitation alone", () => {
+    expect(claimableInvitations("ola@klubb.no", [], [invitation()], now)).toEqual([]);
+  });
+
+  it("skips a team the coach is already on, so an admin does not re-accept their own invite", () => {
+    expect(claimableInvitations("kari@klubb.no", ["team-1"], [invitation()], now)).toEqual([]);
+  });
+
+  it("skips an expired invitation rather than letting the rpc reject it", () => {
+    expect(claimableInvitations("kari@klubb.no", [], [invitation({ expiresAt: "2026-09-01T12:00:00Z" })], now)).toEqual([]);
+  });
+
+  it("skips an already accepted invitation", () => {
+    expect(claimableInvitations("kari@klubb.no", [], [invitation({ acceptedAt: "2026-09-02T12:00:00Z" })], now)).toEqual([]);
+  });
+
+  it("skips a row whose token the policy withheld", () => {
+    expect(claimableInvitations("kari@klubb.no", [], [invitation({ token: null })], now)).toEqual([]);
+  });
+
+  it("has nothing to claim without a signed-in address", () => {
+    expect(claimableInvitations(null, [], [invitation()], now)).toEqual([]);
+    expect(claimableInvitations("", [], [invitation()], now)).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import type { Profile } from "./types";
+import type { Profile, TeamInvitation } from "./types";
 
 export const MIN_PASSWORD_LENGTH = 10;
 
@@ -44,4 +44,35 @@ export function internalPath(value: string | null | undefined, fallback = "/sess
 /** The link an admin sends to a coach so they can join a team once signed in. */
 export function invitationUrl(origin: string, token: string): string {
   return `${origin.replace(/\/+$/, "")}/invite/${token}`;
+}
+
+/** An invitation whose token this coach can read, and so can accept unaided. */
+export type ClaimableInvitation = TeamInvitation & { token: string };
+
+/**
+ * The invitations waiting for this coach that they can accept without ever
+ * holding the /invite link.
+ *
+ * `invitations_read` already lets a signed-in user select the rows addressed to
+ * their own email — token included — so an account created from the Supabase
+ * dashboard is enough on its own to get onto a team. Rows for teams they are
+ * already on are skipped so an admin never re-accepts their own pending
+ * invitations, and expired ones are dropped here rather than sent to
+ * `accept_team_invitation` only to come back as an error notice.
+ */
+export function claimableInvitations(
+  email: string | null | undefined,
+  memberTeamIds: readonly string[],
+  invitations: readonly TeamInvitation[],
+  now: Date = new Date(),
+): ClaimableInvitation[] {
+  const address = email?.trim().toLowerCase();
+  if (!address) return [];
+  const joined = new Set(memberTeamIds);
+  return invitations.filter((invitation): invitation is ClaimableInvitation =>
+    invitation.token !== null &&
+    invitation.acceptedAt === null &&
+    !joined.has(invitation.teamId) &&
+    invitation.email.trim().toLowerCase() === address &&
+    new Date(invitation.expiresAt).getTime() > now.getTime());
 }
