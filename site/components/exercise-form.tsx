@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import { useGrep } from "./app-provider";
+import { HelpHint } from "./help-tip";
 import { Button, Field, inputClass, Modal, textareaClass } from "./ui";
 import { validateExerciseMediaUpload } from "@/lib/media";
 import { EXERCISE_CATEGORIES, type Exercise } from "@/lib/types";
@@ -35,7 +36,7 @@ export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exerc
       <Field label="Navn på øvelsen"><input className={inputClass} value={values.name} onChange={(event) => setValues({ ...values, name: event.target.value })} placeholder="f.eks. Tre rekker i kontring" autoFocus /></Field>
       <Field label="Kategori"><select className={`${inputClass} appearance-none`} value={values.category} onChange={(event) => setValues({ ...values, category: event.target.value as Exercise["category"] })}>{EXERCISE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
       <Field label="Beskrivelse" hint="Forklar organiseringen, gjennomføringen og de viktigste trenermomentene."><textarea className={textareaClass} value={values.description} onChange={(event) => setValues({ ...values, description: event.target.value })} placeholder="Spillerne jobber i tre rekker …" /></Field>
-      <Field label="Lenke til bilde eller video (valgfritt)" hint="HTTPS-bilder, YouTube, Vimeo og direkte videolenker støttes."><input className={inputClass} type="url" value={values.mediaUrl} onChange={(event) => setValues({ ...values, mediaUrl: event.target.value })} placeholder="https://..." /></Field>
+      <Field label="Lenke til bilde eller video (valgfritt)" hint="HTTPS-bilder, YouTube, Vimeo og direkte videolenker støttes." htmlFor="exercise-media-url" help={<HelpHint topic="media-link" />}><input id="exercise-media-url" className={inputClass} type="url" value={values.mediaUrl} onChange={(event) => setValues({ ...values, mediaUrl: event.target.value })} placeholder="https://..." /></Field>
       <div className="relative flex items-center"><span className="h-px flex-1 bg-[var(--line)]" /><span className="px-3 text-xs font-bold uppercase tracking-[.1em] text-[var(--ink-soft)]">eller</span><span className="h-px flex-1 bg-[var(--line)]" /></div>
       <Field label="Last opp et bilde eller en MP4-video" hint="JPG, PNG, WebP og MP4 støttes. Maksimal filstørrelse er 5 MB. Den opplastede filen erstatter lenken ovenfor."><input className={`${inputClass} cursor-pointer py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--paper-deep)] file:px-3 file:py-1.5 file:text-xs file:font-bold`} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,.jpg,.jpeg,.png,.webp,.mp4" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (!file) { setMediaFile(null); return; } try { validateExerciseMediaUpload(file); setMediaFile(file); setValues({ ...values, mediaUrl: "" }); setError(null); } catch (caught) { event.target.value = ""; setMediaFile(null); setError(caught instanceof Error ? caught.message : "Velg et gyldig bilde eller en MP4-video"); } }} /></Field>
       {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}

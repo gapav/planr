@@ -9,12 +9,10 @@ import {
   ChevronLeft,
   ChevronRight,
   CirclePlay,
-  Clock3,
   FastForward,
   Flag,
   ListChecks,
   LockKeyhole,
-  MapPin,
   RotateCcw,
   Shuffle,
   UserRoundCheck,
@@ -29,11 +27,12 @@ import type { PlayerGroup, SessionGroupingKind, SessionItem, TeamPlayer } from "
 import { cn, formatSessionDate, minutesLabel } from "@/lib/utils";
 import { AppShell } from "./app-shell";
 import { useGrep } from "./app-provider";
+import { GroupingBoard } from "./grouping-board";
 import { HelpTip } from "./help-tip";
 import { TeamCrest } from "./team-crest";
 import { Button, EmptyState, Modal, Tag } from "./ui";
 
-type SetupStep = "check-in" | "groups";
+type SetupStep = "check-in" | "groups" | "result";
 
 export function LiveSession({ sessionId }: { sessionId: string }) {
   const store = useGrep();
@@ -69,6 +68,16 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
   const attendanceStale = isGroupingStale(groups, presentIds);
   const configurationStale = groupingKind === "teams" && groups.length > 0 && groups.length !== effectiveTeamCount;
   const groupsReady = groups.length > 0 && !attendanceStale && !configurationStale;
+  // Switching format or losing the saved draw must not strand the coach on an
+  // empty result screen.
+  const activeStep: SetupStep = step === "result" && !groups.length ? "groups" : step;
+
+  // Each step is its own screenful: the draw is worthless if it renders below
+  // the fold of the form that produced it, which is what happens on a phone.
+  function goToStep(next: SetupStep) {
+    setStep(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function toggleAll(present: boolean) {
     await Promise.all(players.map((player) => store.setPlayerPresent(sessionId, player.id, present)));
@@ -81,6 +90,7 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
     try {
       const nextGroups = groupingKind === "teams" ? makeTeams(presentPlayers, effectiveTeamCount) : makePairs(presentPlayers);
       await store.saveGrouping(sessionId, groupingKind, nextGroups);
+      goToStep("result");
     } finally {
       setGenerating(false);
     }
@@ -113,6 +123,37 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
     }
   }
 
+  // Before anything is drawn the page is just the setup form: a preview panel
+  // with nothing in it reads as a bug, so the two-column layout only appears
+  // once there are groups to show.
+  const settingsCard = <div className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_35px_rgba(16,32,29,.05)] sm:p-6">
+    <p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">Innstillinger for trekning</p><h2 className="mt-1 text-2xl font-black tracking-[-.04em]">Sett opp gruppene</h2><p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">Velg format og størrelse, og generer når du er klar.</p>
+    <fieldset className="mt-6"><legend className="text-sm font-black">Format</legend><div className="mt-2 grid grid-cols-2 gap-2"><FormatButton active={groupingKind === "teams"} icon={<UsersRound size={18} />} label="Lag" onClick={() => setGroupingKind("teams")} /><FormatButton active={groupingKind === "pairs"} icon={<UserRoundCheck size={18} />} label="Par" onClick={() => setGroupingKind("pairs")} /></div></fieldset>
+    {groupingKind === "teams" && <label className="mt-6 block text-sm font-black"><span>Antall lag</span><div className="mt-2 flex items-center rounded-2xl border border-[var(--line)] bg-white p-1"><button type="button" className="grid h-10 w-11 place-items-center rounded-xl text-xl font-bold hover:bg-black/5" onClick={() => setTeamCount((count) => Math.max(2, count - 1))} aria-label="Færre lag">−</button><input type="number" min={2} max={Math.max(2, presentPlayers.length)} value={effectiveTeamCount} onChange={(event) => setTeamCount(Math.max(2, Number(event.target.value) || 2))} className="h-10 min-w-0 flex-1 bg-transparent text-center text-lg font-black outline-none" /><button type="button" className="grid h-10 w-11 place-items-center rounded-xl text-xl font-bold hover:bg-black/5" onClick={() => setTeamCount((count) => Math.min(Math.max(2, presentPlayers.length), count + 1))} aria-label="Flere lag">+</button></div></label>}
+    <div className="mt-6 rounded-2xl bg-[var(--paper)] p-4 text-sm leading-6 text-[var(--ink-soft)]"><strong className="text-[var(--ink)]">{presentPlayers.length} registrert</strong><br />{groupingKind === "teams" ? `Det opprettes ${effectiveTeamCount} jevne lag.` : "Spillerne deles i par, med én trio ved behov."}</div>
+    <Button className="mt-5 w-full" size="lg" disabled={presentPlayers.length < 2 || generating} onClick={() => void generate()}><Shuffle size={18} />{generating ? "Genererer…" : groups.length ? "Generer på nytt" : "Generer grupper"}</Button>
+    <Button className="mt-2 w-full" variant="ghost" onClick={() => goToStep("check-in")}><ChevronLeft size={17} />Endre oppmøte</Button>
+    {!groups.length && session.status !== "published" && <p className="mt-4 rounded-2xl bg-[#fff0e8] px-4 py-3 text-sm font-bold text-[#9c3913]">Publiser øktplanen før økten startes.</p>}
+  </div>;
+
+  const resultCard = <div className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_35px_rgba(16,32,29,.05)] sm:p-7">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">{groupingKind === "teams" ? "Trekning" : "Parvis trekning"}</p><h2 className="mt-1 text-2xl font-black tracking-[-.04em]">{groupingKind === "teams" ? "Dagens lag" : "Dagens par"}</h2><p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">Dra en spiller til en annen gruppe, eller trykk på navnet for å velge gruppe.</p></div>
+      <div className="flex shrink-0 items-center gap-2">{groupsReady && <Tag tone="green"><CheckCircle2 size={13} className="mr-1" />Klar</Tag>}<Button variant="secondary" size="sm" disabled={presentPlayers.length < 2 || generating} onClick={() => void generate()}><Shuffle size={16} />{generating ? "Genererer…" : "Trekk på nytt"}</Button></div>
+    </div>
+    {attendanceStale || configurationStale ? <div className="mt-5 rounded-2xl bg-[#fff0e8] px-4 py-3 text-sm font-bold text-[#9c3913]">{attendanceStale ? "Oppmøtet er endret" : "Innstillingene er endret"} — generer på nytt før start.</div> : null}
+    <div className="mt-5"><GroupingBoard groups={groups} players={players} onMove={(next) => void store.saveGrouping(sessionId, groupingKind, next)} /></div>
+    <div className="mt-7 border-t border-[var(--line)] pt-5">
+      {session.status !== "published" && <p className="mb-3 rounded-2xl bg-[#fff0e8] px-4 py-3 text-sm font-bold text-[#9c3913]">Publiser øktplanen før økten startes.</p>}
+      {startError && <p className="mb-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">{startError}</p>}
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <Button variant="ghost" onClick={() => goToStep("groups")}><ChevronLeft size={17} />Endre innstillinger</Button>
+        <Button size="lg" className="sm:min-w-56" disabled={!groupsReady || session.status !== "published" || starting} onClick={() => void startWorkout()}><CirclePlay size={19} />{starting ? "Starter…" : "Start økten"}</Button>
+      </div>
+      <p className="mt-3 text-center text-xs leading-5 text-[var(--ink-soft)] sm:text-right"><LockKeyhole size={12} className="mr-1 inline" />Når økten startes, låses oppmøtet og gruppene.</p>
+    </div>
+  </div>;
+
   return <AppShell immersive><div className="min-h-screen pb-16">
     <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]/90 px-4 py-4 backdrop-blur-xl sm:px-8">
       <div className="mx-auto flex max-w-[1180px] items-center gap-4">
@@ -125,39 +166,19 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
     </header>
 
     <main className="mx-auto max-w-[1180px] px-4 pt-7 sm:px-8 sm:pt-10">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <StepTab active={step === "check-in"} complete={presentPlayers.length >= 2} number="1" title="Registrer oppmøte" detail={`${presentPlayers.length} av ${players.length} spillere`} onClick={() => setStep("check-in")} />
-        <StepTab active={step === "groups"} complete={groupsReady} number="2" title="Generer grupper" detail={groupsReady ? `${groups.length} ${groupingKind === "teams" ? "lag" : "par"}` : "Sett opp trekningen"} onClick={() => setStep("groups")} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StepTab active={activeStep === "check-in"} complete={presentPlayers.length >= 2} number="1" title="Registrer oppmøte" detail={`${presentPlayers.length} av ${players.length} spillere`} onClick={() => goToStep("check-in")} />
+        <StepTab active={activeStep === "groups"} complete={groups.length > 0} number="2" title="Velg trekning" detail={groupingKind === "teams" ? `${effectiveTeamCount} lag` : "Par"} onClick={() => goToStep("groups")} />
+        <StepTab active={activeStep === "result"} complete={groupsReady} number="3" title={groupingKind === "teams" ? "Dagens lag" : "Dagens par"} detail={groups.length ? `${groups.length} ${groupingKind === "teams" ? "lag" : "par"}` : "Ikke trukket ennå"} disabled={!groups.length} onClick={() => goToStep("result")} />
       </div>
 
       {session.status === "published" && <section className="mt-4 flex flex-col gap-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-4 shadow-[0_6px_20px_rgba(16,32,29,.03)] sm:flex-row sm:items-center sm:justify-between sm:px-5"><div className="flex min-w-0 items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--paper-deep)]"><FastForward size={18} /></span><div><p className="font-black">Vil du gå rett til treningen?</p><p className="mt-1 text-sm leading-5 text-[var(--ink-soft)]">Start uten å registrere oppmøte eller dele inn i lag.</p></div></div><Button variant="secondary" className="shrink-0" onClick={() => { setSkipSetupError(""); setConfirmSkipSetup(true); }}><FastForward size={17} />Hopp over oppsett</Button></section>}
 
-      {!players.length ? <div className="mt-7"><EmptyState icon={<UsersRound size={24} />} title="Importer spillerlisten først" body="Legg til Hoopit-listen under Laginnstillinger, og gå deretter tilbake hit for å registrere oppmøte." action={<Link href="/team" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--orange)] px-4 text-sm font-semibold text-white">Gå til Laginnstillinger</Link>} /></div> : step === "check-in" ? <section className="mt-7 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_35px_rgba(16,32,29,.05)] sm:p-7">
+      {!players.length ? <div className="mt-7"><EmptyState icon={<UsersRound size={24} />} title="Importer spillerlisten først" body="Legg til Hoopit-listen under Laginnstillinger, og gå deretter tilbake hit for å registrere oppmøte." action={<Link href="/team" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--orange)] px-4 text-sm font-semibold text-white">Gå til Laginnstillinger</Link>} /></div> : activeStep === "check-in" ? <section className="mt-7 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_35px_rgba(16,32,29,.05)] sm:p-7">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">Oppmøte</p><h2 className="mt-1 text-2xl font-black tracking-[-.04em]">Hvem er til stede i dag?</h2><p className="mt-2 text-sm text-[var(--ink-soft)]">Registrer oppmøte før du lager lag eller par.</p></div><div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void toggleAll(true)}>Velg alle</Button><Button variant="ghost" size="sm" onClick={() => void toggleAll(false)}>Nullstill</Button></div></div>
-        <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{players.map((player) => { const present = presentIds.has(player.id); return <button key={player.id} type="button" aria-pressed={present} onClick={() => void store.setPlayerPresent(sessionId, player.id, !present)} className={cn("flex min-h-14 items-center gap-3 rounded-2xl border px-4 text-left transition", present ? "border-[#83ad9c] bg-[#e8f3eb]" : "border-[var(--line)] bg-white hover:border-[#aaa69b]")}><span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full border-2", present ? "border-[#34745f] bg-[#34745f] text-white" : "border-[#c2c0b8]")}>{present && <Check size={16} strokeWidth={3} />}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{player.fullName}</strong><small className="text-[var(--ink-soft)]">{player.jerseyNumber ? `#${player.jerseyNumber}` : "Uten nummer"}</small></span></button>; })}</div>
-        <div className="mt-7 flex flex-col items-stretch justify-between gap-3 border-t border-[var(--line)] pt-5 sm:flex-row sm:items-center"><p className="text-sm font-semibold text-[var(--ink-soft)]">{presentPlayers.length < 2 ? "Registrer minst to spillere for å fortsette." : `${presentPlayers.length} spillere er klare for trekning.`}</p><Button disabled={presentPlayers.length < 2} onClick={() => setStep("groups")}>Fortsett til grupper<ChevronRight size={17} /></Button></div>
-      </section> : <section className="mt-7 grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_35px_rgba(16,32,29,.05)] sm:p-6">
-          <p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">Innstillinger for trekning</p><h2 className="mt-1 text-2xl font-black tracking-[-.04em]">Sett opp gruppene</h2><p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">Velg format og størrelse, og generer når du er klar.</p>
-          <fieldset className="mt-6"><legend className="text-sm font-black">Format</legend><div className="mt-2 grid grid-cols-2 gap-2"><FormatButton active={groupingKind === "teams"} icon={<UsersRound size={18} />} label="Lag" onClick={() => setGroupingKind("teams")} /><FormatButton active={groupingKind === "pairs"} icon={<UserRoundCheck size={18} />} label="Par" onClick={() => setGroupingKind("pairs")} /></div></fieldset>
-          {groupingKind === "teams" && <label className="mt-6 block text-sm font-black"><span>Antall lag</span><div className="mt-2 flex items-center rounded-2xl border border-[var(--line)] bg-white p-1"><button type="button" className="grid h-10 w-11 place-items-center rounded-xl text-xl font-bold hover:bg-black/5" onClick={() => setTeamCount((count) => Math.max(2, count - 1))} aria-label="Færre lag">−</button><input type="number" min={2} max={Math.max(2, presentPlayers.length)} value={effectiveTeamCount} onChange={(event) => setTeamCount(Math.max(2, Number(event.target.value) || 2))} className="h-10 min-w-0 flex-1 bg-transparent text-center text-lg font-black outline-none" /><button type="button" className="grid h-10 w-11 place-items-center rounded-xl text-xl font-bold hover:bg-black/5" onClick={() => setTeamCount((count) => Math.min(Math.max(2, presentPlayers.length), count + 1))} aria-label="Flere lag">+</button></div></label>}
-          <div className="mt-6 rounded-2xl bg-[var(--paper)] p-4 text-sm leading-6 text-[var(--ink-soft)]"><strong className="text-[var(--ink)]">{presentPlayers.length} registrert</strong><br />{groupingKind === "teams" ? `Det opprettes ${effectiveTeamCount} jevne lag.` : "Spillerne deles i par, med én trio ved behov."}</div>
-          <Button className="mt-5 w-full" size="lg" disabled={presentPlayers.length < 2 || generating} onClick={() => void generate()}><Shuffle size={18} />{generating ? "Genererer…" : groups.length ? "Generer på nytt" : "Generer grupper"}</Button>
-          <Button className="mt-2 w-full" variant="ghost" onClick={() => setStep("check-in")}><ChevronLeft size={17} />Endre oppmøte</Button>
-        </div>
-
-        <div className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_35px_rgba(16,32,29,.05)] sm:p-6">
-          <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--orange)]">Forhåndsvisning</p><h2 className="mt-1 text-2xl font-black tracking-[-.04em]">{groupingKind === "teams" ? "Dagens lag" : "Dagens par"}</h2></div>{groupsReady && <Tag tone="green"><CheckCircle2 size={13} className="mr-1" />Klar</Tag>}</div>
-          {attendanceStale || configurationStale ? <div className="mt-5 rounded-2xl bg-[#fff0e8] px-4 py-3 text-sm font-bold text-[#9c3913]">{attendanceStale ? "Oppmøtet er endret" : "Innstillingene er endret"} — generer på nytt før start.</div> : null}
-          {groups.length ? <GroupsGrid groups={groups} players={players} className="mt-5" /> : <div className="mt-5 grid min-h-64 place-items-center rounded-[22px] border border-dashed border-[#c8c3b7] bg-white/40 px-6 text-center"><div><Shuffle className="mx-auto text-[var(--ink-soft)]" size={28} /><p className="mt-3 font-black">Trekningen vises her</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Velg innstillinger og trykk deretter på «Generer grupper».</p></div></div>}
-          <div className="mt-6 border-t border-[var(--line)] pt-5">
-            {session.status !== "published" && <p className="mb-3 rounded-2xl bg-[#fff0e8] px-4 py-3 text-sm font-bold text-[#9c3913]">Publiser øktplanen før økten startes.</p>}
-            {startError && <p className="mb-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">{startError}</p>}
-            <Button size="lg" className="w-full" disabled={!groupsReady || session.status !== "published" || starting} onClick={() => void startWorkout()}><CirclePlay size={19} />{starting ? "Starter…" : "Start økten"}</Button>
-            <p className="mt-3 text-center text-xs leading-5 text-[var(--ink-soft)]"><LockKeyhole size={12} className="mr-1 inline" />Når økten startes, låses oppmøtet og gruppene.</p>
-          </div>
-        </div>
-      </section>}
+        <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{players.map((player) => { const present = presentIds.has(player.id); return <button key={player.id} type="button" aria-pressed={present} onClick={() => void store.setPlayerPresent(sessionId, player.id, !present)} className={cn("flex min-h-14 items-center gap-3 rounded-2xl border px-4 text-left transition", present ? "border-[#83ad9c] bg-[#e8f3eb]" : "border-[var(--line)] bg-white hover:border-[#aaa69b]")}><span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full border-2", present ? "border-[#34745f] bg-[#34745f] text-white" : "border-[#c2c0b8]")}>{present && <Check size={16} strokeWidth={3} />}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{player.fullName}</strong>{player.jerseyNumber ? <small className="text-[var(--ink-soft)]">{`#${player.jerseyNumber}`}</small> : null}</span></button>; })}</div>
+        <div className="mt-7 flex flex-col items-stretch justify-between gap-3 border-t border-[var(--line)] pt-5 sm:flex-row sm:items-center"><p className="text-sm font-semibold text-[var(--ink-soft)]">{presentPlayers.length < 2 ? "Registrer minst to spillere for å fortsette." : `${presentPlayers.length} spillere er klare for trekning.`}</p><Button disabled={presentPlayers.length < 2} onClick={() => goToStep("groups")}>Fortsett til grupper<ChevronRight size={17} /></Button></div>
+      </section> : activeStep === "result" ? <section className="mt-7">{resultCard}</section> : <section className="mx-auto mt-7 max-w-[560px]">{settingsCard}</section>}
     </main>
     <Modal open={confirmSkipSetup} onClose={() => { if (!skippingSetup) setConfirmSkipSetup(false); }} title="Starte uten oppmøte og grupper?" description="Du går rett til treningen. Eventuelt oppmøte og grupper som allerede er lagret, beholdes, men brukes ikke i denne gjennomføringen." size="sm">
       {skipSetupError && <p role="alert" className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">{skipSetupError}</p>}
@@ -234,8 +255,6 @@ export function WorkoutSession({ sessionId }: { sessionId: string }) {
     </header>
 
     <main ref={runnerTop} className="mx-auto max-w-[1080px] scroll-mt-24 px-4 pt-5 sm:px-8 sm:pt-8">
-      <div className="grid grid-cols-3 gap-2 sm:gap-3"><InfoPill icon={<Clock3 size={18} />} label="Varighet" value={minutesLabel(session.plannedDurationMinutes)} /><InfoPill icon={<MapPin size={18} />} label="Sted" value={session.venue || "Ikke angitt"} /><InfoPill icon={setupSkipped ? <FastForward size={18} /> : <UsersRound size={18} />} label={setupSkipped ? "Oppsett" : "Registrert"} value={setupSkipped ? "Hoppet over" : `${presentPlayers.length} spillere`} /></div>
-
       {session.blocks.length ? <>
         <nav className="hide-scrollbar mt-5 flex gap-2 overflow-x-auto pb-1" aria-label="Øktens bolker">{session.blocks.map((block, index) => <button key={block.id} type="button" aria-current={index === safeBlockIndex ? "step" : undefined} onClick={() => showBlock(index)} className={cn("inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-sm font-black transition", index === safeBlockIndex ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-soft)] hover:border-[var(--ink)]")}><span className={cn("grid h-6 w-6 place-items-center rounded-lg text-[11px]", index === safeBlockIndex ? "bg-white/15" : "bg-[var(--paper-deep)] text-[var(--ink)]")}>{index + 1}</span>{block.title}</button>)}</nav>
 
@@ -271,20 +290,16 @@ export function WorkoutSession({ sessionId }: { sessionId: string }) {
   </div></AppShell>;
 }
 
-function StepTab({ active, complete, number, title, detail, onClick }: { active: boolean; complete: boolean; number: string; title: string; detail: string; onClick(): void }) {
-  return <button type="button" onClick={onClick} className={cn("flex items-center gap-4 rounded-[22px] border p-4 text-left transition", active ? "border-[var(--ink)] bg-[var(--ink)] text-white shadow-[var(--shadow)]" : "border-[var(--line)] bg-[var(--surface)] hover:border-[#aaa69b]")}><span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-black", active ? "bg-[var(--orange)] text-white" : complete ? "bg-[#dcecdf] text-[#285546]" : "bg-[var(--paper-deep)]")}>{complete && !active ? <Check size={18} strokeWidth={3} /> : number}</span><span className="min-w-0"><strong className="block">{title}</strong><small className={active ? "text-white/60" : "text-[var(--ink-soft)]"}>{detail}</small></span></button>;
+function StepTab({ active, complete, number, title, detail, disabled = false, onClick }: { active: boolean; complete: boolean; number: string; title: string; detail: string; disabled?: boolean; onClick(): void }) {
+  return <button type="button" disabled={disabled} onClick={onClick} className={cn("flex items-center gap-4 rounded-[22px] border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-45", active ? "border-[var(--ink)] bg-[var(--ink)] text-white shadow-[var(--shadow)]" : "border-[var(--line)] bg-[var(--surface)] hover:border-[#aaa69b]")}><span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-black", active ? "bg-[var(--orange)] text-white" : complete ? "bg-[#dcecdf] text-[#285546]" : "bg-[var(--paper-deep)]")}>{complete && !active ? <Check size={18} strokeWidth={3} /> : number}</span><span className="min-w-0"><strong className="block">{title}</strong><small className={active ? "text-white/60" : "text-[var(--ink-soft)]"}>{detail}</small></span></button>;
 }
 
 function FormatButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick(): void }) {
   return <button type="button" aria-pressed={active} onClick={onClick} className={cn("flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border text-sm font-black transition", active ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--line)] bg-white hover:border-[#aaa69b]")}>{icon}{label}</button>;
 }
 
-function GroupsGrid({ groups, players, className, compact = false }: { groups: PlayerGroup[]; players: TeamPlayer[]; className?: string; compact?: boolean }) {
-  return <div className={cn("grid gap-3", !compact && "sm:grid-cols-2", className)}>{groups.map((group) => <article key={group.id} className={cn("rounded-2xl border border-[var(--line)] bg-white", compact ? "p-3.5" : "p-4")}><p className="text-xs font-black uppercase tracking-[.09em] text-[var(--ink-soft)]">{group.label}</p><ul className="mt-2 grid gap-1.5">{group.playerIds.map((id) => <li key={id} className="flex items-center gap-2 text-sm font-bold"><span className="h-1.5 w-1.5 rounded-full bg-[var(--orange)]" />{players.find((player) => player.id === id)?.fullName ?? "Fjernet spiller"}</li>)}</ul></article>)}</div>;
-}
-
-function InfoPill({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-3 py-3 sm:flex sm:items-center sm:gap-3 sm:px-4"><span className="mb-2 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[var(--paper-deep)] sm:mb-0 sm:h-10 sm:w-10">{icon}</span><span className="min-w-0"><small className="block truncate text-[9px] font-black uppercase tracking-[.1em] text-[var(--ink-soft)] sm:text-[10px] sm:tracking-[.12em]">{label}</small><strong className="mt-0.5 block truncate text-xs sm:text-sm">{value}</strong></span></div>;
+function GroupsGrid({ groups, players }: { groups: PlayerGroup[]; players: TeamPlayer[] }) {
+  return <div className="grid gap-3 sm:grid-cols-2">{groups.map((group) => <article key={group.id} className="rounded-2xl border border-[var(--line)] bg-white p-4"><p className="text-xs font-black uppercase tracking-[.09em] text-[var(--ink-soft)]">{group.label}</p><ul className="mt-2 grid gap-1.5">{group.playerIds.map((id) => <li key={id} className="flex items-center gap-2 text-sm font-bold"><span className="h-1.5 w-1.5 rounded-full bg-[var(--orange)]" />{players.find((player) => player.id === id)?.fullName ?? "Fjernet spiller"}</li>)}</ul></article>)}</div>;
 }
 
 function ExerciseDetail({ item }: { item: SessionItem }) {

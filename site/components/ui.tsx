@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useEffect } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -9,17 +10,36 @@ export function Button({ className, variant = "primary", size = "md", ...props }
 }
 
 export function Modal({ open, title, description, children, onClose, size = "md" }: { open: boolean; title: string; description?: string; children: ReactNode; onClose(): void; size?: "sm" | "md" | "lg" }) {
+  // A phone sheet is easy to get stuck in: Escape closes it, and the page
+  // behind stays put so the only thing that scrolls is the dialog itself.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
-  return <div className="fixed inset-0 z-50 grid place-items-end bg-[#10201d]/45 p-0 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+  return <div className="fixed inset-0 z-50 grid place-items-end bg-[#10201d]/45 p-0 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onPointerDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className={cn("max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-[var(--surface)] p-5 shadow-2xl soft-in sm:rounded-[28px] sm:p-7", size === "sm" && "sm:max-w-md", size === "md" && "sm:max-w-xl", size === "lg" && "sm:max-w-3xl")}>
-      <div className="mb-6 flex items-start justify-between gap-5"><div><h2 id="modal-title" className="text-2xl font-black tracking-[-.04em]">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">{description}</p>}</div><Button variant="ghost" size="sm" aria-label="Lukk dialogboksen" onClick={onClose} className="-mr-2"><X size={19} /></Button></div>
+      <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-6 flex items-start justify-between gap-5 border-b border-[var(--line)] bg-[var(--surface)] px-5 pb-4 pt-5 sm:-mx-7 sm:-mt-7 sm:px-7 sm:pt-7"><div><h2 id="modal-title" className="text-2xl font-black tracking-[-.04em]">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">{description}</p>}</div><Button variant="ghost" size="sm" aria-label="Lukk dialogboksen" onClick={onClose} className="-mr-2 h-11 w-11 shrink-0 px-0"><X size={19} /></Button></div>
       {children}
     </section>
   </div>;
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return <label className="grid min-w-0 gap-2 text-sm font-semibold"><span>{label}</span>{children}{hint && <span className="text-xs font-normal text-[var(--ink-soft)]">{hint}</span>}</label>;
+export function Field({ label, hint, help, htmlFor, children }: { label: string; hint?: string; help?: ReactNode; htmlFor?: string; children: ReactNode }) {
+  const trailing = hint && <span className="text-xs font-normal text-[var(--ink-soft)]">{hint}</span>;
+  // A help control next to the label cannot live inside the wrapping <label>: a
+  // click there would be forwarded to the field. With `help` the label shrinks
+  // to the text and points at the control by id instead.
+  if (help) return <div className="grid min-w-0 gap-2 text-sm font-semibold"><span className="flex items-center gap-1.5"><label htmlFor={htmlFor}>{label}</label>{help}</span>{children}{trailing}</div>;
+  return <label className="grid min-w-0 gap-2 text-sm font-semibold"><span>{label}</span>{children}{trailing}</label>;
 }
 
 export const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3.5 text-[15px] text-[var(--ink)] shadow-sm transition placeholder:text-[#8b9692] hover:border-[#aaa69b] focus:border-[var(--orange)] focus:outline-none";

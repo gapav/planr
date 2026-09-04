@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { HELP_TOPICS } from "@/lib/help";
-import { HelpTip } from "./help-tip";
+import { HelpHint, HelpTip } from "./help-tip";
 
 describe("HelpTip", () => {
   const topic = HELP_TOPICS["session-day"];
@@ -24,5 +24,35 @@ describe("HelpTip", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Lukk dialogboksen" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("HelpHint", () => {
+  const topic = HELP_TOPICS["media-link"];
+  const label = `Hjelp: ${topic.title}`;
+
+  it("reveals the steps on hover and hides them again", () => {
+    render(<HelpHint topic="media-link" />);
+
+    const button = screen.getByRole("button", { name: label });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.mouseEnter(button.parentElement!);
+    expect(within(screen.getByRole("tooltip")).getAllByRole("listitem")).toHaveLength(topic.points.length);
+
+    fireEvent.mouseLeave(button.parentElement!);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("keeps the bubble pinned after a click, so touch works too", () => {
+    render(<HelpHint topic="media-link" />);
+
+    const button = screen.getByRole("button", { name: label });
+    fireEvent.click(button);
+    fireEvent.mouseLeave(button.parentElement!);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(topic.points[0]);
+
+    fireEvent.click(button);
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 });

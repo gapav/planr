@@ -66,6 +66,17 @@ export const HELP_TOPICS = {
     ],
     note: "Når en øvelse legges inn i en økt, kopieres navn, beskrivelse og media inn i planen. Senere endringer i banken rører ikke økter som allerede er planlagt.",
   },
+  "media-link": {
+    title: "Slik henter du lenken fra Vimeo",
+    intro: "Vimeo viser ikke lenken i adressefeltet mens videoen spilles. Du må hente den fra delingsmenyen på selve videoen.",
+    ordered: true,
+    points: [
+      "Åpne videoen på Vimeo og trykk «Share» øverst til høyre i videobildet.",
+      "Trykk «Copy link» i delingsvinduet som åpnes. Lenken ligger nå på utklippstavlen.",
+      "Lim lenken inn i feltet over. Miniatyrbildet hentes automatisk når øvelsen lagres.",
+    ],
+    note: "YouTube fungerer på samme måte: bruk «Del» og kopier lenken. Har du bare en videofil, kan du laste den opp som MP4 i stedet.",
+  },
   "roster-import": {
     title: "Spillerlisten",
     intro: "Spillerlisten brukes til å registrere oppmøte og til å trekke lag eller par på treningsdagen.",

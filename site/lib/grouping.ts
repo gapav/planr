@@ -31,3 +31,18 @@ export function makePairs(players: TeamPlayer[], random = Math.random): PlayerGr
   }
   return groups;
 }
+
+// Coaches adjust a generated draw by hand: the player leaves whichever group
+// currently holds them and joins the target, keeping every other group intact.
+// Returns the original array when nothing would change, so callers can skip a
+// pointless save.
+export function movePlayerToGroup(groups: PlayerGroup[], playerId: string, targetGroupId: string): PlayerGroup[] {
+  const target = groups.find((group) => group.id === targetGroupId);
+  if (!target || target.playerIds.includes(playerId)) return groups;
+  return groups.map((group) =>
+    group.id === targetGroupId
+      ? { ...group, playerIds: [...group.playerIds, playerId] }
+      : group.playerIds.includes(playerId)
+        ? { ...group, playerIds: group.playerIds.filter((id) => id !== playerId) }
+        : group);
+}

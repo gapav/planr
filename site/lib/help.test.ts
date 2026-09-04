@@ -18,6 +18,6 @@ describe("help topics", () => {
     }
   });
   it("covers the flows the app actually has", () => {
-    expect(topics.map(([id]) => id)).toEqual(["sessions-calendar", "session-day", "session-builder", "session-publish", "exercises-library", "roster-import", "team-access"]);
+    expect(topics.map(([id]) => id)).toEqual(["sessions-calendar", "session-day", "session-builder", "session-publish", "exercises-library", "media-link", "roster-import", "team-access"]);
   });
 });
