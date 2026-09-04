@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { demoTeams, demoUser } from "@/lib/demo-data";
 import { AppShell } from "./app-shell";
 
-const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), replace: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), replace: vi.fn(), push: vi.fn() }));
 
 vi.mock("./app-provider", () => ({ useGrep: mocks.useGrep }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/exercises", useRouter: () => ({ replace: mocks.replace }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/exercises", useRouter: () => ({ replace: mocks.replace, push: mocks.push }) }));
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children: ReactNode; href: string }) => <a href={href} {...props}>{children}</a>,
 }));
@@ -29,7 +29,20 @@ function grepState(user: typeof demoUser | null, sidebarCollapsed = false) {
 }
 
 describe("AppShell navigation", () => {
-  beforeEach(() => { mocks.useGrep.mockReset(); mocks.replace.mockReset(); });
+  beforeEach(() => { mocks.useGrep.mockReset(); mocks.replace.mockReset(); mocks.push.mockReset(); });
+
+  // Whatever the coach was looking at belonged to the old team, so the switch
+  // lands on the one page that is about the new one.
+  it("sends the coach to the session calendar when they switch team", () => {
+    const state = grepState(demoUser);
+    mocks.useGrep.mockReturnValue(state);
+    render(<AppShell><p>Innhold</p></AppShell>);
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: demoTeams[1].id } });
+
+    expect(state.setCurrentTeamId).toHaveBeenCalledWith(demoTeams[1].id);
+    expect(mocks.push).toHaveBeenCalledWith("/sessions");
+  });
 
   it("keeps the app sidebar on the public exercise route for signed-in coaches", () => {
     const state = grepState(demoUser);

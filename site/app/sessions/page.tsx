@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, CirclePlay, Clock3, Eye, LayoutList, MapPin, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Clock3, LayoutList, MapPin, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -9,7 +9,7 @@ import { HelpTip } from "@/components/help-tip";
 import { useGrep } from "@/components/app-provider";
 import { TeamCrest } from "@/components/team-crest";
 import { Avatar, Button, EmptyState, Modal, Tag } from "@/components/ui";
-import { deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, relativeDayLabel, sessionDuration } from "@/lib/session";
+import { deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration } from "@/lib/session";
 import type { PlannedSession, SessionTab } from "@/lib/types";
 import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
 
@@ -92,16 +92,17 @@ function TabSelect({ tab, onSelect, counts }: { tab: SessionTab; onSelect(tab: S
 function SessionRow({ session, tab, hero = false, onDelete }: { session: PlannedSession; tab: SessionTab; hero?: boolean; onDelete(): void }) {
   const { currentTeam, user } = useGrep(); const built = sessionDuration(session); const progress = session.plannedDurationMinutes ? Math.min(100, Math.round((built / session.plannedDurationMinutes) * 100)) : 0; const updater = currentTeam?.members.find((member) => member.id === session.updatedBy) ?? currentTeam?.members[0];
   const inProgress = session.status === "in_progress"; const date = sessionDateParts(session.startsAt); const relative = relativeDayLabel(session.startsAt); const [menuOpen, setMenuOpen] = useState(false);
-  // In-progress and completed plans are locked in the database, so the row
-  // offers a read-only view instead of pretending it can be edited.
+  // In-progress and completed plans are locked in the database, so the menu
+  // drops the edit entry rather than offering a screen that would bounce back.
   const locked = inProgress || session.status === "completed";
   // Every row in a tab shares that tab's status, so only the one status that
   // does set a row apart is worth a chip. Same for the coach: it is the
   // signed-in one on every row until a team has more than one.
   const otherUpdater = updater && updater.id !== user?.id ? updater : null;
   const blockTitles = hero ? session.blocks.map((block) => block.title.trim()).filter(Boolean) : [];
-  // The whole card opens the plan; the buttons on top of it opt back in to
-  // pointer events. An open menu has to outrank the rows stacked after it.
+  // The whole card opens the plan — Start and Rediger live in the plan view, so
+  // the row carries no action but the menu, which opts back in to pointer
+  // events. An open menu has to outrank the rows stacked after it.
   return <li className={cn("group relative rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_6px_20px_rgba(16,32,29,.03)] transition hover:border-[#b7b2a6] hover:shadow-[var(--shadow)] sm:p-5", hero && "border-[#e9b79c] shadow-[0_10px_30px_rgba(240,100,46,.10)] hover:border-[var(--orange)]", menuOpen && "z-20")}>
     <Link href={`/sessions/${session.id}`} aria-label={`Åpne ${session.title}`} className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--orange)]" />
     <div className="pointer-events-none relative flex flex-wrap items-start gap-x-4 gap-y-3.5 sm:flex-nowrap sm:items-center sm:gap-5">
@@ -119,10 +120,8 @@ function SessionRow({ session, tab, hero = false, onDelete }: { session: Planned
         {blockTitles.length > 0 && <p className="mt-2.5 truncate text-sm font-semibold text-[var(--ink-soft)]">{blockTitles.join(" · ")}</p>}
         {tab === "drafts" && <div className="mt-3 flex items-center gap-3"><div className="h-1.5 w-full max-w-56 overflow-hidden rounded-full bg-[var(--paper-deep)]"><div className="h-full rounded-full bg-[var(--orange)] transition-all" style={{ width: `${progress}%` }} /></div><span className="text-xs font-bold text-[var(--ink-soft)]">{built} av {session.plannedDurationMinutes} min planlagt</span></div>}
       </div>
-      <div className="pointer-events-auto flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
-        {tab === "upcoming" && isSessionStartable(session) && <Link href={`/sessions/${session.id}/live`} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(240,100,46,.22)] transition hover:-translate-y-0.5 hover:bg-[var(--orange-dark)] sm:flex-none"><CirclePlay size={17} />{inProgress ? "Fortsett" : "Start"}</Link>}
-        <Link href={locked ? `/sessions/${session.id}` : `/sessions/${session.id}/edit`} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)] sm:flex-none">{locked ? <><Eye size={17} />Se planen</> : <><Pencil size={16} />Rediger</>}</Link>
-        <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} deleteDisabled={inProgress} onDelete={onDelete} />
+      <div className="pointer-events-auto flex shrink-0 items-center justify-end">
+        <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} editHref={locked ? null : `/sessions/${session.id}/edit`} deleteDisabled={inProgress} onDelete={onDelete} />
       </div>
     </div>
   </li>;
@@ -139,18 +138,16 @@ function CompactSessionRow({ session, onDelete }: { session: PlannedSession; onD
       <span className="w-[4.25rem] shrink-0 text-xs font-black uppercase tracking-[.1em] text-[var(--ink-soft)]">{date ? `${date.weekday} ${date.day}` : "Uten dato"}</span>
       <h3 className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[-.015em] transition group-hover:text-[var(--orange)]">{session.title}</h3>
       <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
-        {/* Label and icon at once would crowd a one-line row on a phone, so the
-            text joins once there is width for it. */}
-        <Link href={locked ? `/sessions/${session.id}` : `/sessions/${session.id}/edit`} aria-label={locked ? "Se planen" : "Rediger"} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--ink)] transition hover:border-[var(--ink)] sm:px-4">{locked ? <Eye size={16} /> : <Pencil size={15} />}<span className="hidden sm:inline">{locked ? "Se planen" : "Rediger"}</span></Link>
-        <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} deleteDisabled={session.status === "in_progress"} onDelete={onDelete} />
+        <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} editHref={locked ? null : `/sessions/${session.id}/edit`} deleteDisabled={session.status === "in_progress"} onDelete={onDelete} />
       </div>
     </div>
   </li>;
 }
 
-// Delete sits behind a menu so a thumb reaching for Start or Rediger cannot
-// land on it. Pointerdown and Escape close it; the trigger toggles.
-function RowMenu({ open, onOpenChange, title, deleteDisabled, onDelete }: { open: boolean; onOpenChange(open: boolean): void; title: string; deleteDisabled: boolean; onDelete(): void }) {
+// Editing and deleting sit behind a menu so a thumb reaching for the card
+// itself cannot land on either. Pointerdown and Escape close it; the trigger
+// toggles.
+function RowMenu({ open, onOpenChange, title, editHref, deleteDisabled, onDelete }: { open: boolean; onOpenChange(open: boolean): void; title: string; editHref: string | null; deleteDisabled: boolean; onDelete(): void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -162,7 +159,9 @@ function RowMenu({ open, onOpenChange, title, deleteDisabled, onDelete }: { open
   return <div ref={ref} className="relative">
     <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={`Flere valg for ${title}`} onClick={() => onOpenChange(!open)} className={cn("grid h-11 w-11 place-items-center rounded-xl border border-transparent text-[var(--ink-soft)] transition hover:border-[var(--line)] hover:bg-[var(--paper)] hover:text-[var(--ink)]", open && "border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]")}><MoreHorizontal size={19} /></button>
     {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-30 w-52 rounded-xl border border-[var(--line)] bg-white p-1.5 text-sm font-semibold shadow-xl">
-      <button type="button" role="menuitem" autoFocus disabled={deleteDisabled} onClick={() => { onOpenChange(false); onDelete(); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-[var(--danger)] transition enabled:hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"><Trash2 size={16} />Slett økt</button>
+      {editHref && <><Link href={editHref} role="menuitem" autoFocus onClick={() => onOpenChange(false)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-[var(--ink)] transition hover:bg-[var(--paper)]"><Pencil size={16} />Rediger</Link>
+      <div className="my-1.5 h-px bg-[var(--line)]" /></>}
+      <button type="button" role="menuitem" autoFocus={!editHref} disabled={deleteDisabled} onClick={() => { onOpenChange(false); onDelete(); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-[var(--danger)] transition enabled:hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"><Trash2 size={16} />Slett økt</button>
       {deleteDisabled && <p className="px-3 pb-1 pt-1.5 text-xs font-normal leading-5 text-[var(--ink-soft)]">Avslutt økten før den kan slettes.</p>}
     </div>}
   </div>;

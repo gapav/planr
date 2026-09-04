@@ -42,17 +42,21 @@ describe("session calendar rows", () => {
     expect(screen.getByText("I morgen")).toBeInTheDocument();
   });
 
-  it("offers Start only on a session that can actually be started", () => {
-    renderPage([upcoming("a", "I dag", "2026-09-02T18:00:00.000Z"), upcoming("b", "Om to dager", "2026-09-04T13:45:00.000Z")]);
+  // Starting and editing belong to the plan view, so even a session that could
+  // be started right now offers nothing but the card itself.
+  it("keeps Start and Rediger out of the calendar row", () => {
+    renderPage([upcoming("a", "I dag", "2026-09-02T18:00:00.000Z")]);
 
-    expect(within(rowFor("I dag")).getByRole("link", { name: "Start" })).toHaveAttribute("href", "/sessions/a/live");
-    expect(within(rowFor("Om to dager")).queryByRole("link", { name: "Start" })).toBeNull();
+    expect(within(rowFor("I dag")).queryByRole("link", { name: "Start" })).toBeNull();
+    expect(within(rowFor("I dag")).queryByRole("link", { name: "Rediger" })).toBeNull();
+    // The card link is the row's only one; Rediger lives inside the closed menu.
+    expect(within(rowFor("I dag")).getAllByRole("link")).toHaveLength(1);
   });
 
-  it("keeps the orange button on a session already running", () => {
+  it("still marks a session already running", () => {
     renderPage([upcoming("a", "Pågående", "2026-09-01T18:00:00.000Z", { status: "in_progress" })]);
 
-    expect(within(rowFor("Pågående")).getByRole("link", { name: "Fortsett" })).toBeInTheDocument();
+    expect(within(rowFor("Pågående")).queryByRole("link", { name: "Fortsett" })).toBeNull();
     expect(within(rowFor("Pågående")).getByText("Pågår")).toBeInTheDocument();
   });
 
@@ -72,24 +76,28 @@ describe("session calendar rows", () => {
   it("shrinks sessions further out than the coming week to a single line", () => {
     renderPage([upcoming("a", "Denne uka", "2026-09-04T13:45:00.000Z"), upcoming("b", "Om en måned", "2026-10-01T13:45:00.000Z")]);
 
-    // Both keep Rediger; the compact row drops the meta line it does not need.
+    // Both keep the menu; the compact row drops the meta line it does not need.
     expect(within(rowFor("Denne uka")).getByText(/bolk/)).toBeInTheDocument();
     expect(within(rowFor("Om en måned")).queryByText(/bolk/)).toBeNull();
-    expect(within(rowFor("Om en måned")).getByRole("link", { name: "Rediger" })).toHaveAttribute("href", "/sessions/b/edit");
     expect(within(rowFor("Om en måned")).getByRole("button", { name: "Flere valg for Om en måned" })).toBeInTheDocument();
   });
 
-  it("opens the plan for reading, and keeps editing behind its own button", () => {
+  it("sends the whole card to the plan, where the actions live", () => {
     renderPage([upcoming("a", "Uke 36 - Torsdag", "2026-09-03T13:45:00.000Z")]);
 
     expect(screen.getByRole("link", { name: "Åpne Uke 36 - Torsdag" })).toHaveAttribute("href", "/sessions/a");
-    expect(screen.getByRole("link", { name: "Rediger" })).toHaveAttribute("href", "/sessions/a/edit");
+    expect(screen.queryByRole("link", { name: "Rediger" })).toBeNull();
   });
 
-  it("sends a locked plan to the view, which is the only screen it has", () => {
-    renderPage([upcoming("a", "Pågående", "2026-09-01T18:00:00.000Z", { status: "in_progress" })]);
+  it("puts Rediger in the row menu, and leaves it out of a locked plan", () => {
+    renderPage([upcoming("a", "Uke 36 - Torsdag", "2026-09-03T13:45:00.000Z"), upcoming("b", "Pågående", "2026-09-04T13:45:00.000Z", { status: "in_progress" })]);
 
-    expect(within(rowFor("Pågående")).getByRole("link", { name: "Se planen" })).toHaveAttribute("href", "/sessions/a");
+    fireEvent.click(screen.getByRole("button", { name: "Flere valg for Uke 36 - Torsdag" }));
+    expect(within(rowFor("Uke 36 - Torsdag")).getByRole("menuitem", { name: "Rediger" })).toHaveAttribute("href", "/sessions/a/edit");
+
+    fireEvent.click(screen.getByRole("button", { name: "Flere valg for Pågående" }));
+    expect(within(rowFor("Pågående")).queryByRole("menuitem", { name: "Rediger" })).toBeNull();
+    expect(within(rowFor("Pågående")).getByRole("menuitem", { name: "Slett økt" })).toBeInTheDocument();
   });
 
   it("keeps delete behind the row menu so a stray tap cannot reach it", () => {
