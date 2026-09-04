@@ -22,7 +22,7 @@ export default function SessionsPage() {
   // The nearest session is lifted out of its month so the one plan being
   // prepared for is not one card among ten identical ones.
   const hero = tab === "upcoming" ? current[0] : undefined; const listed = hero ? current.slice(1) : current;
-  async function startSession() { setCreating(true); try { const id = await createSession(); router.push(`/sessions/${id}`); } finally { setCreating(false); } }
+  async function startSession() { setCreating(true); try { const id = await createSession(); router.push(`/sessions/${id}/edit`); } finally { setCreating(false); } }
   // A failed delete rolls itself back in the provider and surfaces a notice, so
   // the dialog closes either way.
   async function confirmDelete() { if (!pendingDelete) return; setDeleting(true); try { await deleteSession(pendingDelete.id); } catch { /* notice is shown by the provider */ } finally { setDeleting(false); setPendingDelete(null); } }
@@ -121,7 +121,7 @@ function SessionRow({ session, tab, hero = false, onDelete }: { session: Planned
       </div>
       <div className="pointer-events-auto flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
         {tab === "upcoming" && isSessionStartable(session) && <Link href={`/sessions/${session.id}/live`} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(240,100,46,.22)] transition hover:-translate-y-0.5 hover:bg-[var(--orange-dark)] sm:flex-none"><CirclePlay size={17} />{inProgress ? "Fortsett" : "Start"}</Link>}
-        <Link href={`/sessions/${session.id}`} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)] sm:flex-none">{locked ? <><Eye size={17} />Se planen</> : <><Pencil size={16} />Rediger</>}</Link>
+        <Link href={locked ? `/sessions/${session.id}` : `/sessions/${session.id}/edit`} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)] sm:flex-none">{locked ? <><Eye size={17} />Se planen</> : <><Pencil size={16} />Rediger</>}</Link>
         <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} deleteDisabled={inProgress} onDelete={onDelete} />
       </div>
     </div>
@@ -141,7 +141,7 @@ function CompactSessionRow({ session, onDelete }: { session: PlannedSession; onD
       <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
         {/* Label and icon at once would crowd a one-line row on a phone, so the
             text joins once there is width for it. */}
-        <Link href={`/sessions/${session.id}`} aria-label={locked ? "Se planen" : "Rediger"} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--ink)] transition hover:border-[var(--ink)] sm:px-4">{locked ? <Eye size={16} /> : <Pencil size={15} />}<span className="hidden sm:inline">{locked ? "Se planen" : "Rediger"}</span></Link>
+        <Link href={locked ? `/sessions/${session.id}` : `/sessions/${session.id}/edit`} aria-label={locked ? "Se planen" : "Rediger"} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--ink)] transition hover:border-[var(--ink)] sm:px-4">{locked ? <Eye size={16} /> : <Pencil size={15} />}<span className="hidden sm:inline">{locked ? "Se planen" : "Rediger"}</span></Link>
         <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} deleteDisabled={session.status === "in_progress"} onDelete={onDelete} />
       </div>
     </div>

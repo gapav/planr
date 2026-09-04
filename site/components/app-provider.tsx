@@ -18,6 +18,21 @@ type ItemPatch = Partial<Pick<SessionItem, "title" | "description" | "durationMi
 
 const TEAM_LOGO_BUCKET = "team-logos";
 
+// The switcher in the sidebar is the only place a coach picks a team, and the
+// pick lived only in React state — so a reload restarted from the placeholder
+// the provider seeds with and `keepSelectedTeamId` handed back the first team.
+// Remember it per browser instead. Storage throws in some privacy modes and is
+// absent on the server, so every access is guarded.
+const SELECTED_TEAM_KEY = "plannr.selected-team";
+
+function readSelectedTeamId(): string | null {
+  try { return window.localStorage.getItem(SELECTED_TEAM_KEY); } catch { return null; }
+}
+
+function rememberSelectedTeamId(id: string) {
+  try { window.localStorage.setItem(SELECTED_TEAM_KEY, id); } catch { /* the selection just will not survive this reload */ }
+}
+
 // Only remove an object this team actually owns: `logo_url` is a plain column,
 // so a crafted URL must not turn into a delete against someone else's folder.
 async function removeTeamLogo(supabase: SupabaseClient, teamId: string, publicUrl: string) {
@@ -161,6 +176,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const currentTeam = teams.find((team) => team.id === currentTeamId) ?? teams[0] ?? null;
+  const selectTeam = useCallback((id: string) => { setCurrentTeamId(id); rememberSelectedTeamId(id); }, []);
 
   const loadPublicExercises = useCallback(async () => {
     if (!supabase) return;
@@ -198,7 +214,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const mapped = [...grouped.values()];
       setTeams(mapped);
       const teamIds = mapped.map((team) => team.id);
-      setCurrentTeamId((current) => keepSelectedTeamId(current, teamIds) ?? current);
+      const remembered = readSelectedTeamId();
+      setCurrentTeamId((current) => keepSelectedTeamId(current, teamIds, remembered) ?? current);
     }
     if (sessionRows) setSessions((sessionRows as unknown as DbSession[]).map(mapSession));
     if (invitationRows) setInvitations((invitationRows as unknown as Array<{ id: string; team_id: string; email: string; role: TeamRole; token: string; expires_at: string; accepted_at: string | null }>).map((row) => ({ id: row.id, teamId: row.team_id, email: row.email, role: row.role, token: row.token, expiresAt: row.expires_at, acceptedAt: row.accepted_at })));
@@ -367,8 +384,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (error) throw new Error(norwegianServerMessage(error.message, "Laget kunne ikke opprettes.")); await refreshWorkspace();
       return String(data);
     }
-    const id = makeUuid(); setTeams((current) => [...current, { id, name, shortName: name, logoUrl: null, role: "admin", members: [user] }]); setCurrentTeamId(id); return id;
-  }, [refreshWorkspace, supabase, user]);
+    const id = makeUuid(); setTeams((current) => [...current, { id, name, shortName: name, logoUrl: null, role: "admin", members: [user] }]); selectTeam(id); return id;
+  }, [refreshWorkspace, selectTeam, supabase, user]);
 
   // Upload, repoint the team row, then drop the file the team no longer uses.
   // The path starts with the team id because the storage policy reads that
@@ -598,7 +615,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
   }, [persist, supabase, user]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

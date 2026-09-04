@@ -118,4 +118,16 @@ describe("keepSelectedTeamId", () => {
   it("keeps the current value when the reload returned no teams", () => {
     expect(keepSelectedTeamId("g2014", [])).toBe("g2014");
   });
+
+  it("restores the remembered team after a reload started from the placeholder", () => {
+    expect(keepSelectedTeamId("demo-team", ["j2016", "g2014"], "g2014")).toBe("g2014");
+  });
+
+  it("ignores a remembered team the coach is no longer on", () => {
+    expect(keepSelectedTeamId("demo-team", ["j2016", "g2014"], "left-this-one")).toBe("j2016");
+  });
+
+  it("prefers the live selection over the remembered one", () => {
+    expect(keepSelectedTeamId("j2016", ["j2016", "g2014"], "g2014")).toBe("j2016");
+  });
 });

@@ -75,14 +75,21 @@ describe("session calendar rows", () => {
     // Both keep Rediger; the compact row drops the meta line it does not need.
     expect(within(rowFor("Denne uka")).getByText(/bolk/)).toBeInTheDocument();
     expect(within(rowFor("Om en måned")).queryByText(/bolk/)).toBeNull();
-    expect(within(rowFor("Om en måned")).getByRole("link", { name: "Rediger" })).toHaveAttribute("href", "/sessions/b");
+    expect(within(rowFor("Om en måned")).getByRole("link", { name: "Rediger" })).toHaveAttribute("href", "/sessions/b/edit");
     expect(within(rowFor("Om en måned")).getByRole("button", { name: "Flere valg for Om en måned" })).toBeInTheDocument();
   });
 
-  it("makes the whole row a link to the plan", () => {
+  it("opens the plan for reading, and keeps editing behind its own button", () => {
     renderPage([upcoming("a", "Uke 36 - Torsdag", "2026-09-03T13:45:00.000Z")]);
 
     expect(screen.getByRole("link", { name: "Åpne Uke 36 - Torsdag" })).toHaveAttribute("href", "/sessions/a");
+    expect(screen.getByRole("link", { name: "Rediger" })).toHaveAttribute("href", "/sessions/a/edit");
+  });
+
+  it("sends a locked plan to the view, which is the only screen it has", () => {
+    renderPage([upcoming("a", "Pågående", "2026-09-01T18:00:00.000Z", { status: "in_progress" })]);
+
+    expect(within(rowFor("Pågående")).getByRole("link", { name: "Se planen" })).toHaveAttribute("href", "/sessions/a");
   });
 
   it("keeps delete behind the row menu so a stray tap cannot reach it", () => {

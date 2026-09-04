@@ -42,12 +42,16 @@ export function seedProfile(current: Profile | null, next: Profile | null): Prof
  * `loadPrivateData` runs again on every SIGNED_IN, which Supabase re-emits each
  * time the tab is refocused — so picking the first team unconditionally threw a
  * coach back to their first team whenever they switched browser tabs. Keep the
- * selection they made as long as it is still a team they are on; only a
- * selection that has gone (or the placeholder the provider starts with) falls
- * back to the first team.
+ * selection they made as long as it is still a team they are on.
+ *
+ * A page reload has no selection to keep: the provider starts from a
+ * placeholder, so the same fallback sent the coach back to their first team on
+ * every refresh. `remembered` is the id the team switcher persisted, and is
+ * tried next; the first team wins only when neither is a team they are on.
  */
-export function keepSelectedTeamId(current: string | null, teamIds: readonly string[]): string | null {
+export function keepSelectedTeamId(current: string | null, teamIds: readonly string[], remembered: string | null = null): string | null {
   if (current && teamIds.includes(current)) return current;
+  if (remembered && teamIds.includes(remembered)) return remembered;
   return teamIds[0] ?? current;
 }
 

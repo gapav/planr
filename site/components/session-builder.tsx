@@ -12,19 +12,24 @@ import { AppShell } from "./app-shell";
 import { useGrep } from "./app-provider";
 import { ExerciseCategoryFilter } from "./exercise-category-filter";
 import { HelpTip } from "./help-tip";
-import { ExerciseDetail, type ExerciseDetailSubject } from "./exercise-detail";
+import { ExerciseDetail, sessionItemDetailSubject } from "./exercise-detail";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { WorkoutSession } from "./live-session";
 import { Avatar, Button, EmptyState, Field, inputClass, Modal, Tag, textareaClass } from "./ui";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
 import { filterExercises } from "@/lib/exercises";
-import { parseExerciseMedia } from "@/lib/media";
 import { blockDuration, sessionDuration, validatePublish } from "@/lib/session";
 import type { Exercise, ExerciseCategory, PlannedSession, SessionBlock, SessionItem } from "@/lib/types";
 import { cn, minutesLabel, toDateTimeLocal } from "@/lib/utils";
 
 const blockPresets = ["Oppvarming", "Hoveddel", "Spill", "Nedtrapping"];
 
+/**
+ * `/sessions/<id>/edit`. The read-only view lives at `/sessions/<id>`, which is
+ * where the calendar links; a plan that has been started is locked in the
+ * database, so it opens the workout view here too rather than a builder whose
+ * every save would be refused.
+ */
 export function SessionScreen({ sessionId }: { sessionId: string }) {
   const { sessions } = useGrep();
   const session = sessions.find((entry) => entry.id === sessionId);
@@ -50,7 +55,7 @@ export function SessionBuilder({ sessionId }: { sessionId: string }) {
       </section></main>
       <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start"><section className="rounded-[24px] bg-[var(--ink)] p-5 text-white shadow-[var(--shadow)]"><p className="text-xs font-black uppercase tracking-[.14em] text-white/45">Tidskontroll</p><div className="mt-4 flex items-baseline gap-2"><strong className="text-4xl font-black tracking-[-.06em]">{builtMinutes}</strong><span className="text-white/55">av {session.plannedDurationMinutes} min</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className={cn("h-full rounded-full", difference > 0 ? "bg-[var(--orange)]" : "bg-[var(--lime)]")} style={{ width: `${Math.min(100, Math.round((builtMinutes / session.plannedDurationMinutes) * 100))}%` }} /></div><p className="mt-3 text-xs leading-5 text-white/55">{difference === 0 ? "Øktplanen samsvarer med planlagt varighet." : difference > 0 ? `${difference} minutter over planlagt tid.` : `${Math.abs(difference)} minutter er fortsatt tilgjengelig.`}</p></section><section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-center justify-between"><h3 className="font-black">Aktive samarbeidspartnere</h3><span className="flex items-center gap-1.5 text-xs font-bold text-[#34745f]"><Radio size={13} className="animate-pulse" />Direkte</span></div><div className="mt-4 grid gap-3">{collaborators.map((person) => { const block = session.blocks.find((entry) => entry.id === person.activeBlockId); return <div key={person.id} className="flex items-center gap-3"><Avatar name={person.fullName} initials={person.initials} color={person.color} /><div><p className="text-sm font-bold">{person.fullName}</p><p className="text-xs text-[var(--ink-soft)]">{block ? `Redigerer ${block.title}` : "Ser på økten"}</p></div></div>; })}{!collaborators.length && <p className="text-sm leading-6 text-[var(--ink-soft)]">Du er den eneste treneren her akkurat nå.</p>}</div></section><section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5"><h3 className="font-black">Generelle notater</h3><DebouncedTextarea className={`${textareaClass} mt-3 min-h-36`} value={session.notes} placeholder="Utstyr, spillertilgjengelighet eller påminnelser …" onSave={(value) => store.updateSession(sessionId, { notes: value })} /></section><Button variant="danger" className="w-full" onClick={() => { if (confirm("Vil du slette denne økten? Dette kan ikke angres.")) void store.deleteSession(sessionId).then(() => router.push("/sessions")); }}><Trash2 size={17} />Slett økt</Button></aside></div>
     <ExercisePicker open={Boolean(pickerBlock)} blockId={pickerBlock} onClose={() => setPickerBlock(null)} sessionId={sessionId} />
-    <ExerciseDetail key={previewItem?.id ?? "none"} exercise={previewItem ? itemDetailSubject(previewItem) : null} onClose={() => setPreviewItem(null)} />
+    <ExerciseDetail key={previewItem?.id ?? "none"} exercise={previewItem ? sessionItemDetailSubject(previewItem) : null} onClose={() => setPreviewItem(null)} />
     <Modal open={publishIssues.length > 0} onClose={() => setPublishIssues([])} title="Noen opplysninger mangler" description="Fyll ut dette før økten deles med laget."><ul className="grid gap-3">{publishIssues.map((issue) => <li key={issue} className="flex items-center gap-3 rounded-xl bg-[var(--paper)] px-4 py-3 text-sm font-bold"><span className="grid h-6 w-6 place-items-center rounded-full bg-[#fde1d5] text-xs text-[#9c3913]">!</span>{issue}</li>)}</ul><div className="mt-6 flex justify-end"><Button onClick={() => setPublishIssues([])}>Fortsett planleggingen</Button></div></Modal>
   </div></AppShell>;
 }
@@ -59,12 +64,6 @@ function SortableBlockCard({ block, index, session, active, collaborators, onAct
   const store = useGrep(); const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id }); const itemSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   function itemDragEnd(event: DragEndEvent) { if (!event.over || event.active.id === event.over.id) return; const oldIndex = block.items.findIndex((item) => item.id === event.active.id); const newIndex = block.items.findIndex((item) => item.id === event.over?.id); void store.reorderItems(session.id, block.id, arrayMove(block.items, oldIndex, newIndex).map((item) => item.id)); }
   return <article ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .6 : 1 }} onPointerDown={onActive} className={cn("rounded-[24px] border bg-[var(--surface)] shadow-[0_7px_24px_rgba(16,32,29,.04)] transition", active ? "border-[#9bb8ad] ring-4 ring-[#bfe0cf]/35" : "border-[var(--line)]")}><header className="flex items-center gap-3 border-b border-[var(--line)] p-4 sm:px-5"><button {...attributes} {...listeners} className="grid h-9 w-8 shrink-0 place-items-center rounded-lg text-[var(--ink-soft)] hover:bg-black/5" aria-label={`Dra ${block.title}`}><GripVertical size={19} /></button><span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[var(--paper-deep)] text-xs font-black">{index + 1}</span><AutoField className="min-w-0 flex-1 text-lg font-black" value={block.title} onSave={(value) => store.updateBlock(session.id, block.id, { title: value })} ariaLabel="Tittel på bolken" />{collaborators.map((person) => <Avatar key={person.id} name={person.fullName} initials={person.initials} color={person.color} size="sm" />)}<span className="shrink-0 rounded-full bg-black/5 px-2.5 py-1 text-xs font-black">{blockDuration(block)} min</span><Button variant="ghost" size="sm" className="px-2" aria-label={`Slett ${block.title}`} onClick={() => { if (confirm(`Vil du slette ${block.title}?`)) void store.deleteBlock(session.id, block.id); }}><Trash2 size={16} /></Button></header><div className="p-3 sm:p-4"><label className="mb-3 block rounded-2xl bg-[var(--paper)] p-3"><span className="text-[10px] font-black uppercase tracking-[.11em] text-[var(--ink-soft)]">Notat for bolken</span><DebouncedTextarea className="mt-1 min-h-16 w-full resize-y rounded-xl border border-transparent bg-white px-3 py-2 text-sm leading-6 outline-none transition placeholder:text-[#8b9692] focus:border-[var(--orange)]" value={block.notes} placeholder="Utstyr, organisering eller fokus for denne bolken …" onSave={(value) => store.updateBlock(session.id, block.id, { notes: value })} /></label>{block.items.length ? <DndContext sensors={itemSensors} collisionDetection={closestCenter} onDragEnd={itemDragEnd}><SortableContext items={block.items.map((item) => item.id)} strategy={verticalListSortingStrategy}><div className="grid gap-2.5">{block.items.map((item) => <SortableItemCard key={item.id} item={item} block={block} session={session} onPreview={() => onPreviewItem(item)} />)}</div></SortableContext></DndContext> : <p className="py-6 text-center text-sm text-[var(--ink-soft)]">Ingen aktiviteter i denne bolken ennå.</p>}<div className="mt-3 grid grid-cols-2 gap-2"><Button variant="secondary" size="sm" onClick={onPickExercise}><Library size={16} />Legg til øvelse</Button><Button variant="ghost" size="sm" onClick={() => void store.addCustomItem(session.id, block.id)}><Plus size={16} />Egendefinert aktivitet</Button></div></div></article>;
-}
-
-function itemDetailSubject(item: SessionItem): ExerciseDetailSubject {
-  let mediaKind: ExerciseDetailSubject["mediaKind"] = null;
-  if (item.mediaUrl) { try { mediaKind = parseExerciseMedia(item.mediaUrl).kind; } catch { mediaKind = null; } }
-  return { name: item.title, description: item.description, mediaUrl: item.mediaUrl, mediaKind, thumbnailUrl: item.thumbnailUrl };
 }
 
 function SortableItemCard({ item, block, session, onPreview }: { item: SessionItem; block: SessionBlock; session: PlannedSession; onPreview(): void }) {

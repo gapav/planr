@@ -6,7 +6,7 @@ import { useState } from "react";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { Modal, Tag } from "./ui";
 import { getExerciseEmbedUrl, parseExerciseMedia } from "@/lib/media";
-import type { Exercise, ExerciseCategory } from "@/lib/types";
+import type { Exercise, ExerciseCategory, SessionItem } from "@/lib/types";
 
 /**
  * The library passes an `Exercise`; the session builder passes the copy a session item
@@ -15,6 +15,16 @@ import type { Exercise, ExerciseCategory } from "@/lib/types";
 export interface ExerciseDetailSubject {
   name: string; description: string; mediaUrl: string | null; mediaKind: Exercise["mediaKind"];
   thumbnailUrl: string | null; category?: ExerciseCategory | null; createdByName?: string | null;
+}
+
+/**
+ * A session item carries its own copy of the exercise's display data, taken at
+ * insert time, so a plan renders from itself rather than from the library.
+ */
+export function sessionItemDetailSubject(item: SessionItem): ExerciseDetailSubject {
+  let mediaKind: ExerciseDetailSubject["mediaKind"] = null;
+  if (item.mediaUrl) { try { mediaKind = parseExerciseMedia(item.mediaUrl).kind; } catch { mediaKind = null; } }
+  return { name: item.title, description: item.description, mediaUrl: item.mediaUrl, mediaKind, thumbnailUrl: item.thumbnailUrl };
 }
 
 function withAutoplay(embedUrl: string) {
