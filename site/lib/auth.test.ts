@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
+import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, keepSelectedTeamId, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
 import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
@@ -103,5 +103,19 @@ describe("claimableInvitations", () => {
   it("has nothing to claim without a signed-in address", () => {
     expect(claimableInvitations(null, [], [invitation()], now)).toEqual([]);
     expect(claimableInvitations("", [], [invitation()], now)).toEqual([]);
+  });
+});
+
+describe("keepSelectedTeamId", () => {
+  it("keeps the team the coach selected when the workspace reloads", () => {
+    expect(keepSelectedTeamId("g2014", ["j2016", "g2014"])).toBe("g2014");
+  });
+
+  it("falls back to the first team when the selection is no longer a team they are on", () => {
+    expect(keepSelectedTeamId("demo-team", ["j2016", "g2014"])).toBe("j2016");
+  });
+
+  it("keeps the current value when the reload returned no teams", () => {
+    expect(keepSelectedTeamId("g2014", [])).toBe("g2014");
   });
 });

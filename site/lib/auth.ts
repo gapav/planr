@@ -36,6 +36,21 @@ export function seedProfile(current: Profile | null, next: Profile | null): Prof
   return next && current && current.id === next.id ? current : next;
 }
 
+/**
+ * The team to show after a workspace load.
+ *
+ * `loadPrivateData` runs again on every SIGNED_IN, which Supabase re-emits each
+ * time the tab is refocused — so picking the first team unconditionally threw a
+ * coach back to their first team whenever they switched browser tabs. Keep the
+ * selection they made as long as it is still a team they are on; only a
+ * selection that has gone (or the placeholder the provider starts with) falls
+ * back to the first team.
+ */
+export function keepSelectedTeamId(current: string | null, teamIds: readonly string[]): string | null {
+  if (current && teamIds.includes(current)) return current;
+  return teamIds[0] ?? current;
+}
+
 /** Only a same-origin path is a safe post-auth redirect target. */
 export function internalPath(value: string | null | undefined, fallback = "/sessions"): string {
   return value && value.startsWith("/") && !value.startsWith("//") ? value : fallback;

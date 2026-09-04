@@ -2,7 +2,7 @@
 
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { claimableInvitations, invitationUrl, isIdentityChange, seedProfile } from "@/lib/auth";
+import { claimableInvitations, invitationUrl, isIdentityChange, keepSelectedTeamId, seedProfile } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { isInvitationAlreadyUsed, norwegianServerMessage } from "@/lib/server-messages";
@@ -197,7 +197,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       const mapped = [...grouped.values()];
       setTeams(mapped);
-      if (mapped[0]) setCurrentTeamId(mapped[0].id);
+      const teamIds = mapped.map((team) => team.id);
+      setCurrentTeamId((current) => keepSelectedTeamId(current, teamIds) ?? current);
     }
     if (sessionRows) setSessions((sessionRows as unknown as DbSession[]).map(mapSession));
     if (invitationRows) setInvitations((invitationRows as unknown as Array<{ id: string; team_id: string; email: string; role: TeamRole; token: string; expires_at: string; accepted_at: string | null }>).map((row) => ({ id: row.id, teamId: row.team_id, email: row.email, role: row.role, token: row.token, expiresAt: row.expires_at, acceptedAt: row.accepted_at })));
