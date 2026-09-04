@@ -16,7 +16,7 @@ export function ExerciseCategoryFilter({ value, onChange }: { value: ExerciseCat
     ...EXERCISE_CATEGORIES.map((category) => ({ label: category, value: category, ...categoryPresentation[category] })),
   ];
 
-  return <div className="flex gap-2 overflow-x-auto pb-1 thin-scrollbar" role="group" aria-label="Filtrer etter kategori">
+  return <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer etter kategori">
     {options.map((option) => {
       const selected = option.value === value;
       return <button
@@ -25,7 +25,7 @@ export function ExerciseCategoryFilter({ value, onChange }: { value: ExerciseCat
         aria-pressed={selected}
         onClick={() => onChange(option.value)}
         className={cn(
-          "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]",
+          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold sm:px-3.5 sm:py-2 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]",
           selected ? option.selected : option.idle,
         )}
       ><span aria-hidden="true">{option.emoji}</span>{option.label}</button>;
