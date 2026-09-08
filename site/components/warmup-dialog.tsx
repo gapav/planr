@@ -152,11 +152,14 @@ function EditPane({ routine, onPick, onDone }: { routine: WarmupRoutine; onPick(
 }
 
 function EditRow({ item, index, routineId, first, last, onMove }: { item: WarmupItem; index: number; routineId: string; first: boolean; last: boolean; onMove(index: number, delta: number): void }) {
-  const { updateWarmupItem, deleteWarmupItem } = useGrep();
+  const { exercises, updateWarmupItem, deleteWarmupItem } = useGrep();
+  // Same rule as the session builder: a linked exercise renders the library's
+  // title, so it is shown rather than offered for editing.
+  const fromLibrary = item.kind === "exercise" && Boolean(item.exerciseId) && exercises.some((exercise) => exercise.id === item.exerciseId);
   return <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3">
     <div className="flex items-center gap-2">
       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--paper-deep)] text-xs font-black">{index + 1}</span>
-      <input key={`${item.id}-title`} className={cn(inputClass, "min-w-0 flex-1 font-bold")} defaultValue={item.title} aria-label={`Tittel på aktivitet ${index + 1}`} onBlur={(event) => { const value = event.target.value.trim(); if (value && value !== item.title) void updateWarmupItem(routineId, item.id, { title: value }); else event.target.value = item.title; }} />
+      {fromLibrary ? <p className="min-w-0 flex-1 truncate px-1 font-bold" title="Tittelen hentes fra øvelsesbanken">{item.title}</p> : <input key={`${item.id}-title`} className={cn(inputClass, "min-w-0 flex-1 font-bold")} defaultValue={item.title} aria-label={`Tittel på aktivitet ${index + 1}`} onBlur={(event) => { const value = event.target.value.trim(); if (value && value !== item.title) void updateWarmupItem(routineId, item.id, { title: value }); else event.target.value = item.title; }} />}
       <label className="flex shrink-0 items-center gap-1.5 text-sm font-bold"><input key={`${item.id}-minutes`} type="number" min={1} max={180} className={cn(inputClass, "w-16 px-2 text-center")} defaultValue={item.durationMinutes} aria-label={`Minutter for ${item.title}`} onBlur={(event) => { const value = Math.min(180, Math.max(1, Number(event.target.value) || 1)); event.target.value = String(value); if (value !== item.durationMinutes) void updateWarmupItem(routineId, item.id, { durationMinutes: value }); }} />min</label>
     </div>
     <div className="mt-2 flex items-center gap-2">

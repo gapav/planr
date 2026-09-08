@@ -19,6 +19,13 @@ export interface Exercise {
   thumbnailUrl: string | null; createdBy: string; createdByName: string; archivedAt: string | null;
   createdAt: string; updatedAt: string;
 }
+/**
+ * One activity in a block. `title`, `description`, `mediaUrl` and `thumbnailUrl`
+ * are copied from the exercise at insert time, but the library is what a card
+ * renders: `resolveSessionDisplay` overlays the current exercise, and the stored
+ * copy only surfaces for custom items and for exercises since archived or
+ * deleted. `durationMinutes` and `coachingNotes` belong to the plan alone.
+ */
 export interface SessionItem {
   id: string; blockId: string; kind: SessionItemKind; exerciseId: string | null; title: string;
   description: string; mediaUrl: string | null; thumbnailUrl: string | null; durationMinutes: number;
@@ -53,9 +60,10 @@ export interface TeamFixture {
 export type TeamFixtureInput = Omit<TeamFixture, "id" | "teamId" | "createdAt" | "updatedAt">;
 
 /**
- * A warm-up activity. Like a session item it carries its own copy of the
- * exercise's display data, taken when it was added, so later library edits
- * never rewrite a routine the team has already drilled.
+ * A warm-up activity. Like a session item it stores its own copy of the
+ * exercise's display data, taken when it was added, but that copy is a fallback:
+ * `resolveWarmupRoutineDisplay` shows the library's current title, description
+ * and media for as long as the linked exercise exists.
  */
 export interface WarmupItem {
   id: string; routineId: string; kind: SessionItemKind; exerciseId: string | null; title: string;

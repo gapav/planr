@@ -71,7 +71,7 @@ DB triggers (`broadcast_session_change`) push every session/block/item write to 
 
 `draft → published → in_progress`, with the UI's Drafts/Upcoming/Past tabs derived, not stored — see `deriveSessionTab` in `lib/session.ts` (past = `startsAt + plannedDurationMinutes` in the past). `validatePublish` gates publishing client-side, and `validate_session_publish_transition` re-checks it in the DB. Once `start_session` succeeds, `prevent_in_progress_session_changes` locks the plan's rows; `start_session` itself re-validates that the saved groups still exactly match the present players. Dates are stored in UTC.
 
-Session items **copy** the exercise's display data (title, description, media, thumbnail) at insert time, so later library edits never rewrite an existing plan.
+Session items (and warm-up routine items) **copy** the exercise's display data (title, description, media, thumbnail) at insert time, but the library wins on screen: `resolveSessionDisplay` / `resolveWarmupRoutineDisplay` in `lib/exercises.ts` overlay the current exercise as the provider hands `sessions` and `warmupRoutines` to consumers. Nothing is rewritten in the database, so the stored copy is the fallback once an exercise is archived or deleted, and an `in_progress` session stays locked. `durationMinutes` and `coachingNotes` belong to the plan; the title of a linked item is therefore read-only in the builder and the warm-up dialog.
 
 ### Media
 
