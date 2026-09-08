@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- exercise media comes from arbitrary coach-provided HTTPS URLs */
 
-import { Play } from "lucide-react";
+import { Play, ZoomIn } from "lucide-react";
 import { useState } from "react";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { Modal, Tag } from "./ui";
@@ -60,7 +60,7 @@ export function ExerciseDetail({ exercise, onClose }: { exercise: ExerciseDetail
         : playing && exercise.mediaUrl && mediaKind === "image" ? <img src={exercise.mediaUrl} alt={exercise.name} className="max-h-[60vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" />
         : hasMedia ? <button type="button" onClick={() => setPlaying(true)} className="group relative block w-full overflow-hidden rounded-[20px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]" aria-label={mediaKind === "image" ? `Vis bildet for ${exercise.name}` : `Spill av videoen for ${exercise.name}`}>
             <ExerciseThumbnail exercise={exercise} className="aspect-[16/9] w-full" />
-            <span className="absolute inset-0 grid place-items-center bg-black/15 transition group-hover:bg-black/25"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/90 shadow-lg">{mediaKind === "image" ? <span className="text-lg">🔍</span> : <Play size={22} fill="currentColor" />}</span></span>
+            <span className="absolute inset-0 grid place-items-center bg-black/15 transition group-hover:bg-black/25"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/90 shadow-lg">{mediaKind === "image" ? <ZoomIn size={22} /> : <Play size={22} fill="currentColor" />}</span></span>
           </button>
         : <ExerciseThumbnail exercise={exercise} className="aspect-[16/9] w-full overflow-hidden rounded-[20px]" />}
 
