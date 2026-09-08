@@ -65,7 +65,6 @@ export const HELP_TOPICS = {
       "Legg ved bilde eller video: enten en HTTPS-lenke til YouTube, Vimeo eller en videofil, eller last opp JPG, PNG, WebP eller MP4 på inntil 5 MB.",
       "Øvelsen kan brukes i økter med én gang. Dine egne øvelser kan du redigere eller arkivere senere.",
     ],
-    note: "Når en øvelse legges inn i en økt, kopieres navn, beskrivelse og media inn i planen. Senere endringer i banken rører ikke økter som allerede er planlagt.",
   },
   "media-link": {
     title: "Slik henter du lenken fra Vimeo",
@@ -104,6 +103,7 @@ export const HELP_TOPICS = {
     intro: "Kampene hentes fra terminlisten klubben laster ned fra turneringssystemet. Filen inneholder hele avdelingen, så du velger selv hvilke av lagene som er deres.",
     ordered: true,
     points: [
+      "Finn terminlisten på handball.no: søk opp laget, åpne det og last ned «Terminliste» som Excel-fil. Lenken ligger i importdialogen.",
       "Last opp regnearket. Kolonnene «Dato», «Tid», «Kampnr», «Hjemmelag», «Bortelag», «Bane», «Arrangør» og «Turnering» leses automatisk.",
       "Huk av for lagene deres — for eksempel Rød, Blå og Grønn. Bare kampene disse lagene spiller, legges i kalenderen.",
       "Hvert lag får sin egen farge i kalenderen, og filtrene øverst viser ett lag om gangen.",

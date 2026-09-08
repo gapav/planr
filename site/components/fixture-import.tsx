@@ -1,11 +1,20 @@
 "use client";
 
-import { CalendarPlus, CheckCircle2, FileSpreadsheet, Search, Upload } from "lucide-react";
+import { CalendarPlus, CheckCircle2, ExternalLink, FileSpreadsheet, Search, Upload } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { fixturesForTeams, parseFixtureRows, teamColor, type FixtureParseResult } from "@/lib/fixtures";
 import { useGrep } from "./app-provider";
 import { Button, Modal, Tag, inputClass } from "./ui";
 import { cn } from "@/lib/utils";
+
+const HANDBALL_SEARCH_URL = "https://www.handball.no/system/sok/?reg=all";
+
+/** Where the file comes from — the download is three clicks deep in an external system. */
+const HANDBALL_STEPS = [
+  "Søk opp laget deres i lagsøket på handball.no.",
+  "Åpne riktig lag og velg «Terminliste».",
+  "Last ned terminlisten som Excel-fil, og velg den her.",
+];
 
 /**
  * The tournament export covers a whole division, so importing is two steps:
@@ -52,8 +61,16 @@ export function FixtureImport({ open, onClose }: { open: boolean; onClose(): voi
     finally { setLoading(false); }
   }
 
-  return <Modal open={open} onClose={close} size="lg" title="Importer kamper fra terminlisten" description="Last opp terminlisten for avdelingen. Deretter velger du hvilke av lagene i filen som er deres.">
+  return <Modal open={open} onClose={close} size="lg" title="Importer kamper fra terminlisten" description="Last opp terminlisten for avdelingen og velg hvilke av lagene i filen som er deres. Etterpå kan du gå gjennom kampene i kalenderen og redigere dem der.">
     <input ref={inputRef} type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void readFile(file); }} />
+    {!parsed && <section className="mb-5 rounded-[22px] border border-[var(--line)] bg-[var(--paper)] p-5">
+      <h3 className="text-sm font-black">Mangler du terminlisten? Hent den fra handball.no</h3>
+      <ol className="mt-3 grid gap-2">{HANDBALL_STEPS.map((step, index) => <li key={step} className="flex gap-2.5 text-sm leading-6 text-[var(--ink-soft)]">
+        <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--paper-deep)] text-[11px] font-black text-[var(--ink)]">{index + 1}</span>
+        <span>{step}</span>
+      </li>)}</ol>
+      <a href={HANDBALL_SEARCH_URL} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-bold transition hover:border-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]">Åpne lagsøket på handball.no<ExternalLink size={15} /></a>
+    </section>}
     {!parsed && <button type="button" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void readFile(file); }} className="grid min-h-52 w-full place-items-center rounded-[22px] border-2 border-dashed border-[#c8c3b7] bg-[var(--paper)] px-6 text-center transition hover:border-[var(--orange)]">
       <span><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white text-[var(--orange)] shadow-sm"><FileSpreadsheet size={23} /></span><strong className="mt-4 block">{loading ? "Leser terminlisten …" : "Velg eller slipp en .xls- eller .xlsx-fil"}</strong><span className="mt-2 block text-sm leading-6 text-[var(--ink-soft)]">Filen leses lokalt i nettleseren. Kolonnene «Dato», «Tid», «Kampnr», «Hjemmelag», «Bortelag», «Bane», «Arrangør» og «Turnering» gjenkjennes automatisk.</span></span>
     </button>}
