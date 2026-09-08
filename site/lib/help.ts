@@ -20,6 +20,7 @@ export const HELP_TOPICS = {
       "Kommende er publiserte økter som ikke er avsluttet. Den nærmeste ligger øverst, under «Neste økt».",
       "Gjennomførte er økter du har avsluttet. De er låst, men kan leses som dokumentasjon i ettertid.",
       "Økter lenger fram enn en uke vises som én linje. De er ikke skjult — de er bare nedtonet til du nærmer deg dem.",
+      "Månedene framover står i kalenderen selv om ingenting er satt opp i dem ennå, så du kan skrive månedens fokus før øktene planlegges.",
     ],
     note: "«Start»-knappen dukker opp på selve treningsdagen. Resten av tiden er «Rediger» den eneste handlingen på en økt.",
   },

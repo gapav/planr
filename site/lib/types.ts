@@ -5,6 +5,9 @@ export type SessionItemKind = "exercise" | "custom";
 export type ExerciseMediaKind = "image" | "youtube" | "vimeo" | "video";
 export const EXERCISE_CATEGORIES = ["Forsvar", "Angrep", "Skuddferdigheter", "Målvakt", "Fysisk", "Leker"] as const;
 export type ExerciseCategory = (typeof EXERCISE_CATEGORIES)[number];
+/** Stable keys, not labels — the UI renders them as "6-9 år". */
+export const EXERCISE_AGE_GROUPS = ["6-9", "10-12", "13-15"] as const;
+export type ExerciseAgeGroup = (typeof EXERCISE_AGE_GROUPS)[number];
 export type SaveState = "saved" | "saving" | "offline" | "error";
 export type SessionGroupingKind = "teams" | "pairs";
 
@@ -14,11 +17,14 @@ export interface TeamPlayer {
   id: string; teamId: string; fullName: string; jerseyNumber: string | null; createdAt: string; updatedAt: string;
 }
 export type TeamPlayerInput = Pick<TeamPlayer, "fullName" | "jerseyNumber">;
+/** `ageGroups` is empty when the author did not state one; that reads as "suits every age". */
 export interface Exercise {
-  id: string; name: string; description: string; category: ExerciseCategory; mediaUrl: string | null; mediaKind: ExerciseMediaKind | null;
+  id: string; name: string; description: string; category: ExerciseCategory; ageGroups: ExerciseAgeGroup[];
+  mediaUrl: string | null; mediaKind: ExerciseMediaKind | null;
   thumbnailUrl: string | null; createdBy: string; createdByName: string; archivedAt: string | null;
   createdAt: string; updatedAt: string;
 }
+export type ExerciseInput = Pick<Exercise, "name" | "description" | "category" | "ageGroups" | "mediaUrl">;
 /**
  * One activity in a block. `title`, `description`, `mediaUrl` and `thumbnailUrl`
  * are copied from the exercise at insert time, but the library is what a card
@@ -58,6 +64,16 @@ export interface TeamFixture {
   createdAt: string; updatedAt: string;
 }
 export type TeamFixtureInput = Omit<TeamFixture, "id" | "teamId" | "createdAt" | "updatedAt">;
+
+/** The longest a month focus may be — three sentences, not a periodisation plan. */
+export const MONTH_FOCUS_MAX_LENGTH = 400;
+/**
+ * What the team works on in one calendar month. `month` is the same `YYYY-MM`
+ * key the session calendar groups by, derived in the coach's own time zone, so
+ * a focus and the sessions it covers can never disagree about which month they
+ * are in. No row means no focus: an empty note is deleted, never stored.
+ */
+export interface MonthFocus { teamId: string; month: string; note: string; updatedAt: string; updatedBy: string | null; }
 
 /**
  * A warm-up activity. Like a session item it stores its own copy of the

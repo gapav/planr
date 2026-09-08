@@ -6,13 +6,16 @@ import { useGrep } from "./app-provider";
 import { HelpHint } from "./help-tip";
 import { Button, Field, inputClass, Modal, textareaClass } from "./ui";
 import { validateExerciseMediaUpload } from "@/lib/media";
-import { EXERCISE_CATEGORIES, type Exercise } from "@/lib/types";
+import { ExerciseAgeGroupPicker } from "./exercise-age-group-filter";
+import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type Exercise, type ExerciseAgeGroup } from "@/lib/types";
 
-const schema = z.object({ name: z.string().trim().min(3, "Bruk minst 3 tegn"), category: z.enum(EXERCISE_CATEGORIES), description: z.string().trim().min(10, "Legg til litt mer informasjon"), mediaUrl: z.string().trim().refine((url) => !url || (z.url().safeParse(url).success && url.startsWith("https://")), "Skriv inn en gyldig og sikker HTTPS-lenke til et bilde eller en video").transform((url) => url || null) });
+const schema = z.object({ name: z.string().trim().min(3, "Bruk minst 3 tegn"), category: z.enum(EXERCISE_CATEGORIES), ageGroups: z.array(z.enum(EXERCISE_AGE_GROUPS)), description: z.string().trim().min(10, "Legg til litt mer informasjon"), mediaUrl: z.string().trim().refine((url) => !url || (z.url().safeParse(url).success && url.startsWith("https://")), "Skriv inn en gyldig og sikker HTTPS-lenke til et bilde eller en video").transform((url) => url || null) });
 
 export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exercise?: Exercise | null; onClose(): void }) {
   const { addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia } = useGrep();
-  const [values, setValues] = useState(exercise ? { name: exercise.name, category: exercise.category, description: exercise.description, mediaUrl: exercise.mediaUrl ?? "" } : { name: "", category: EXERCISE_CATEGORIES[0], description: "", mediaUrl: "" });
+  const [values, setValues] = useState<{ name: string; category: Exercise["category"]; ageGroups: ExerciseAgeGroup[]; description: string; mediaUrl: string }>(
+    exercise ? { name: exercise.name, category: exercise.category, ageGroups: exercise.ageGroups, description: exercise.description, mediaUrl: exercise.mediaUrl ?? "" }
+      : { name: "", category: EXERCISE_CATEGORIES[0], ageGroups: [], description: "", mediaUrl: "" });
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null); const [submitting, setSubmitting] = useState(false);
   async function submit(event: React.FormEvent) {
@@ -35,6 +38,10 @@ export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exerc
     <form className="grid gap-5" onSubmit={submit}>
       <Field label="Navn på øvelsen"><input className={inputClass} value={values.name} onChange={(event) => setValues({ ...values, name: event.target.value })} placeholder="f.eks. Tre rekker i kontring" autoFocus /></Field>
       <Field label="Kategori"><select className={`${inputClass} appearance-none`} value={values.category} onChange={(event) => setValues({ ...values, category: event.target.value as Exercise["category"] })}>{EXERCISE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
+      {/* Not a <Field>: its wrapping <label> forwards a click to the first
+          labelable descendant, so clicking the second chip would toggle it and
+          "6-9" both. The picker carries its own group label instead. */}
+      <div className="grid min-w-0 gap-2 text-sm font-semibold"><span>Aldersgrupper</span><ExerciseAgeGroupPicker value={values.ageGroups} onChange={(ageGroups) => setValues({ ...values, ageGroups })} /><span className="text-xs font-normal text-[var(--ink-soft)]">Velg alle gruppene øvelsen passer for. Uten en gruppe vises øvelsen bare under «Alle aldre».</span></div>
       <Field label="Beskrivelse" hint="Forklar organiseringen, gjennomføringen og de viktigste trenermomentene."><textarea className={textareaClass} value={values.description} onChange={(event) => setValues({ ...values, description: event.target.value })} placeholder="Spillerne jobber i tre rekker …" /></Field>
       <Field label="Lenke til bilde eller video (valgfritt)" hint="HTTPS-bilder, YouTube, Vimeo og direkte videolenker støttes." htmlFor="exercise-media-url" help={<HelpHint topic="media-link" />}><input id="exercise-media-url" className={inputClass} type="url" value={values.mediaUrl} onChange={(event) => setValues({ ...values, mediaUrl: event.target.value })} placeholder="https://..." /></Field>
       <div className="relative flex items-center"><span className="h-px flex-1 bg-[var(--line)]" /><span className="px-3 text-xs font-bold uppercase tracking-[.1em] text-[var(--ink-soft)]">eller</span><span className="h-px flex-1 bg-[var(--line)]" /></div>

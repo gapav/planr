@@ -1,4 +1,4 @@
-import type { Exercise, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
+import type { Exercise, MonthFocus, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
 
 export const demoUser: Profile = {
   id: "user-gard", email: "gard@fjordvik.no", fullName: "Gard Pavel", initials: "GP", color: "#f0642e", isGlobalAdmin: true, teamRole: "admin",
@@ -40,6 +40,14 @@ export const demoFixtures: TeamFixture[] = fixtureSeed.map(([matchNumber, starts
   createdAt: "2026-08-20T08:00:00.000Z", updatedAt: "2026-08-20T08:00:00.000Z",
 }));
 
+// One month with a focus and the rest without, so a preview shows both the
+// filled row and the empty affordance next to it.
+export const demoMonthFocus: MonthFocus[] = [{
+  teamId: "team-senior", month: "2026-09",
+  note: "Forsvar 6-0 med aktiv midtblokk. Hver økt skal ha minst én bolk på samarbeidet mellom to-eren og tre-eren. Vi avslutter alltid med kontring ut av forsvaret.",
+  updatedAt: "2026-09-01T08:00:00.000Z", updatedBy: "user-gard",
+}];
+
 const warmupSeed = [
   ["Løpsserie med stigning", "Rolig jogg som stiger til 80 % over tre lengder. Alle skal svette før ballen kommer fram.", 5],
   ["Pasningsmønster i par", "To og to over halv bane: brystpasning, stusspasning og til slutt pasning i fart.", 6],
@@ -59,19 +67,22 @@ export const demoWarmupRoutines: WarmupRoutine[] = [{
   createdAt: "2026-08-20T08:00:00.000Z", updatedAt: "2026-08-20T08:00:00.000Z",
 }];
 
+// `exercise-6` is deliberately left without age groups: it stands in for every
+// exercise written before 202609020023, which the filter shows under "Alle
+// aldre" alone until someone tags it.
 const exerciseSeed = [
-  ["exercise-1", "Tre rekker i kontring", "Kontringsmønster med tre tydelige løpskorridorer. Fokuser på tidlig ballflyt og god bredde.", "Angrep", "photo-1571019613454-1cb2f99b2d8b", "Nora Vik", "user-nora"],
-  ["exercise-2", "2 mot 2 i forsvarskorridor", "Kompakt fotarbeid i forsvar i en smal korridor. Angriperne jobber for å skape et tydelig gjennombrudd.", "Forsvar", "photo-1547347298-4074fc3086f0", "Sam Østby", "user-sam"],
-  ["exercise-3", "Sirkel for skulderaktivering", "Progressive pasninger parvis med bevegelse, skulderaktivering og retningsendringer.", "Fysisk", "photo-1538805060514-97d9cc17730c", "Gard Pavel", "user-gard"],
-  ["exercise-4", "Kantavslutninger under press", "Gjentatte kantavslutninger etter et langt kryss, først med passivt og deretter aktivt forsvarspress.", "Angrep", "photo-1517466787929-bc90951d0974", "Nora Vik", "user-nora"],
-  ["exercise-5", "Reaksjonslek i fire hjørner", "En konkurransepreget oppvarming for reaksjonsevne, overblikk og rask akselerasjon i små grupper.", "Leker", "photo-1517836357463-d25dfeac3438", "Gard Pavel", "user-gard"],
-  ["exercise-6", "Tålmodig angrep 6 mot 5", "Kontrollert overtallsspill. Angrepet skal skape to forflytninger i forsvaret før avslutning.", "Angrep", "photo-1546519638-68e109498ffc", "Sam Østby", "user-sam"],
+  ["exercise-1", "Tre rekker i kontring", "Kontringsmønster med tre tydelige løpskorridorer. Fokuser på tidlig ballflyt og god bredde.", "Angrep", ["10-12", "13-15"], "photo-1571019613454-1cb2f99b2d8b", "Nora Vik", "user-nora"],
+  ["exercise-2", "2 mot 2 i forsvarskorridor", "Kompakt fotarbeid i forsvar i en smal korridor. Angriperne jobber for å skape et tydelig gjennombrudd.", "Forsvar", ["13-15"], "photo-1547347298-4074fc3086f0", "Sam Østby", "user-sam"],
+  ["exercise-3", "Sirkel for skulderaktivering", "Progressive pasninger parvis med bevegelse, skulderaktivering og retningsendringer.", "Fysisk", ["10-12", "13-15"], "photo-1538805060514-97d9cc17730c", "Gard Pavel", "user-gard"],
+  ["exercise-4", "Kantavslutninger under press", "Gjentatte kantavslutninger etter et langt kryss, først med passivt og deretter aktivt forsvarspress.", "Angrep", ["13-15"], "photo-1517466787929-bc90951d0974", "Nora Vik", "user-nora"],
+  ["exercise-5", "Reaksjonslek i fire hjørner", "En konkurransepreget oppvarming for reaksjonsevne, overblikk og rask akselerasjon i små grupper.", "Leker", ["6-9", "10-12"], "photo-1517836357463-d25dfeac3438", "Gard Pavel", "user-gard"],
+  ["exercise-6", "Tålmodig angrep 6 mot 5", "Kontrollert overtallsspill. Angrepet skal skape to forflytninger i forsvaret før avslutning.", "Angrep", [], "photo-1546519638-68e109498ffc", "Sam Østby", "user-sam"],
 ] as const;
 
-export const demoExercises: Exercise[] = exerciseSeed.map(([id, name, description, category, photo, createdByName, createdBy], index) => {
+export const demoExercises: Exercise[] = exerciseSeed.map(([id, name, description, category, ageGroups, photo, createdByName, createdBy], index) => {
   const image = `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=1000&q=82`;
   return {
-    id, name, description, category, mediaUrl: image, mediaKind: "image", thumbnailUrl: image, createdBy, createdByName,
+    id, name, description, category, ageGroups: [...ageGroups], mediaUrl: image, mediaKind: "image", thumbnailUrl: image, createdBy, createdByName,
     archivedAt: null, createdAt: `2026-08-${30 - index * 2}T08:00:00.000Z`, updatedAt: `2026-08-${30 - index * 2}T08:00:00.000Z`,
   };
 });

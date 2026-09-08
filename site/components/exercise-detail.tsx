@@ -6,15 +6,16 @@ import { useState } from "react";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { Modal, Tag } from "./ui";
 import { getExerciseEmbedUrl, parseExerciseMedia } from "@/lib/media";
-import type { Exercise, ExerciseCategory, SessionItem } from "@/lib/types";
+import { formatAgeGroup } from "@/lib/exercises";
+import type { Exercise, ExerciseAgeGroup, ExerciseCategory, SessionItem } from "@/lib/types";
 
 /**
  * The library passes an `Exercise`; the session builder passes the copy a session item
- * carries, which has no category or author. Both render the same view.
+ * carries, which has no category, age groups or author. Both render the same view.
  */
 export interface ExerciseDetailSubject {
   name: string; description: string; mediaUrl: string | null; mediaKind: Exercise["mediaKind"];
-  thumbnailUrl: string | null; category?: ExerciseCategory | null; createdByName?: string | null;
+  thumbnailUrl: string | null; category?: ExerciseCategory | null; ageGroups?: readonly ExerciseAgeGroup[]; createdByName?: string | null;
 }
 
 /**
@@ -65,6 +66,7 @@ export function ExerciseDetail({ exercise, onClose }: { exercise: ExerciseDetail
 
       <div className="flex flex-wrap items-center gap-2">
         {exercise.category && <Tag tone="orange">{exercise.category}</Tag>}
+        {exercise.ageGroups?.map((group) => <Tag key={group} tone="green">{formatAgeGroup(group)}</Tag>)}
         {exercise.mediaKind ? <Tag tone={exercise.mediaKind === "image" ? "green" : "blue"}>{exercise.mediaKind === "image" ? "Bilde" : "Video"}</Tag> : <Tag tone="green">Uten medier</Tag>}
         {exercise.createdByName && <span className="text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}</span>}
       </div>

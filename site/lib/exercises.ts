@@ -1,24 +1,49 @@
-import type { Exercise, ExerciseCategory, PlannedSession, Profile, SessionItem, WarmupRoutine } from "./types";
+import type { Exercise, ExerciseAgeGroup, ExerciseCategory, PlannedSession, Profile, SessionItem, WarmupRoutine } from "./types";
+
+/** `"6-9"` reads as `"6-9 år"`. The stored value is a key, never a label. */
+export function formatAgeGroup(group: ExerciseAgeGroup): string {
+  return `${group} år`;
+}
 
 /**
- * `favoriteIds` narrows the library to the signed-in coach's own shortlist;
- * `null` — the default, and what a signed-out visitor always gets — leaves the
- * whole library in place. A heart is never a property of the shared exercise
- * row, so the set is passed in rather than read off the exercise.
+ * Picking a band shows only the exercises that list it. An exercise with no
+ * stated age group therefore appears under "Alle aldre" alone — it was tempting
+ * to let an empty array match everything so that exercises written before the
+ * column existed never disappear, but that makes the filter useless: pick
+ * "10-12" and the whole untagged library comes along with the one exercise a
+ * coach actually tagged.
  */
-export function filterExercises<T extends Pick<Exercise, "id" | "name" | "description" | "category">>(
+export function matchesAgeGroup(ageGroups: readonly ExerciseAgeGroup[], filter: ExerciseAgeGroup | null): boolean {
+  if (filter === null) return true;
+  return ageGroups.includes(filter);
+}
+
+/**
+ * Every field is optional and an omitted one filters nothing. `favoriteIds`
+ * narrows the library to the signed-in coach's own shortlist; `null` — the
+ * default, and what a signed-out visitor always gets — leaves the whole library
+ * in place. A heart is never a property of the shared exercise row, so the set
+ * is passed in rather than read off the exercise.
+ */
+export interface ExerciseFilter {
+  query?: string;
+  category?: ExerciseCategory | null;
+  ageGroup?: ExerciseAgeGroup | null;
+  favoriteIds?: ReadonlySet<string> | null;
+}
+
+export function filterExercises<T extends Pick<Exercise, "id" | "name" | "description" | "category" | "ageGroups">>(
   exercises: readonly T[],
-  query: string,
-  category: ExerciseCategory | null,
-  favoriteIds: ReadonlySet<string> | null = null,
+  { query = "", category = null, ageGroup = null, favoriteIds = null }: ExerciseFilter = {},
 ): T[] {
   const normalizedQuery = query.trim().toLocaleLowerCase("nb-NO");
 
   return exercises.filter((exercise) => {
     if (favoriteIds && !favoriteIds.has(exercise.id)) return false;
-    const matchesCategory = category === null || exercise.category === category;
+    if (category !== null && exercise.category !== category) return false;
+    if (!matchesAgeGroup(exercise.ageGroups, ageGroup)) return false;
     const searchableText = `${exercise.name} ${exercise.description}`.toLocaleLowerCase("nb-NO");
-    return matchesCategory && searchableText.includes(normalizedQuery);
+    return searchableText.includes(normalizedQuery);
   });
 }
 

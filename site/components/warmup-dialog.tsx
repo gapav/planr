@@ -4,8 +4,9 @@ import { ArrowDown, ArrowUp, ChevronRight, Clock3, Eye, Library, Plus, Search, T
 import { useMemo, useState } from "react";
 import { filterExercises } from "@/lib/exercises";
 import { scheduleWarmupItems, warmupSchedule } from "@/lib/warmup";
-import type { Exercise, ExerciseCategory, TeamFixture, WarmupItem, WarmupRoutine } from "@/lib/types";
+import type { Exercise, ExerciseAgeGroup, ExerciseCategory, TeamFixture, WarmupItem, WarmupRoutine } from "@/lib/types";
 import { useGrep } from "./app-provider";
+import { ExerciseAgeGroupFilter } from "./exercise-age-group-filter";
 import { ExerciseCategoryFilter } from "./exercise-category-filter";
 import { ExerciseDetail, sessionItemDetailSubject, type ExerciseDetailSubject } from "./exercise-detail";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
@@ -175,7 +176,8 @@ function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDo
   const { exercises, addWarmupExercise } = useGrep();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<ExerciseCategory | null>(null);
-  const filtered = useMemo(() => filterExercises(exercises, query, category), [exercises, query, category]);
+  const [ageGroup, setAgeGroup] = useState<ExerciseAgeGroup | null>(null);
+  const filtered = useMemo(() => filterExercises(exercises, { query, category, ageGroup }), [exercises, query, category, ageGroup]);
 
   async function add(exercise: Exercise) {
     await addWarmupExercise(routine.id, exercise);
@@ -185,6 +187,7 @@ function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDo
   return <div className="grid gap-3">
     <div className="relative"><Search className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={18} /><input className={`${inputClass} pl-10`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Søk etter øvelser …" aria-label="Søk etter øvelser" autoFocus /></div>
     <ExerciseCategoryFilter value={category} onChange={setCategory} />
+    <ExerciseAgeGroupFilter value={ageGroup} onChange={setAgeGroup} />
     <p className="text-xs font-semibold text-[var(--ink-soft)]">{filtered.length} øvelser</p>
     {filtered.length ? <div className="grid max-h-[50vh] gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]">
       <button type="button" className="group/media relative h-20 w-24 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]" aria-label={`Vis detaljer for ${exercise.name}`} onClick={() => onPreview(exercise)}><ExerciseThumbnail exercise={exercise} className="h-full w-full" /><span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-8 w-8 place-items-center rounded-full bg-white/90"><Eye size={15} /></span></span></button>

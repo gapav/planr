@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(101);
+select plan(111);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -67,6 +67,9 @@ values (
 insert into public.exercises (id, name, description, media_url, media_kind, thumbnail_url, created_by)
 values ('20000000-0000-0000-0000-000000000001', 'Public test exercise', 'A useful public exercise description.', 'https://example.com/exercise.jpg', 'image', 'https://example.com/exercise.jpg', '10000000-0000-0000-0000-000000000001');
 select throws_ok($$ insert into public.exercises (name, description, category, media_url, media_kind, created_by) values ('Invalid category', 'This exercise has an invalid category.', 'Teknikk', 'https://example.com/invalid.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, '23514', null, 'exercise categories are limited to the supported values');
+select is((select age_groups from public.exercises where id = '20000000-0000-0000-0000-000000000001'), '{}'::text[], 'an exercise saved without age groups states none rather than guessing');
+select throws_ok($$ insert into public.exercises (name, description, age_groups, media_url, media_kind, created_by) values ('Invalid age group', 'This exercise has an unsupported age group.', array['16-18'], 'https://example.com/invalid.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, '23514', null, 'exercise age groups are limited to the supported bands');
+select lives_ok($$ insert into public.exercises (id, name, description, age_groups, media_url, media_kind, created_by) values ('20000000-0000-0000-0000-000000000002', 'Multi-age exercise', 'This exercise suits two age bands.', array['10-12', '13-15'], 'https://example.com/exercise.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, 'an exercise can list several supported age groups');
 
 set local role anon;
 select is((select count(*)::integer from public.exercises where id = '20000000-0000-0000-0000-000000000001'), 1, 'anonymous visitors can read active exercises');
@@ -258,6 +261,27 @@ select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-0000000
 select is((select count(*)::integer from public.warmup_routines), 0, 'an unrelated coach cannot read another team warm-up');
 select is((select count(*)::integer from public.warmup_items), 0, 'an unrelated coach cannot read another team warm-up activities');
 select throws_ok($$ select public.reorder_warmup_items('70000000-0000-0000-0000-000000000001', array['71000000-0000-0000-0000-000000000001']::uuid[]) $$, 'P0001', 'Oppvarmingen finnes ikke', 'an unrelated coach cannot reorder another team warm-up');
+reset role;
+
+-- 202609020024 added the month focus. Like the warm-up it is coaching content
+-- rather than club administration, so every coach on the team writes it.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select lives_ok(format($$ insert into public.team_month_focus (team_id, month, note, updated_by) values ('%s', '2026-09', 'Forsvar 6-0 med aktiv midtblokk.', '10000000-0000-0000-0000-000000000002') $$, current_setting('plannr.test_team')), 'a coach who is not an admin can set the month focus');
+select throws_ok(format($$ insert into public.team_month_focus (team_id, month, note) values ('%s', '2026-10', '   ') $$, current_setting('plannr.test_team')), '23514', null, 'a blank focus is refused rather than stored as an empty note');
+select throws_ok(format($$ insert into public.team_month_focus (team_id, month, note) values ('%s', 'september 2026', 'Kontringer.') $$, current_setting('plannr.test_team')), '23514', null, 'the month must be the YYYY-MM key the calendar groups by');
+select throws_ok(format($$ insert into public.team_month_focus (team_id, month, note) values ('%s', '2026-09', 'Et annet fokus.') $$, current_setting('plannr.test_team')), '23505', null, 'a team has one focus per month, not a list of them');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok(format($$ update public.team_month_focus set note = 'Kontring ut av forsvaret.' where team_id = '%s' and month = '2026-09' $$, current_setting('plannr.test_team')), 'another coach on the team can rewrite the focus');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.team_month_focus), 0, 'an unrelated coach cannot read another team month focus');
+select throws_ok(format($$ insert into public.team_month_focus (team_id, month, note) values ('%s', '2026-11', 'Fremmed fokus.') $$, current_setting('plannr.test_team')), '42501', null, 'an unrelated coach cannot set another team month focus');
 reset role;
 
 select * from finish();

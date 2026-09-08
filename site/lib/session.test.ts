@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoSessions } from "./demo-data";
 import type { PlannedSession } from "./types";
-import { blockDuration, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, nextPosition, pickTodaySession, relativeDayLabel, sessionDuration, validatePublish } from "./session";
+import { blockDuration, calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, nextPosition, pickTodaySession, relativeDayLabel, sessionDuration, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -74,6 +74,40 @@ describe("groupSessionsByMonth", () => {
     const groups = groupSessionsByMonth([at("a", null), at("b", "not a date")], "UTC");
     expect(groups).toHaveLength(1);
     expect(groups[0]).toMatchObject({ key: "no-date", label: "Uten dato" });
+  });
+});
+
+describe("calendarMonthGroups", () => {
+  const at = (id: string, startsAt: string | null) => ({ ...demoSessions[0], id, startsAt });
+  const now = new Date("2026-09-08T10:00:00.000Z");
+  it("lists this month and four ahead even when nothing is planned", () => {
+    const groups = calendarMonthGroups([], now, "UTC");
+    expect(groups.map((group) => group.key)).toEqual(["2026-09", "2026-10", "2026-11", "2026-12", "2027-01"]);
+    expect(groups.every((group) => group.sessions.length === 0)).toBe(true);
+  });
+  it("labels a padded month the way a populated one is labelled", () => {
+    expect(calendarMonthGroups([], now, "UTC")[0].label).toBe("september 2026");
+    expect(calendarMonthGroups([at("a", "2026-09-12T10:00:00.000Z")], now, "UTC")[0].label).toBe("september 2026");
+  });
+  it("adds a month further out than the padded window", () => {
+    const groups = calendarMonthGroups([at("a", "2027-04-02T10:00:00.000Z")], now, "UTC");
+    expect(groups.map((group) => group.key).at(-1)).toBe("2027-04");
+    expect(groups.at(-1)?.sessions.map((session) => session.id)).toEqual(["a"]);
+  });
+  it("keeps a month already under way ahead of this one", () => {
+    const groups = calendarMonthGroups([at("a", "2026-08-30T10:00:00.000Z")], now, "UTC");
+    expect(groups[0]).toMatchObject({ key: "2026-08", label: "august 2026" });
+    expect(groups[1].key).toBe("2026-09");
+  });
+  it("gathers a month split by an out-of-order session into one section", () => {
+    const groups = calendarMonthGroups([at("a", "2026-09-03T10:00:00.000Z"), at("b", "2026-10-01T10:00:00.000Z"), at("c", "2026-09-26T10:00:00.000Z")], now, "UTC");
+    expect(groups[0].sessions.map((session) => session.id)).toEqual(["a", "c"]);
+    expect(groups[1].sessions.map((session) => session.id)).toEqual(["b"]);
+  });
+  it("leaves undated sessions in a trailing section of their own", () => {
+    const groups = calendarMonthGroups([at("a", null)], now, "UTC");
+    expect(groups).toHaveLength(6);
+    expect(groups.at(-1)).toMatchObject({ key: "no-date", label: "Uten dato" });
   });
 });
 

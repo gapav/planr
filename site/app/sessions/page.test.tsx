@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
-import type { PlannedSession } from "@/lib/types";
+import type { MonthFocus, PlannedSession } from "@/lib/types";
 import SessionsPage from "./page";
 
-const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), deleteSession: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), deleteSession: vi.fn(), saveMonthFocus: vi.fn() }));
 
 vi.mock("@/components/app-provider", () => ({ useGrep: mocks.useGrep }));
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
@@ -18,20 +18,22 @@ const team = demoTeams[0];
 const upcoming = (id: string, title: string, startsAt: string, extra: Partial<PlannedSession> = {}): PlannedSession =>
   ({ ...demoSessions[1], id, teamId: team.id, title, startsAt, status: "published", updatedBy: demoUser.id, ...extra });
 
-function renderPage(sessions: PlannedSession[]) {
-  mocks.useGrep.mockReturnValue({ sessions, currentTeam: team, user: demoUser, createSession: vi.fn(), deleteSession: mocks.deleteSession });
+function renderPage(sessions: PlannedSession[], monthFocus: MonthFocus[] = []) {
+  mocks.useGrep.mockReturnValue({ sessions, currentTeam: team, user: demoUser, monthFocus, createSession: vi.fn(), deleteSession: mocks.deleteSession, saveMonthFocus: mocks.saveMonthFocus });
   render(<SessionsPage />);
 }
 const rowFor = (title: string) => screen.getByRole("link", { name: `Åpne ${title}` }).closest("li") as HTMLElement;
 
 describe("session calendar rows", () => {
-  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.deleteSession.mockReset(); });
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.deleteSession.mockReset(); mocks.saveMonthFocus.mockReset(); });
   afterEach(() => { vi.useRealTimers(); });
 
   it("lifts the nearest session out of its month and counts the rest", () => {
     renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z"), upcoming("b", "Om to dager", "2026-09-04T13:45:00.000Z"), upcoming("c", "Neste måned", "2026-10-01T13:45:00.000Z")]);
 
-    expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual(["Neste økt", "september 2026 · 1 økt", "oktober 2026 · 1 økt"]);
+    // The months ahead are sections whether or not anything is scheduled in them,
+    // so only the two that hold a session carry a count.
+    expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual(["Neste økt", "september 2026 · 1 økt", "oktober 2026 · 1 økt", "november 2026", "desember 2026", "januar 2027"]);
     // The hero is its own section, so its month section holds only what is left.
     expect(within(screen.getByRole("heading", { name: "Neste økt" }).closest("section") as HTMLElement).getAllByRole("listitem")).toHaveLength(1);
   });
@@ -127,5 +129,47 @@ describe("session calendar rows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Flere valg for Uke 36 - Torsdag" }));
 
     expect(screen.getByRole("menuitem", { name: "Slett økt" })).toBeDisabled();
+  });
+});
+
+// The month focus is the one thing on this page that is not a session: it hangs
+// off the month heading, and the months are padded out precisely so it can be
+// written before anything is scheduled.
+describe("month focus", () => {
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.deleteSession.mockReset(); mocks.saveMonthFocus.mockReset(); });
+  afterEach(() => { vi.useRealTimers(); });
+  const focusFor = (month: string, note: string): MonthFocus => ({ teamId: team.id, month, note, updatedAt: "2026-09-01T08:00:00.000Z", updatedBy: demoUser.id });
+
+  it("shows the month's own focus and offers one on every month still to come", () => {
+    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")], [focusFor("2026-09", "Forsvar 6-0 med aktiv midtblokk.")]);
+
+    expect(screen.getByText("Forsvar 6-0 med aktiv midtblokk.")).toBeInTheDocument();
+    // September has one, so the four padded months ahead are what is left to fill.
+    expect(screen.getAllByRole("button", { name: "Sett månedens fokus" })).toHaveLength(4);
+  });
+
+  it("saves against the month the dialog was opened from", async () => {
+    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")]);
+    const october = screen.getByRole("heading", { name: "oktober 2026" }).closest("section") as HTMLElement;
+
+    fireEvent.click(within(october).getByRole("button", { name: "Sett månedens fokus" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Kontring ut av forsvaret." } });
+    fireEvent.click(screen.getByRole("button", { name: "Lagre fokus" }));
+
+    await waitFor(() => expect(mocks.saveMonthFocus).toHaveBeenCalledWith("2026-10", "Kontring ut av forsvaret."));
+  });
+
+  it("keeps a past month's focus on the page but stops offering to write one", () => {
+    // Two sessions in August: the first becomes the hero, so the second leaves a
+    // month section behind for a month that has already been and gone.
+    renderPage([
+      upcoming("a", "Forrige", "2026-08-29T13:45:00.000Z", { status: "in_progress" }),
+      upcoming("b", "Også forrige", "2026-08-30T13:45:00.000Z", { status: "in_progress" }),
+    ], [focusFor("2026-08", "Innspill til strek.")]);
+    const august = screen.getByRole("heading", { name: /august 2026/ }).closest("section") as HTMLElement;
+
+    expect(within(august).getByText("Innspill til strek.")).toBeInTheDocument();
+    // Nothing in the section is a control: the focus is a record now, not an offer.
+    expect(within(august).queryByRole("button", { name: /månedens fokus/i })).toBeNull();
   });
 });

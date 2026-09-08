@@ -1585,3 +1585,79 @@ grant select, insert, delete on public.exercise_favorites to authenticated;
 
 -- A brand-new table is invisible to PostgREST until it re-reads the schema.
 notify pgrst, 'reload schema';
+
+-- ============================================================
+-- 202609020023_exercise_age_groups.sql
+-- ============================================================
+-- Aldersgrupper: which age bands a library exercise suits.
+--
+-- An exercise is rarely written for one band — the same shooting drill runs for
+-- 10-12 and 13-15 with a different tempo — so this is an array rather than a
+-- second `category`-style single value. The values are stable keys ('6-9'), not
+-- display strings; the UI appends "år".
+--
+-- An empty array means "not stated" — what every exercise written before this
+-- migration gets, rather than a backfilled guess. Picking a band in the UI shows
+-- only the exercises that list it, so an untagged exercise stays visible under
+-- "Alle aldre" until an author tags it.
+alter table public.exercises
+  add column if not exists age_groups text[] not null default '{}';
+
+alter table public.exercises
+  drop constraint if exists exercises_age_groups_check;
+
+alter table public.exercises
+  add constraint exercises_age_groups_check
+  check (age_groups <@ array['6-9', '10-12', '13-15']::text[]);
+
+-- No index: the browser loads the whole active library in one `select *` and
+-- filters in memory (`filterExercises`), so an age filter never reaches Postgres.
+
+-- Make the new column available to PostgREST immediately when this migration
+-- is run directly in the hosted Supabase SQL editor.
+notify pgrst, 'reload schema';
+
+-- ============================================================
+-- 202609020024_month_focus.sql
+-- ============================================================
+-- Månedens fokus: one short note per team per calendar month, shown above the
+-- month's sessions in the calendar.
+--
+-- The month is stored as the 'YYYY-MM' key the calendar already groups by
+-- rather than a date or a range. That key is derived in the browser from the
+-- coach's own zone, so storing a timestamp here would only invite a second,
+-- disagreeing answer to "which month is this session in?".
+--
+-- Unlike the roster and the match import, this is coaching content: every coach
+-- on the team writes it, the same split `warmup_routines` uses.
+create table public.team_month_focus (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  month text not null check (month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  note text not null check (char_length(trim(note)) between 1 and 400),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references public.profiles(id) on delete set null,
+  primary key (team_id, month)
+);
+
+-- No secondary index: the primary key is the only way this table is ever read,
+-- and the browser loads every row for the coach's teams in one go.
+
+create trigger team_month_focus_touch before update on public.team_month_focus for each row execute function public.touch_updated_at();
+
+alter table public.team_month_focus enable row level security;
+
+-- An empty note is a deleted row, not a stored blank — the check constraint
+-- above enforces it, and the client deletes rather than writing ''. That keeps
+-- "has a focus" a single question everywhere.
+create policy team_month_focus_read_member on public.team_month_focus for select to authenticated using (public.is_team_member(team_id));
+create policy team_month_focus_add_member on public.team_month_focus for insert to authenticated with check (public.is_team_member(team_id));
+create policy team_month_focus_edit_member on public.team_month_focus for update to authenticated using (public.is_team_member(team_id)) with check (public.is_team_member(team_id));
+create policy team_month_focus_delete_member on public.team_month_focus for delete to authenticated using (public.is_team_member(team_id));
+
+revoke all on public.team_month_focus from anon, authenticated;
+grant select, insert, update, delete on public.team_month_focus to authenticated;
+
+-- Make the new table available to PostgREST immediately when this migration is
+-- run directly in the hosted Supabase SQL editor.
+notify pgrst, 'reload schema';

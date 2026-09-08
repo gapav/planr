@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Clock3, LayoutList, MapPin, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Clock3, LayoutList, MapPin, MoreHorizontal, Pencil, Plus, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,15 +8,17 @@ import { AppShell } from "@/components/app-shell";
 import { HelpTip } from "@/components/help-tip";
 import { useGrep } from "@/components/app-provider";
 import { TeamCrest } from "@/components/team-crest";
-import { Avatar, Button, EmptyState, Modal, Tag } from "@/components/ui";
-import { deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration } from "@/lib/session";
+import { Avatar, Button, EmptyState, Field, Modal, Tag, textareaClass } from "@/components/ui";
+import { monthKey } from "@/lib/fixtures";
+import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration } from "@/lib/session";
+import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
 import type { PlannedSession, SessionTab } from "@/lib/types";
 import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
 
 const tabs: Array<{ id: SessionTab; label: string }> = [{ id: "upcoming", label: "Kommende" }, { id: "drafts", label: "Utkast" }, { id: "past", label: "Gjennomførte" }];
 
 export default function SessionsPage() {
-  const { sessions, currentTeam, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>("upcoming"); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const router = useRouter();
+  const { sessions, currentTeam, monthFocus, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>("upcoming"); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [focusMonth, setFocusMonth] = useState<{ key: string; label: string } | null>(null); const router = useRouter();
   const current = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === tab).sort((a, b) => tab === "drafts" ? b.updatedAt.localeCompare(a.updatedAt) : tab === "upcoming" ? (a.startsAt ?? "").localeCompare(b.startsAt ?? "") : (b.startsAt ?? "").localeCompare(a.startsAt ?? "")), [sessions, currentTeam, tab]);
   const counts = useMemo(() => tabs.reduce((acc, entry) => { acc[entry.id] = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return acc; }, {} as Record<SessionTab, number>), [sessions, currentTeam]);
   // The nearest session is lifted out of its month so the one plan being
@@ -31,25 +33,97 @@ export default function SessionsPage() {
     : <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag ennå" body="Øktene tilhører et lag, slik at de riktige trenerne kan se og redigere dem. Systemadministratoren gir deg tilgang." />}</div></AppShell>;
   return <AppShell><div className="mx-auto max-w-[1100px] px-4 pb-16 pt-7 sm:px-8 sm:pt-10"><header className="flex items-start gap-4"><TeamCrest team={currentTeam} size="lg" className="mt-1" /><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">{currentTeam?.shortName}</p><div className="mt-2 flex items-center gap-2.5"><h1 className="text-4xl font-black tracking-[-.055em] sm:text-5xl">Øktkalender</h1><HelpTip topic="sessions-calendar" /></div><p className="mt-3 text-[var(--ink-soft)]">Alle øktplaner, fra første idé til siste heiarop.</p></div></header>
     <TabSelect tab={tab} onSelect={setTab} counts={counts} />
-    {current.length ? (tab === "drafts"
+    {tab === "drafts"
       // Drafts sort by when they were last touched, so a calendar heading would
       // group them by a date the order does not follow.
-      ? <ul className="mt-7 flex flex-col gap-2.5">{current.map((session) => <SessionRow key={session.id} session={session} tab={tab} onDelete={() => setPendingDelete(session)} />)}</ul>
-      : <div className="mt-7 flex flex-col gap-6">
+      ? (current.length
+        ? <ul className="mt-7 flex flex-col gap-2.5">{current.map((session) => <SessionRow key={session.id} session={session} tab={tab} onDelete={() => setPendingDelete(session)} />)}</ul>
+        : <div className="mt-7"><EmptyState icon={<Sparkles size={22} />} title="Ingen økter under planlegging" body="Start en øktplan og inviter trenerteamet til å bidra." /></div>)
+      // Upcoming is a calendar, not a list of what happens to exist: the months
+      // ahead are sections whether or not anything is scheduled in them, so the
+      // month's focus can be written before the sessions that carry it. The
+      // empty state still leads when nothing is planned — publishing a draft is
+      // the thing to do then.
+      : tab === "upcoming"
+      ? <div className="mt-7 flex flex-col gap-6">
+        {!current.length && <EmptyState icon={<CalendarDays size={22} />} title="Ingen planlagte økter ennå" body="Publiser et utkast, så vises det automatisk her." />}
         {hero && <section><h2 className="mb-2.5 text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">Neste økt</h2><ul><SessionRow session={hero} tab={tab} hero onDelete={() => setPendingDelete(hero)} /></ul></section>}
-        {groupSessionsByMonth(listed).map((group) => <section key={group.key}>
-          <h2 className="sticky top-16 z-10 -mx-1 rounded-lg bg-[var(--paper)]/90 px-1 py-2 text-xs font-black uppercase tracking-[.16em] text-[var(--ink-soft)] backdrop-blur-sm lg:top-0">{group.label}<span className="opacity-60">{" · "}{group.sessions.length} {group.sessions.length === 1 ? "økt" : "økter"}</span></h2>
-          <ul className="mt-1.5 flex flex-col gap-2.5">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
-            ? <SessionRow key={session.id} session={session} tab={tab} onDelete={() => setPendingDelete(session)} />
-            : <CompactSessionRow key={session.id} session={session} onDelete={() => setPendingDelete(session)} />)}</ul>
-        </section>)}
-      </div>) : <div className="mt-7"><EmptyState icon={tab === "drafts" ? <Sparkles size={22} /> : <CalendarDays size={22} />} title={tab === "drafts" ? "Ingen økter under planlegging" : tab === "upcoming" ? "Ingen planlagte økter ennå" : "Ingen gjennomførte økter"} body={tab === "drafts" ? "Start en øktplan og inviter trenerteamet til å bidra." : tab === "upcoming" ? "Publiser et utkast, så vises det automatisk her." : "Gjennomførte økter samles her for senere bruk."} /></div>}
+        {calendarMonthGroups(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onDelete={setPendingDelete} />)}
+      </div>
+      : (current.length
+        ? <div className="mt-7 flex flex-col gap-6">{groupSessionsByMonth(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onDelete={setPendingDelete} />)}</div>
+        : <div className="mt-7"><EmptyState icon={<CalendarDays size={22} />} title="Ingen gjennomførte økter" body="Gjennomførte økter samles her for senere bruk." /></div>)}
     <CreateSessionCard onCreate={() => void startSession()} creating={creating} />
+    {focusMonth && <MonthFocusModal month={focusMonth.key} label={focusMonth.label} note={monthFocus.find((entry) => entry.teamId === currentTeam.id && entry.month === focusMonth.key)?.note ?? null} onClose={() => setFocusMonth(null)} />}
     <Modal open={Boolean(pendingDelete)} onClose={() => { if (!deleting) setPendingDelete(null); }} title="Vil du slette denne økten?" description="Planen, alle bolkene og aktivitetene blir slettet for hele laget. Dette kan ikke angres." size="sm">
       <p className="rounded-xl bg-[var(--paper)] px-4 py-3 text-sm font-bold">{pendingDelete?.title}</p>
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="secondary" onClick={() => setPendingDelete(null)} disabled={deleting}>Behold økten</Button><Button variant="danger" onClick={() => void confirmDelete()} disabled={deleting}><Trash2 size={17} />{deleting ? "Sletter…" : "Slett økt"}</Button></div>
     </Modal>
   </div></AppShell>;
+}
+
+// One month of the calendar: the sticky heading, the month's focus, and the
+// sessions in it. A month the calendar padded in arrives with no sessions at
+// all — heading and focus only, which is the whole point of padding it.
+function MonthSection({ group, tab, onEditFocus, onDelete }: { group: { key: string; label: string; sessions: PlannedSession[] }; tab: SessionTab; onEditFocus(month: { key: string; label: string }): void; onDelete(session: PlannedSession): void }) {
+  const { currentTeam, monthFocus } = useGrep();
+  const note = monthFocus.find((entry) => entry.teamId === currentTeam?.id && entry.month === group.key)?.note ?? null;
+  // A month that has been and gone keeps the focus it was given — it is a record
+  // of what the team worked on — but is not advertised as something to fill in.
+  // An "add" button on each of twelve past months is noise, not an offer.
+  const editable = group.key !== "no-date" && group.key >= monthKey(new Date());
+  return <section>
+    <h2 className="sticky top-16 z-10 -mx-1 rounded-lg bg-[var(--paper)]/90 px-1 py-2 text-xs font-black uppercase tracking-[.16em] text-[var(--ink-soft)] backdrop-blur-sm lg:top-0">{group.label}{group.sessions.length > 0 && <span className="opacity-60">{" · "}{group.sessions.length} {group.sessions.length === 1 ? "økt" : "økter"}</span>}</h2>
+    <MonthFocusRow label={group.label} note={note} editable={editable} onEdit={() => onEditFocus({ key: group.key, label: group.label })} />
+    {group.sessions.length > 0 && <ul className="mt-1.5 flex flex-col gap-2.5">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
+      ? <SessionRow key={session.id} session={session} tab={tab} onDelete={() => onDelete(session)} />
+      : <CompactSessionRow key={session.id} session={session} onDelete={() => onDelete(session)} />)}</ul>}
+  </section>;
+}
+
+// The focus sits between the month name and the month's plans: close enough to
+// the heading to read as a property of the month, above the sessions it is
+// meant to steer. Paper-deep rather than orange — in this list orange means
+// "the next thing you act on", and a focus is context for the plans, not one of
+// them.
+function MonthFocusRow({ label, note, editable, onEdit }: { label: string; note: string | null; editable: boolean; onEdit(): void }) {
+  if (!note) return editable
+    ? <button type="button" onClick={onEdit} className="mt-1.5 flex min-h-11 w-full items-center gap-2 rounded-2xl border border-dashed border-[#c8c3b7] px-4 text-left text-sm font-bold text-[var(--ink-soft)] transition hover:border-[var(--ink-soft)] hover:text-[var(--ink)]"><Target size={16} />Sett månedens fokus</button>
+    : null;
+  const body = <>
+    <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.14em] text-[var(--ink-soft)]"><Target size={13} />Månedens fokus</span>
+    <p className="mt-1.5 whitespace-pre-line text-sm font-semibold leading-6">{note}</p>
+  </>;
+  // A month that can no longer be written to is text, not a control: a disabled
+  // button would still be reached and announced as one.
+  if (!editable) return <div className="mt-1.5 w-full rounded-2xl bg-[var(--paper-deep)] px-4 py-3">{body}</div>;
+  return <button type="button" onClick={onEdit} aria-label={`Rediger månedens fokus for ${label}`} className="mt-1.5 w-full rounded-2xl bg-[var(--paper-deep)] px-4 py-3 text-left transition hover:bg-[#e2dccd]">{body}</button>;
+}
+
+// One short note the whole coaching team shares, so there is nothing to merge:
+// saving overwrites, and clearing the field deletes the note rather than storing
+// a blank one.
+function MonthFocusModal({ month, label, note, onClose }: { month: string; label: string; note: string | null; onClose(): void }) {
+  const { saveMonthFocus } = useGrep();
+  const [draft, setDraft] = useState(note ?? ""); const [busy, setBusy] = useState(false);
+  const trimmed = draft.trim();
+  async function save(next: string) {
+    setBusy(true);
+    // A failed save is rolled back and announced by the provider, so the dialog
+    // stays open with the text still in it rather than losing what was typed.
+    try { await saveMonthFocus(month, next); } catch { setBusy(false); return; }
+    onClose();
+  }
+  return <Modal open onClose={() => { if (!busy) onClose(); }} title="Månedens fokus" description={`Hva laget skal jobbe mest med i ${label}. Alle trenerne på laget kan endre det.`} size="sm">
+    <Field label="Fokus" hint={`${draft.length} av ${MONTH_FOCUS_MAX_LENGTH} tegn`}>
+      <textarea className={textareaClass} value={draft} maxLength={MONTH_FOCUS_MAX_LENGTH} autoFocus onChange={(event) => setDraft(event.target.value)} placeholder="F.eks. forsvar 6-0 med aktiv midtblokk. Hver økt skal ha minst én bolk på det, og vi avslutter alltid med kontring." />
+    </Field>
+    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+      {note && <Button variant="ghost" className="sm:mr-auto" disabled={busy} onClick={() => void save("")}><Trash2 size={16} />Fjern fokus</Button>}
+      <Button variant="secondary" onClick={onClose} disabled={busy}>Avbryt</Button>
+      <Button onClick={() => void save(draft)} disabled={busy || !trimmed || trimmed === note}>{busy ? "Lagrer…" : "Lagre fokus"}</Button>
+    </div>
+  </Modal>;
 }
 
 // Creating a session is the only action here that is not a session, so it takes

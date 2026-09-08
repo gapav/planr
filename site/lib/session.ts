@@ -1,3 +1,4 @@
+import { monthKey, monthLabel, shiftMonth } from "./fixtures";
 import type { PlannedSession, SessionBlock, SessionTab } from "./types";
 export function blockDuration(block: SessionBlock) { return block.items.reduce((total, item) => total + item.durationMinutes, 0); }
 export function sessionDuration(session: PlannedSession) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
@@ -91,6 +92,39 @@ export function groupSessionsByMonth(sessions: PlannedSession[], timeZone?: stri
     else groups.push({ key, label: dated ? new Intl.DateTimeFormat("nb-NO", { month: "long", year: "numeric", ...zone }).format(dated) : "Uten dato", sessions: [session] });
   }
   return groups;
+}
+
+// How far ahead the calendar lists months that hold nothing yet.
+export const MIN_FUTURE_MONTHS = 4;
+
+/**
+ * The Upcoming tab's sections. Unlike `groupSessionsByMonth` this is a calendar,
+ * not a list of what exists: a coach decides what the month is about before the
+ * sessions carrying it are scheduled, so this month and the next
+ * `MIN_FUTURE_MONTHS` are always sections even when empty. Months that do hold a
+ * session are added on top, including one already begun — an in-progress workout
+ * stays in Upcoming after its own month has passed.
+ *
+ * Undated sessions keep their own trailing section and are never padded around.
+ */
+export function calendarMonthGroups(sessions: PlannedSession[], now = new Date(), timeZone?: string) {
+  const grouped = groupSessionsByMonth(sessions, timeZone);
+  const undated = grouped.filter((group) => group.key === "no-date");
+  // `groupSessionsByMonth` only merges runs, so a month split by an out-of-order
+  // session arrives as two groups. Collect by key rather than overwriting.
+  const byKey = new Map<string, PlannedSession[]>();
+  for (const group of grouped) {
+    if (group.key === "no-date") continue;
+    byKey.set(group.key, [...(byKey.get(group.key) ?? []), ...group.sessions]);
+  }
+  const start = monthKey(now, timeZone);
+  for (let ahead = 0; ahead <= MIN_FUTURE_MONTHS; ahead += 1) {
+    const key = shiftMonth(start, ahead);
+    if (!byKey.has(key)) byKey.set(key, []);
+  }
+  // `YYYY-MM` sorts chronologically as text.
+  const dated = [...byKey.keys()].sort().map((key) => ({ key, label: monthLabel(key), sessions: byKey.get(key) ?? [] }));
+  return [...dated, ...undated];
 }
 
 // `position` is a unique key per parent in Postgres, not an array index, and a

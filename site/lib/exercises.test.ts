@@ -1,38 +1,84 @@
 import { describe, expect, it } from "vitest";
 import { demoExercises, demoSessions, demoWarmupRoutines } from "./demo-data";
-import { canEditExercise, filterExercises, indexExercises, resolveAll, resolveItemDisplay, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "./exercises";
+import type { ExerciseAgeGroup } from "./types";
+import { canEditExercise, filterExercises, formatAgeGroup, indexExercises, matchesAgeGroup, resolveAll, resolveItemDisplay, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "./exercises";
 
 describe("exercise filtering", () => {
   it("filters exercises by category", () => {
-    expect(filterExercises(demoExercises, "", "Forsvar").map((exercise) => exercise.id)).toEqual(["exercise-2"]);
+    expect(filterExercises(demoExercises, { category: "Forsvar" }).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
   });
 
   it("searches names and descriptions without case sensitivity", () => {
-    expect(filterExercises(demoExercises, "FOTARBEID I FORSVAR", null).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
+    expect(filterExercises(demoExercises, { query: "FOTARBEID I FORSVAR" }).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
   });
 
   it("combines category and text filters", () => {
-    expect(filterExercises(demoExercises, "kant", "Angrep").map((exercise) => exercise.id)).toEqual(["exercise-4"]);
-    expect(filterExercises(demoExercises, "kant", "Forsvar")).toEqual([]);
+    expect(filterExercises(demoExercises, { query: "kant", category: "Angrep" }).map((exercise) => exercise.id)).toEqual(["exercise-4"]);
+    expect(filterExercises(demoExercises, { query: "kant", category: "Forsvar" })).toEqual([]);
   });
 
-  it("leaves the library whole when no favourites are passed", () => {
-    expect(filterExercises(demoExercises, "", null, null)).toHaveLength(demoExercises.length);
+  it("leaves the library whole when nothing is filtered", () => {
+    expect(filterExercises(demoExercises)).toHaveLength(demoExercises.length);
+    expect(filterExercises(demoExercises, { favoriteIds: null })).toHaveLength(demoExercises.length);
   });
 
   it("narrows the library to the coach's hearted exercises", () => {
-    const favorites = new Set(["exercise-2", "exercise-4"]);
-    expect(filterExercises(demoExercises, "", null, favorites).map((exercise) => exercise.id)).toEqual(["exercise-2", "exercise-4"]);
+    const favoriteIds = new Set(["exercise-2", "exercise-4"]);
+    expect(filterExercises(demoExercises, { favoriteIds }).map((exercise) => exercise.id)).toEqual(["exercise-2", "exercise-4"]);
   });
 
   it("applies search and category on top of the favourites", () => {
-    const favorites = new Set(["exercise-2", "exercise-4"]);
-    expect(filterExercises(demoExercises, "", "Forsvar", favorites).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
-    expect(filterExercises(demoExercises, "kant", "Forsvar", favorites)).toEqual([]);
+    const favoriteIds = new Set(["exercise-2", "exercise-4"]);
+    expect(filterExercises(demoExercises, { category: "Forsvar", favoriteIds }).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
+    expect(filterExercises(demoExercises, { query: "kant", category: "Forsvar", favoriteIds })).toEqual([]);
   });
 
   it("shows nothing rather than everything when no exercise is hearted", () => {
-    expect(filterExercises(demoExercises, "", null, new Set())).toEqual([]);
+    expect(filterExercises(demoExercises, { favoriteIds: new Set() })).toEqual([]);
+  });
+
+  it("filters exercises by age group", () => {
+    expect(filterExercises(demoExercises, { ageGroup: "6-9" }).map((exercise) => exercise.id)).toEqual(["exercise-5"]);
+  });
+
+  it("hides an untagged exercise from every band rather than showing it in all of them", () => {
+    expect(filterExercises(demoExercises, { ageGroup: "6-9" }).map((exercise) => exercise.id)).not.toContain("exercise-6");
+    expect(filterExercises(demoExercises, { ageGroup: "13-15" }).map((exercise) => exercise.id)).not.toContain("exercise-6");
+    expect(filterExercises(demoExercises).map((exercise) => exercise.id)).toContain("exercise-6");
+  });
+
+  it("keeps an exercise that lists several age groups in each of them", () => {
+    const ids = (ageGroup: ExerciseAgeGroup) => filterExercises(demoExercises, { ageGroup }).map((exercise) => exercise.id);
+    expect(ids("10-12")).toContain("exercise-1");
+    expect(ids("13-15")).toContain("exercise-1");
+  });
+
+  it("combines the age group with the other filters", () => {
+    expect(filterExercises(demoExercises, { ageGroup: "6-9", category: "Leker" }).map((exercise) => exercise.id)).toEqual(["exercise-5"]);
+    expect(filterExercises(demoExercises, { ageGroup: "6-9", category: "Forsvar" })).toEqual([]);
+  });
+});
+
+describe("age group matching", () => {
+  it("keeps an exercise with no stated age group out of every band", () => {
+    expect(matchesAgeGroup([], "6-9")).toBe(false);
+    expect(matchesAgeGroup([], null)).toBe(true);
+  });
+
+  it("keeps an exercise only in the bands it lists", () => {
+    expect(matchesAgeGroup(["10-12", "13-15"], "13-15")).toBe(true);
+    expect(matchesAgeGroup(["10-12", "13-15"], "6-9")).toBe(false);
+  });
+
+  it("matches everything when no band is selected", () => {
+    expect(matchesAgeGroup(["6-9"], null)).toBe(true);
+  });
+});
+
+describe("age group labels", () => {
+  it("renders a stored key as Norwegian text", () => {
+    expect(formatAgeGroup("6-9")).toBe("6-9 år");
+    expect(formatAgeGroup("13-15")).toBe("13-15 år");
   });
 });
 
