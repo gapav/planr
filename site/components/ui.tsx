@@ -9,17 +9,40 @@ export function Button({ className, variant = "primary", size = "md", ...props }
   return <button className={cn("inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45", size === "sm" && "min-h-9 px-3 text-sm", size === "md" && "min-h-11 px-4 text-sm", size === "lg" && "min-h-12 px-5", variant === "primary" && "bg-[var(--orange)] text-white shadow-[0_8px_20px_rgba(240,100,46,.22)] enabled:hover:bg-[var(--orange-dark)]", variant === "secondary" && "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] enabled:hover:border-[var(--ink)]", variant === "ghost" && "text-[var(--ink-soft)] enabled:hover:bg-black/5 enabled:hover:text-[var(--ink)]", variant === "danger" && "bg-red-50 text-[var(--danger)] enabled:hover:bg-red-100", className)} {...props} />;
 }
 
+// Modals stack: the exercise picker and the warm-up dialog each render a
+// preview dialog beside their own, and one click can close both in the same
+// commit. Every open modal therefore takes a share of one page-wide lock rather
+// than saving and restoring `body.overflow` itself — with a value each, the
+// second cleanup would restore the "hidden" the first had already handed back
+// and freeze the page until a reload.
+let scrollLockCount = 0;
+let overflowBeforeLock = "";
+
+function lockPageScroll() {
+  if (scrollLockCount === 0) {
+    overflowBeforeLock = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  scrollLockCount += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    scrollLockCount -= 1;
+    if (scrollLockCount === 0) document.body.style.overflow = overflowBeforeLock;
+  };
+}
+
 export function Modal({ open, title, description, children, onClose, size = "md" }: { open: boolean; title: string; description?: string; children: ReactNode; onClose(): void; size?: "sm" | "md" | "lg" }) {
   // A phone sheet is easy to get stuck in: Escape closes it, and the page
   // behind stays put so the only thing that scrolls is the dialog itself.
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const releaseScroll = lockPageScroll();
     document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      releaseScroll();
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open, onClose]);

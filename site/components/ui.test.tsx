@@ -42,4 +42,37 @@ describe("Modal", () => {
     rerender(<Modal open={false} title="Dagens lag" onClose={vi.fn()}><p>Lag 1</p></Modal>);
     expect(document.body.style.overflow).toBe("");
   });
+
+  // The exercise picker and the warm-up dialog both render a preview dialog as a
+  // sibling of their own, so two modals are open at once and one click ("legg
+  // til", the backdrop, Escape) closes both in the same commit. Saving and
+  // restoring `body.overflow` per modal made the second cleanup restore the
+  // "hidden" the first one had already handed back, and the page stayed frozen
+  // until a reload.
+  it("hands scrolling back when two stacked modals close in the same commit", () => {
+    function Stack({ open }: { open: boolean }) {
+      return <>
+        <Modal open={open} title="Legg til fra øvelsesbanken" onClose={vi.fn()}><p>Liste</p></Modal>
+        <Modal open={open} title="Pasningsøvelse" onClose={vi.fn()}><p>Detaljer</p></Modal>
+      </>;
+    }
+    const { rerender } = render(<Stack open />);
+    expect(document.body.style.overflow).toBe("hidden");
+
+    rerender(<Stack open={false} />);
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("keeps the page frozen while a modal under a closing one is still open", () => {
+    const { rerender } = render(<>
+      <Modal open title="Legg til fra øvelsesbanken" onClose={vi.fn()}><p>Liste</p></Modal>
+      <Modal open title="Pasningsøvelse" onClose={vi.fn()}><p>Detaljer</p></Modal>
+    </>);
+
+    rerender(<>
+      <Modal open title="Legg til fra øvelsesbanken" onClose={vi.fn()}><p>Liste</p></Modal>
+      <Modal open={false} title="Pasningsøvelse" onClose={vi.fn()}><p>Detaljer</p></Modal>
+    </>);
+    expect(document.body.style.overflow).toBe("hidden");
+  });
 });
