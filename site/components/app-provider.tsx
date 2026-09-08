@@ -4,9 +4,11 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { claimableInvitations, invitationUrl, isIdentityChange, keepSelectedTeamId, seedProfile } from "@/lib/auth";
 import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
+import { canEditExercise } from "@/lib/exercises";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { isInvitationAlreadyUsed, norwegianServerMessage } from "@/lib/server-messages";
 import { minimizePlayerName } from "@/lib/roster";
+import { nextPosition } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { Exercise, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole } from "@/lib/types";
@@ -24,6 +26,7 @@ const TEAM_LOGO_BUCKET = "team-logos";
 // Remember it per browser instead. Storage throws in some privacy modes and is
 // absent on the server, so every access is guarded.
 const SELECTED_TEAM_KEY = "plannr.selected-team";
+const NOT_EXERCISE_OWNER = "Du kan bare endre øvelser du har lagt til selv";
 
 function readSelectedTeamId(): string | null {
   try { return window.localStorage.getItem(SELECTED_TEAM_KEY); } catch { return null; }
@@ -300,17 +303,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [persist, supabase, user]);
 
+  // Only the author or a global admin may change a library exercise. Postgres is
+  // the boundary (`exercises_edit_owner`), but it enforces the rule by filtering
+  // the row out, so a blocked update comes back as a successful no-op — without
+  // this guard the optimistic edit would sit there looking saved.
   const updateExercise = useCallback(async (id: string, input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">) => {
     const previous = exercises.find((exercise) => exercise.id === id);
+    if (!previous || !canEditExercise(user, previous)) throw new Error(NOT_EXERCISE_OWNER);
     const media = input.mediaUrl ? await resolveExerciseMedia(input.mediaUrl) : { kind: null, thumbnailUrl: null }; const updatedAt = new Date().toISOString();
     setExercises((current) => current.map((exercise) => exercise.id === id ? { ...exercise, ...input, mediaKind: media.kind, thumbnailUrl: media.thumbnailUrl, updatedAt } : exercise));
     try {
       await persist(supabase ? () => supabase.from("exercises").update({ name: input.name, description: input.description, category: input.category, media_url: input.mediaUrl, media_kind: media.kind, thumbnail_url: media.thumbnailUrl }).eq("id", id) : null);
     } catch (error) {
-      if (previous) setExercises((current) => current.map((exercise) => exercise.id === id ? previous : exercise));
+      setExercises((current) => current.map((exercise) => exercise.id === id ? previous : exercise));
       throw error;
     }
-  }, [exercises, persist, supabase]);
+  }, [exercises, persist, supabase, user]);
 
   const uploadExerciseMedia = useCallback(async (file: File) => {
     const media = validateExerciseMediaUpload(file);
@@ -335,9 +343,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [supabase, user]);
 
   const archiveExercise = useCallback(async (id: string) => {
+    const index = exercises.findIndex((exercise) => exercise.id === id); const previous = exercises[index];
+    // The card menu hides Arkiver from everyone but the author and a global admin;
+    // this reports the same refusal the way `persist` reports a server one, because
+    // RLS would answer an unowned archive with a silent no-op.
+    if (!previous || !canEditExercise(user, previous)) { setSaveState("error"); setNotice(NOT_EXERCISE_OWNER); throw new Error(NOT_EXERCISE_OWNER); }
     const archivedAt = new Date().toISOString(); setExercises((current) => current.filter((exercise) => exercise.id !== id));
-    await persist(supabase ? () => supabase.from("exercises").update({ archived_at: archivedAt }).eq("id", id) : null);
-  }, [persist, supabase]);
+    try {
+      await persist(supabase ? () => supabase.from("exercises").update({ archived_at: archivedAt }).eq("id", id) : null);
+    } catch (error) {
+      setExercises((current) => current.some((exercise) => exercise.id === id) ? current : [...current.slice(0, index), previous, ...current.slice(index)]);
+      throw error;
+    }
+  }, [exercises, persist, supabase, user]);
 
   // Refetches teams, sessions, players and the rest for the signed-in coach.
   // Anything that changes membership outside the normal mutation path — accepting
@@ -564,37 +582,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "completed", completedAt, updatedBy: user.id, updatedAt: completedAt } : session));
   }, [persist, supabase, user]);
 
+  const dropBlock = useCallback((sessionId: string, blockId: string) => setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.filter((block) => block.id !== blockId) } : session)), []);
+  const dropItem = useCallback((sessionId: string, blockId: string, itemId: string) => setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.filter((item) => item.id !== itemId) } : block) } : session)), []);
+
   const addBlock = useCallback(async (sessionId: string, title: string) => {
-    const id = makeUuid(); const session = sessions.find((entry) => entry.id === sessionId); const position = session?.blocks.length ?? 0;
+    const id = makeUuid(); const session = sessions.find((entry) => entry.id === sessionId); const position = nextPosition(session?.blocks ?? []);
     const block: SessionBlock = { id, sessionId, title, notes: "", position, items: [], updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((entry) => entry.id === sessionId ? { ...entry, blocks: [...entry.blocks, block] } : entry));
-    await persist(supabase ? () => supabase.from("session_blocks").insert({ id, session_id: sessionId, title, position, updated_by: user?.id }) : null); return id;
-  }, [persist, sessions, supabase, user]);
+    try {
+      await persist(supabase ? () => supabase.from("session_blocks").insert({ id, session_id: sessionId, title, position, updated_by: user?.id }) : null);
+    } catch (error) {
+      dropBlock(sessionId, id);
+      throw error;
+    }
+    return id;
+  }, [dropBlock, persist, sessions, supabase, user]);
 
   const updateBlock = useCallback(async (sessionId: string, blockId: string, patch: BlockPatch) => {
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, ...patch, updatedBy: user?.id ?? block.updatedBy } : block) } : session));
     const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.notes !== undefined && { notes: patch.notes }), updated_by: user?.id };
     await persist(supabase ? () => supabase.from("session_blocks").update(row).eq("id", blockId) : null);
   }, [persist, supabase, user]);
-  const deleteBlock = useCallback(async (sessionId: string, blockId: string) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.filter((block) => block.id !== blockId).map((block, position) => ({ ...block, position })) } : session)); await persist(supabase ? () => supabase.from("session_blocks").delete().eq("id", blockId) : null); }, [persist, supabase]);
+  const deleteBlock = useCallback(async (sessionId: string, blockId: string) => { dropBlock(sessionId, blockId); await persist(supabase ? () => supabase.from("session_blocks").delete().eq("id", blockId) : null); }, [dropBlock, persist, supabase]);
   const reorderBlocks = useCallback(async (sessionId: string, orderedIds: string[]) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: orderedIds.flatMap((id, position) => { const block = session.blocks.find((entry) => entry.id === id); return block ? [{ ...block, position }] : []; }) } : session)); await persist(supabase ? () => supabase.rpc("reorder_session_blocks", { target_session_id: sessionId, ordered_block_ids: orderedIds }) : null); }, [persist, supabase]);
 
   const addExerciseItem = useCallback(async (sessionId: string, blockId: string, exercise: Exercise) => {
-    const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = block?.items.length ?? 0;
+    const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = nextPosition(block?.items ?? []);
     const item: SessionItem = { id, blockId, kind: "exercise", exerciseId: exercise.id, title: exercise.name, description: exercise.description, mediaUrl: exercise.mediaUrl, thumbnailUrl: exercise.thumbnailUrl, durationMinutes: 10, coachingNotes: "", position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
-    await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: item.kind, exercise_id: exercise.id, title: item.title, description: item.description, media_url: item.mediaUrl, thumbnail_url: item.thumbnailUrl, duration_minutes: 10, position, updated_by: user?.id }) : null);
-  }, [persist, sessions, supabase, user]);
+    try {
+      await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: item.kind, exercise_id: exercise.id, title: item.title, description: item.description, media_url: item.mediaUrl, thumbnail_url: item.thumbnailUrl, duration_minutes: 10, position, updated_by: user?.id }) : null);
+    } catch (error) {
+      dropItem(sessionId, blockId, id);
+      throw error;
+    }
+  }, [dropItem, persist, sessions, supabase, user]);
 
   const addCustomItem = useCallback(async (sessionId: string, blockId: string) => {
-    const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = block?.items.length ?? 0;
+    const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = nextPosition(block?.items ?? []);
     const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "Ny aktivitet", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes: 10, coachingNotes: "", position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
-    await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: "custom", title: item.title, duration_minutes: 10, position, updated_by: user?.id }) : null);
-  }, [persist, sessions, supabase, user]);
+    try {
+      await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: "custom", title: item.title, duration_minutes: 10, position, updated_by: user?.id }) : null);
+    } catch (error) {
+      dropItem(sessionId, blockId, id);
+      throw error;
+    }
+  }, [dropItem, persist, sessions, supabase, user]);
 
   const updateItem = useCallback(async (sessionId: string, blockId: string, itemId: string, patch: ItemPatch) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.map((item) => item.id === itemId ? { ...item, ...patch, updatedBy: user?.id ?? item.updatedBy } : item) } : block) } : session)); const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.description !== undefined && { description: patch.description }), ...(patch.durationMinutes !== undefined && { duration_minutes: patch.durationMinutes }), ...(patch.coachingNotes !== undefined && { coaching_notes: patch.coachingNotes }), updated_by: user?.id }; await persist(supabase ? () => supabase.from("session_items").update(row).eq("id", itemId) : null); }, [persist, supabase, user]);
-  const deleteItem = useCallback(async (sessionId: string, blockId: string, itemId: string) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.filter((item) => item.id !== itemId).map((item, position) => ({ ...item, position })) } : block) } : session)); await persist(supabase ? () => supabase.from("session_items").delete().eq("id", itemId) : null); }, [persist, supabase]);
+  const deleteItem = useCallback(async (sessionId: string, blockId: string, itemId: string) => { dropItem(sessionId, blockId, itemId); await persist(supabase ? () => supabase.from("session_items").delete().eq("id", itemId) : null); }, [dropItem, persist, supabase]);
   const reorderItems = useCallback(async (sessionId: string, blockId: string, orderedIds: string[]) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: orderedIds.flatMap((id, position) => { const item = block.items.find((entry) => entry.id === id); return item ? [{ ...item, position }] : []; }) } : block) } : session)); await persist(supabase ? () => supabase.rpc("reorder_block_items", { target_block_id: blockId, ordered_item_ids: orderedIds }) : null); }, [persist, supabase]);
 
   const reloadSession = useCallback(async (id: string) => { if (!supabase) return; const { data } = await supabase.from("sessions").select("*, session_blocks(*, session_items(*))").eq("id", id).single(); if (data) setSessions((current) => current.map((session) => session.id === id ? mapSession(data as unknown as DbSession) : session)); }, [supabase]);

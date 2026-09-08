@@ -19,14 +19,14 @@ export const metadata: Metadata = {
     description:
       "En felles øvelsesbank og samarbeidsbasert øktplanlegger for håndballtrenere.",
     type: "website",
-    images: ["/og.png"],
+    images: ["/og-grep.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: "Grep — Håndballøkter, planlagt sammen",
     description:
       "En felles øvelsesbank og samarbeidsbasert øktplanlegger for håndballtrenere.",
-    images: ["/og.png"],
+    images: ["/og-grep.png"],
   },
 };
 

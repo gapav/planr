@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoSessions } from "./demo-data";
 import type { PlannedSession } from "./types";
-import { blockDuration, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, pickTodaySession, relativeDayLabel, sessionDuration, validatePublish } from "./session";
+import { blockDuration, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, nextPosition, pickTodaySession, relativeDayLabel, sessionDuration, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -128,5 +128,26 @@ describe("pickTodaySession", () => {
     const sessions = [at("late", "2026-09-02T23:30:00.000Z")];
     expect(pickTodaySession(sessions, now, "UTC")?.id).toBe("late");
     expect(pickTodaySession(sessions, now, "Europe/Oslo")).toBeNull();
+  });
+});
+
+describe("nextPosition", () => {
+  it("starts an empty parent at zero", () => {
+    expect(nextPosition([])).toBe(0);
+  });
+
+  it("appends after a contiguous run", () => {
+    expect(nextPosition([{ position: 0 }, { position: 1 }, { position: 2 }])).toBe(3);
+  });
+
+  // The bug this exists for: deleting a middle row leaves a gap, and appending
+  // at the surviving count reuses position 2, which the unique constraint on
+  // (block_id, position) rejects.
+  it("clears the highest position when a middle row was deleted", () => {
+    expect(nextPosition([{ position: 0 }, { position: 2 }])).toBe(3);
+  });
+
+  it("does not assume the rows arrive sorted", () => {
+    expect(nextPosition([{ position: 5 }, { position: 1 }])).toBe(6);
   });
 });

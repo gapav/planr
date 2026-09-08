@@ -92,3 +92,13 @@ export function groupSessionsByMonth(sessions: PlannedSession[], timeZone?: stri
   }
   return groups;
 }
+
+// `position` is a unique key per parent in Postgres, not an array index, and a
+// delete leaves the surviving rows where they are. Appending at `length` would
+// therefore reuse a position that still exists after any middle row was
+// removed, and the insert dies on the unique constraint. Take the high-water
+// mark instead and let the gaps stand; only the reorder RPCs renumber, and
+// nothing but the sort order reads the number.
+export function nextPosition(rows: Array<{ position: number }>) {
+  return rows.reduce((highest, row) => Math.max(highest, row.position + 1), 0);
+}

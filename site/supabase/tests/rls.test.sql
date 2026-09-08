@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(48);
+select plan(54);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -85,9 +85,23 @@ select throws_ok($$ update public.session_attendance set is_present = false, upd
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+-- `exercises_edit_owner` refuses a foreign edit by filtering the row out of the
+-- update rather than raising, so each attempt has to be checked by its effect.
+select lives_ok($$ update public.exercises set description = 'Rewritten by another coach entirely.' where id = '20000000-0000-0000-0000-000000000001' $$, 'an edit of another coach exercise is filtered away rather than raised');
+select is((select description from public.exercises where id = '20000000-0000-0000-0000-000000000001'), 'An updated public exercise description.', 'a coach cannot edit an exercise another coach created');
+select lives_ok($$ update public.exercises set archived_at = now() where id = '20000000-0000-0000-0000-000000000001' $$, 'an archive of another coach exercise is filtered away rather than raised');
+select is((select archived_at from public.exercises where id = '20000000-0000-0000-0000-000000000001'), null::timestamptz, 'a coach cannot archive an exercise another coach created');
 select throws_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reset another team workout');
 select throws_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot skip setup for another team workout');
 reset role;
+
+update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000003';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select lives_ok($$ update public.exercises set description = 'Cleaned up by the global admin.' where id = '20000000-0000-0000-0000-000000000001' $$, 'a global admin can edit an exercise another coach created');
+select is((select description from public.exercises where id = '20000000-0000-0000-0000-000000000001'), 'Cleaned up by the global admin.', 'the global admin edit reaches the row');
+reset role;
+update public.profiles set is_global_admin = false where id = '10000000-0000-0000-0000-000000000003';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'a published workout can start without attendance or groups');
