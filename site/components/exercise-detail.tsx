@@ -18,10 +18,11 @@ export interface ExerciseDetailSubject {
 }
 
 /**
- * A session item carries its own copy of the exercise's display data, taken at
- * insert time, so a plan renders from itself rather than from the library.
+ * A session item — and a warm-up activity, which is shaped the same way —
+ * carries its own copy of the exercise's display data, taken at insert time, so
+ * a plan renders from itself rather than from the library.
  */
-export function sessionItemDetailSubject(item: SessionItem): ExerciseDetailSubject {
+export function sessionItemDetailSubject(item: Pick<SessionItem, "title" | "description" | "mediaUrl" | "thumbnailUrl">): ExerciseDetailSubject {
   let mediaKind: ExerciseDetailSubject["mediaKind"] = null;
   if (item.mediaUrl) { try { mediaKind = parseExerciseMedia(item.mediaUrl).kind; } catch { mediaKind = null; } }
   return { name: item.title, description: item.description, mediaUrl: item.mediaUrl, mediaKind, thumbnailUrl: item.thumbnailUrl };

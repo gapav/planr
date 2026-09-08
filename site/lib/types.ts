@@ -36,3 +36,40 @@ export interface TeamInvitation { id: string; teamId: string; email: string; rol
 export interface SessionAttendance { sessionId: string; playerId: string; isPresent: boolean; checkedInAt: string | null; }
 export interface PlayerGroup { id: string; label: string; playerIds: string[]; }
 export interface SessionGrouping { sessionId: string; kind: SessionGroupingKind; groups: PlayerGroup[]; generatedAt: string; }
+export interface AdminTeamMember extends Profile { teamRole: TeamRole; }
+/** A team as the platform owner sees it: every member and pending invitation, membership or not. */
+export interface AdminTeam { id: string; name: string; shortName: string; logoUrl: string | null; members: AdminTeamMember[]; invitations: TeamInvitation[]; }
+/**
+ * One match from the club's tournament export. `ourTeams` holds the club's own
+ * teams taking part — a division report lists every team in the group, and the
+ * coach picks which of them belong on this calendar (a club splits an age group
+ * into "Rød", "Blå", …, and a match can be a derby between two of them).
+ */
+export interface TeamFixture {
+  id: string; teamId: string; matchNumber: string; startsAt: string; homeTeam: string; awayTeam: string;
+  ourTeams: string[]; result: string; venue: string; organizer: string; tournament: string;
+  createdAt: string; updatedAt: string;
+}
+export type TeamFixtureInput = Omit<TeamFixture, "id" | "teamId" | "createdAt" | "updatedAt">;
+
+/**
+ * A warm-up activity. Like a session item it carries its own copy of the
+ * exercise's display data, taken when it was added, so later library edits
+ * never rewrite a routine the team has already drilled.
+ */
+export interface WarmupItem {
+  id: string; routineId: string; kind: SessionItemKind; exerciseId: string | null; title: string;
+  description: string; mediaUrl: string | null; thumbnailUrl: string | null; durationMinutes: number;
+  coachingNotes: string; position: number;
+}
+/**
+ * The standing pre-match routine. It belongs to the team rather than to one
+ * match: the same activities run before every fixture, so the calendar shows
+ * this against each match instead of storing a copy per match.
+ */
+export interface WarmupRoutine {
+  id: string; teamId: string; name: string; isDefault: boolean; meetMinutesBefore: number; notes: string;
+  items: WarmupItem[]; createdAt: string; updatedAt: string;
+}
+export type WarmupRoutinePatch = Partial<Pick<WarmupRoutine, "name" | "meetMinutesBefore" | "notes">>;
+export type WarmupItemPatch = Partial<Pick<WarmupItem, "title" | "description" | "durationMinutes" | "coachingNotes">>;

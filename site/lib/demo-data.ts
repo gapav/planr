@@ -1,4 +1,4 @@
-import type { Exercise, PlannedSession, Profile, Team, TeamPlayer } from "./types";
+import type { Exercise, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
 
 export const demoUser: Profile = {
   id: "user-gard", email: "gard@fjordvik.no", fullName: "Gard Pavel", initials: "GP", color: "#f0642e", isGlobalAdmin: true, teamRole: "admin",
@@ -20,6 +20,44 @@ export const demoPlayers: TeamPlayer[] = playerNames.map((fullName, index) => ({
   id: `player-${index + 1}`, teamId: "team-senior", fullName,
   jerseyNumber: String(index + 2), createdAt: "2026-08-20T08:00:00.000Z", updatedAt: "2026-08-20T08:00:00.000Z",
 }));
+
+// The demo calendar carries the two sub-teams the age group is split into, so
+// the colour coding and the team filter have something to show without a file.
+const fixtureSeed = [
+  ["41041006001", "2026-09-12T09:00:00.000Z", "Fjordvik Rød", "Nesodden Gul", "Fjordvikhallen", "Fjordvik HK", ""],
+  ["41041006002", "2026-09-12T10:20:00.000Z", "Kolbotn Rød", "Fjordvik Blå", "Sofiemyrhallen A", "Oppegård Idrettslag", ""],
+  ["41041006003", "2026-09-26T11:40:00.000Z", "Fjordvik Blå", "Fjordvik Rød", "Fjordvikhallen", "Fjordvik HK", ""],
+  ["41041006004", "2026-10-10T08:00:00.000Z", "Ski Rød", "Fjordvik Rød", "Ski Alliansehall A", "Ski IL Håndball", ""],
+  ["41041006005", "2026-10-24T12:00:00.000Z", "Fjordvik Blå", "Nordstrand Rosa", "Fjordvikhallen", "Fjordvik HK", ""],
+  ["41041006006", "2026-08-29T09:00:00.000Z", "Bækkelaget Blå", "Fjordvik Rød", "Ekeberg skole", "Bækkelagets SK", "22-25"],
+] as const;
+
+const demoOurTeams = ["Fjordvik Rød", "Fjordvik Blå"];
+export const demoFixtures: TeamFixture[] = fixtureSeed.map(([matchNumber, startsAt, homeTeam, awayTeam, venue, organizer, result]) => ({
+  id: `fixture-${matchNumber}`, teamId: "team-senior", matchNumber, startsAt, homeTeam, awayTeam,
+  ourTeams: [homeTeam, awayTeam].filter((name) => demoOurTeams.includes(name)),
+  result, venue, organizer, tournament: "Kortbaneserie kvinner — Avdeling 3",
+  createdAt: "2026-08-20T08:00:00.000Z", updatedAt: "2026-08-20T08:00:00.000Z",
+}));
+
+const warmupSeed = [
+  ["Løpsserie med stigning", "Rolig jogg som stiger til 80 % over tre lengder. Alle skal svette før ballen kommer fram.", 5],
+  ["Pasningsmønster i par", "To og to over halv bane: brystpasning, stusspasning og til slutt pasning i fart.", 6],
+  ["Skulder- og hofteaktivering", "Strikk og egen kroppsvekt. Keeperne tar sin egen serie med utfall til siden.", 4],
+  ["Skudd fra kant", "Fem avslutninger fra hver kant med keeper i mål. Fokus på høy arm og tydelig tilløp.", 6],
+  ["6 mot 0 i angrepsmønster", "Kampens åpningsmønster kjøres tre ganger uten forsvar, siste gang i kamptempo.", 5],
+  ["Samling og opprop", "Laguttak, hvem som starter, og ett fokusord for kampen.", 3],
+] as const;
+
+export const demoWarmupRoutines: WarmupRoutine[] = [{
+  id: "warmup-senior", teamId: "team-senior", name: "Kampoppvarming", isDefault: true, meetMinutesBefore: 60,
+  notes: "Sisteliten: keeperne starter ti minutter før resten.",
+  items: warmupSeed.map(([title, description, durationMinutes], position) => ({
+    id: `warmup-item-${position + 1}`, routineId: "warmup-senior", kind: "custom" as const, exerciseId: null,
+    title, description, mediaUrl: null, thumbnailUrl: null, durationMinutes, coachingNotes: "", position,
+  })),
+  createdAt: "2026-08-20T08:00:00.000Z", updatedAt: "2026-08-20T08:00:00.000Z",
+}];
 
 const exerciseSeed = [
   ["exercise-1", "Tre rekker i kontring", "Kontringsmønster med tre tydelige løpskorridorer. Fokuser på tidlig ballflyt og god bredde.", "Angrep", "photo-1571019613454-1cb2f99b2d8b", "Nora Vik", "user-nora"],

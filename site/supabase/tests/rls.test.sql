@@ -1,27 +1,46 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(54);
+select plan(92);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
   ('10000000-0000-0000-0000-000000000001', 'admin@example.com', '', now(), '{"full_name":"Admin Coach"}', 'authenticated', 'authenticated'),
   ('10000000-0000-0000-0000-000000000002', 'coach@example.com', '', now(), '{"full_name":"Team Coach"}', 'authenticated', 'authenticated'),
-  ('10000000-0000-0000-0000-000000000003', 'outsider@example.com', '', now(), '{"full_name":"Other Coach"}', 'authenticated', 'authenticated');
+  ('10000000-0000-0000-0000-000000000003', 'outsider@example.com', '', now(), '{"full_name":"Other Coach"}', 'authenticated', 'authenticated'),
+  ('10000000-0000-0000-0000-000000000004', 'owner@example.com', '', now(), '{"full_name":"Platform Owner"}', 'authenticated', 'authenticated');
+
+-- 202609020018 split the platform owner from the teams they hand out. Creating
+-- a team is a global-admin action and no longer joins the creator to it, so the
+-- team admin is seated by the invitation the same call writes.
+update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000004';
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
-select lives_ok($$ select public.create_team('Test Team') $$, 'an authenticated coach can create a team');
+select throws_ok($$ select public.create_team('Rogue Team') $$, 'P0001', 'Du må være systemadministrator for å opprette lag', 'a coach cannot create a team of their own');
 reset role;
 
-select set_config('plannr.test_team', (select id::text from public.teams where created_by = '10000000-0000-0000-0000-000000000001'), true);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
+select lives_ok($$ select public.create_team('Test Team', 'admin@example.com') $$, 'a global admin can create a team and invite its first administrator');
+reset role;
+
+select is((select count(*)::integer from public.team_memberships), 0, 'creating a team leaves the global admin off it');
+select is((select role::text from public.team_invitations where email = 'admin@example.com'), 'admin', 'the first trainer is invited as the team administrator');
+
+select set_config('plannr.test_team', (select id::text from public.teams where created_by = '10000000-0000-0000-0000-000000000004'), true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok($$ select public.accept_team_invitation((select token from public.team_invitations where email = 'admin@example.com')) $$, 'the invited trainer claims the team administrator seat');
+reset role;
 
 insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)
-select '30000000-0000-0000-0000-000000000001', id, 'Live workflow test', now(), 'published', created_by, created_by
-from public.teams where created_by = '10000000-0000-0000-0000-000000000001';
+select '30000000-0000-0000-0000-000000000001', id, 'Live workflow test', now(), 'published', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'
+from public.teams where id = current_setting('plannr.test_team')::uuid;
 
 insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)
-select '30000000-0000-0000-0000-000000000002', id, 'Skip setup workflow test', now(), 'published', created_by, created_by
-from public.teams where created_by = '10000000-0000-0000-0000-000000000001';
+select '30000000-0000-0000-0000-000000000002', id, 'Skip setup workflow test', now(), 'published', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'
+from public.teams where id = current_setting('plannr.test_team')::uuid;
 
 insert into public.team_players (id, team_id, full_name)
 select player.id::uuid, team.id, player.full_name
@@ -30,7 +49,7 @@ cross join (values
   ('40000000-0000-0000-0000-000000000001', 'Ada L.'),
   ('40000000-0000-0000-0000-000000000002', 'Mina B.')
 ) as player(id, full_name)
-where team.created_by = '10000000-0000-0000-0000-000000000001';
+where team.id = current_setting('plannr.test_team')::uuid;
 
 insert into public.session_attendance (session_id, player_id, is_present, checked_in_at, updated_by)
 values
@@ -78,7 +97,15 @@ select lives_ok($$ update public.teams set logo_url = 'https://cdn.example.com/s
 select throws_ok($$ update public.teams set logo_url = 'http://cdn.example.com/logo.png' $$, '23514', null, 'a club logo must be an HTTPS URL');
 select lives_ok($$ update public.teams set logo_url = null $$, 'a team admin can clear the club logo');
 select lives_ok($$ delete from storage.objects where bucket_id = 'team-logos' $$, 'a team admin can delete their club logo file');
-select throws_ok($$ delete from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'P0001', 'Hvert lag må ha minst én administrator', 'the last team admin cannot be removed');
+-- 202609020021 took team administration away from the team admin entirely: an
+-- invitation only reserves a seat, and only the platform owner can create the
+-- account behind it. The membership policies now refuse by filtering the row
+-- out, so each attempt has to be checked by its effect rather than by a raise.
+select throws_ok(format($$ insert into public.team_invitations (team_id, email, role, invited_by, expires_at) values ('%s', 'recruit@example.com', 'coach', '10000000-0000-0000-0000-000000000001', now() + interval '7 days') $$, current_setting('plannr.test_team')), '42501', null, 'a team admin cannot invite a coach to their own team');
+select lives_ok($$ update public.team_memberships set role = 'coach' where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'a team role change by a team admin is filtered away rather than raised');
+select is((select role::text from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001'), 'admin', 'a team admin cannot change a team role');
+select lives_ok($$ delete from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'a membership delete by a team admin is filtered away rather than raised');
+select is((select count(*)::integer from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001'), 1, 'a team admin cannot remove a member from their own team');
 select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a published session with current groups can start');
 select throws_ok($$ update public.sessions set title = 'Changed while live', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'an in-progress plan is locked');
 select throws_ok($$ update public.session_attendance set is_present = false, updated_by = '10000000-0000-0000-0000-000000000001' where session_id = '30000000-0000-0000-0000-000000000001' and player_id = '40000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'in-progress attendance is locked');
@@ -131,12 +158,20 @@ reset role;
 -- addressed to their own email — token included — and claim it unaided. That
 -- token must stay invisible to everyone else.
 insert into public.team_invitations (team_id, email, role, token, invited_by, expires_at)
-select id, 'coach@example.com', 'coach', '50000000-0000-0000-0000-000000000001', created_by, now() + interval '7 days'
-from public.teams where created_by = '10000000-0000-0000-0000-000000000001';
+select id, 'coach@example.com', 'coach', '50000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', now() + interval '7 days'
+from public.teams where id = current_setting('plannr.test_team')::uuid;
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
 select is((select count(*)::integer from public.team_invitations), 0, 'an unrelated coach cannot see an invitation addressed to someone else');
+reset role;
+
+-- 202609020021 also dropped the team-admin half of `invitations_read`; the
+-- pending list it fed is gone from /team, and the console reads its own through
+-- `admin_list_teams()`.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.team_invitations), 0, 'a team admin cannot see the invitations of their own team');
 reset role;
 
 set local role authenticated;
@@ -145,6 +180,73 @@ select is((select token::text from public.team_invitations where email = 'coach@
 select lives_ok($$ select public.accept_team_invitation('50000000-0000-0000-0000-000000000001') $$, 'an invited coach can accept an invitation they found for themselves');
 select is((select count(*)::integer from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000002'), 1, 'accepting the invitation puts the coach on the team');
 select throws_ok($$ select public.accept_team_invitation('50000000-0000-0000-0000-000000000001') $$, 'P0001', 'Invitasjonen er allerede brukt', 'an invitation cannot be claimed twice');
+reset role;
+
+-- 202609020018: the platform owner administers every team without joining one,
+-- and without reaching the plans or the player data of a team they do not coach.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.teams), 0, 'a global admin reads no team through the membership policies');
+select is((select count(*)::integer from public.sessions), 0, 'a global admin cannot read the sessions of a team they do not coach');
+select is((select count(*)::integer from public.team_players), 0, 'a global admin cannot read the roster of a team they do not coach');
+select is(jsonb_array_length(public.admin_list_teams()), 1, 'the admin console reads every team through its own RPC instead');
+select lives_ok(format($$ insert into public.team_memberships (team_id, profile_id, role) values ('%s', '10000000-0000-0000-0000-000000000003', 'coach') $$, current_setting('plannr.test_team')), 'a global admin can add a trainer to a team they are not on');
+select lives_ok(format($$ update public.team_memberships set role = 'admin' where team_id = '%s' and profile_id = '10000000-0000-0000-0000-000000000003' $$, current_setting('plannr.test_team')), 'a global admin can change a trainer role on a team they are not on');
+select lives_ok(format($$ delete from public.team_memberships where team_id = '%s' and profile_id = '10000000-0000-0000-0000-000000000003' $$, current_setting('plannr.test_team')), 'a global admin can remove a trainer from a team they are not on');
+select lives_ok(format($$ update public.teams set name = 'Test Team renamed by the owner' where id = '%s' $$, current_setting('plannr.test_team')), 'a global admin can rename any team');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select throws_ok($$ select public.admin_list_teams() $$, 'P0001', 'Du må være systemadministrator', 'the admin console is refused to everyone else');
+select throws_ok(format($$ insert into public.team_memberships (team_id, profile_id, role) values ('%s', '10000000-0000-0000-0000-000000000003', 'admin') $$, current_setting('plannr.test_team')), '42501', null, 'a coach cannot add themselves to a team');
+reset role;
+
+-- 202609020019 added the match calendar. It is club data one person maintains,
+-- so the whole coaching team reads it and only a team admin writes it.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok(format($$ insert into public.team_fixtures (id, team_id, match_number, starts_at, home_team, away_team, our_teams, venue, tournament) values ('60000000-0000-0000-0000-000000000001', '%s', '41041006001', now() + interval '3 days', 'Langhus Gul', 'Nesodden Gul', array['Langhus Gul'], 'Langhushallen', 'Kortbaneserie Jenter 10') $$, current_setting('plannr.test_team')), 'a team admin can import a match');
+select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006001', now(), 'Langhus Gul', 'Ski Rod', array['Langhus Gul']) $$, current_setting('plannr.test_team')), '23505', null, 're-importing the same match number updates one row rather than doubling the calendar');
+select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006099', now(), 'Langhus Gul', 'Ski Rod', array[]::text[]) $$, current_setting('plannr.test_team')), '23514', null, 'a match must record which of our teams plays it');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.team_fixtures), 1, 'a coach on the team can read the match calendar');
+select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006002', now(), 'Langhus Gul', 'Ski Rod', array['Langhus Gul']) $$, current_setting('plannr.test_team')), '42501', null, 'a coach who is not an admin cannot import matches');
+select lives_ok($$ delete from public.team_fixtures where id = '60000000-0000-0000-0000-000000000001' $$, 'a delete by a non-admin coach is filtered rather than raised');
+select is((select count(*)::integer from public.team_fixtures), 1, 'the match survives a non-admin delete');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.team_fixtures), 0, 'an unrelated coach cannot read another team match calendar');
+reset role;
+
+-- 202609020020 added the pre-match warm-up. Unlike the roster and the match
+-- import, it is coaching content: every coach on the team may change it.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok(format($$ insert into public.warmup_routines (id, team_id, created_by, updated_by) values ('70000000-0000-0000-0000-000000000001', '%s', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001') $$, current_setting('plannr.test_team')), 'a coach can set up the team warm-up');
+select throws_ok(format($$ insert into public.warmup_routines (team_id, created_by, updated_by) values ('%s', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001') $$, current_setting('plannr.test_team')), '23505', null, 'a team has only one default warm-up routine');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.warmup_routines), 1, 'a coach on the team can read the warm-up');
+select lives_ok($$ insert into public.warmup_items (id, routine_id, kind, title, duration_minutes, position, updated_by) values ('71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'custom', 'Loepsserie', 5, 0, '10000000-0000-0000-0000-000000000002') $$, 'a coach who is not an admin can add a warm-up activity');
+select lives_ok($$ insert into public.warmup_items (id, routine_id, kind, title, duration_minutes, position, updated_by) values ('71000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', 'custom', 'Pasningsmoenster', 6, 1, '10000000-0000-0000-0000-000000000002') $$, 'a second warm-up activity takes the next position');
+select lives_ok($$ select public.reorder_warmup_items('70000000-0000-0000-0000-000000000001', array['71000000-0000-0000-0000-000000000002', '71000000-0000-0000-0000-000000000001']::uuid[]) $$, 'a coach can reorder the warm-up');
+select is((select title from public.warmup_items where position = 0), 'Pasningsmoenster', 'reordering renumbers the activities');
+select throws_ok($$ select public.reorder_warmup_items('70000000-0000-0000-0000-000000000001', array['71000000-0000-0000-0000-000000000001']::uuid[]) $$, 'P0001', 'Aktivitetslisten er ufullstendig', 'a partial reorder is refused rather than dropping an activity');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.warmup_routines), 0, 'an unrelated coach cannot read another team warm-up');
+select is((select count(*)::integer from public.warmup_items), 0, 'an unrelated coach cannot read another team warm-up activities');
+select throws_ok($$ select public.reorder_warmup_items('70000000-0000-0000-0000-000000000001', array['71000000-0000-0000-0000-000000000001']::uuid[]) $$, 'P0001', 'Oppvarmingen finnes ikke', 'an unrelated coach cannot reorder another team warm-up');
 reset role;
 
 select * from finish();

@@ -1187,3 +1187,362 @@ using (
 -- Make the new column visible to PostgREST immediately after a manual SQL
 -- Editor run, otherwise `logo_url` reads back as an unknown column.
 notify pgrst, 'reload schema';
+
+-- ============================================================
+-- 202609020018_admin_roles.sql
+-- ============================================================
+-- Global admin and team admin become two different things.
+--
+-- Until now the only way to own a team was to join it: `create_team` inserted
+-- the caller into `team_memberships` as a team admin, so the person who
+-- administers the platform showed up in every team's coach list. This splits
+-- the two roles apart:
+--
+--   * global admin (`profiles.is_global_admin`) creates teams, appoints their
+--     trainers, changes team roles, removes members and deletes teams — without
+--     ever being a member, and so without appearing in the team overview.
+--   * team admin (`team_memberships.role = 'admin'`) runs one team: invites
+--     coaches, manages the roster and club logo, plans sessions. Unchanged.
+--
+-- Reach is deliberately limited to administration. The select policies on
+-- sessions, blocks, items, players, attendance and groupings are *not* widened,
+-- so a global admin still cannot read the plans or the (already
+-- privacy-minimized) player data of a team they do not coach.
+
+-- `create_team` gains a second argument, which makes it a different function
+-- object. Leaving the old one in place would make `create_team('Name')`
+-- ambiguous, so drop it first and re-grant the new signature below.
+drop function if exists public.create_team(text);
+
+create or replace function public.create_team(team_name text, first_admin_email text default null)
+returns uuid
+language plpgsql security definer set search_path = public as $$
+declare new_team_id uuid; invited_email citext;
+begin
+  if auth.uid() is null then raise exception 'Du må være logget inn'; end if;
+  -- Teams are handed out by the platform owner, not self-served by coaches.
+  if not public.is_global_admin() then raise exception 'Du må være systemadministrator for å opprette lag'; end if;
+  if char_length(trim(team_name)) < 3 then raise exception 'Lagnavnet er for kort'; end if;
+  insert into public.teams(name, created_by) values (trim(team_name), auth.uid()) returning id into new_team_id;
+  -- Deliberately no membership row for the caller. The team's own admin is
+  -- invited instead, and claims the seat on first sign-in via
+  -- `claimableInvitations` / `accept_team_invitation`.
+  invited_email := lower(trim(coalesce(first_admin_email, '')))::citext;
+  if length(invited_email::text) > 0 then
+    insert into public.team_invitations(team_id, email, role, invited_by)
+    values (new_team_id, invited_email, 'admin', auth.uid());
+  end if;
+  return new_team_id;
+end;
+$$;
+
+revoke execute on function public.create_team(text, text) from public, anon;
+grant execute on function public.create_team(text, text) to authenticated;
+
+-- The read path for the admin console.
+--
+-- An RPC rather than a widened `select` policy on teams/memberships: the
+-- provider's `loadPrivateData` selects `team_memberships` unfiltered and builds
+-- the sidebar team switcher from whatever comes back, so widening that policy
+-- would drop every team in the database into the global admin's switcher.
+create or replace function public.admin_list_teams() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare result jsonb;
+begin
+  if not public.is_global_admin() then raise exception 'Du må være systemadministrator'; end if;
+  select coalesce(jsonb_agg(entry order by sort_name), '[]'::jsonb) into result
+  from (
+    select
+      team.name as sort_name,
+      jsonb_build_object(
+        'id', team.id,
+        'name', team.name,
+        'logo_url', team.logo_url,
+        'created_at', team.created_at,
+        'members', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', profile.id, 'email', profile.email, 'full_name', profile.full_name, 'role', membership.role
+          ) order by profile.full_name)
+          from public.team_memberships membership
+          join public.profiles profile on profile.id = membership.profile_id
+          where membership.team_id = team.id
+        ), '[]'::jsonb),
+        'invitations', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', invitation.id, 'email', invitation.email, 'role', invitation.role,
+            'token', invitation.token, 'expires_at', invitation.expires_at
+          ) order by invitation.created_at)
+          from public.team_invitations invitation
+          where invitation.team_id = team.id
+            and invitation.accepted_at is null
+            and invitation.expires_at > now()
+        ), '[]'::jsonb)
+      ) as entry
+    from public.teams team
+  ) listed;
+  return result;
+end;
+$$;
+
+revoke execute on function public.admin_list_teams() from public, anon;
+grant execute on function public.admin_list_teams() to authenticated;
+
+-- A global admin must be able to empty a team they own — and, right after this
+-- migration, to remove their own legacy membership from a team where they are
+-- still the only admin. Without this they stay stuck in the coach list.
+create or replace function public.protect_last_team_admin() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if not exists(select 1 from public.teams where id = old.team_id) then return old; end if;
+  if public.is_global_admin() then return case when tg_op = 'DELETE' then old else new end; end if;
+  if old.role = 'admin' then
+    if (tg_op = 'DELETE' or (tg_op = 'UPDATE' and new.role <> 'admin')) and
+      not exists(select 1 from public.team_memberships where team_id = old.team_id and profile_id <> old.profile_id and role = 'admin')
+    then raise exception 'Hvert lag må ha minst én administrator'; end if;
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+-- Team administration, now reachable by the global admin for any team. Note
+-- that the matching `select` policies stay membership-scoped on purpose; the
+-- console reads through `admin_list_teams()` instead.
+drop policy if exists teams_update_admin on public.teams;
+create policy teams_update_admin on public.teams for update to authenticated
+  using (public.is_team_admin(id) or public.is_global_admin())
+  with check (public.is_team_admin(id) or public.is_global_admin());
+
+drop policy if exists teams_delete_admin on public.teams;
+create policy teams_delete_admin on public.teams for delete to authenticated
+  using (public.is_team_admin(id) or public.is_global_admin());
+
+drop policy if exists memberships_add_admin on public.team_memberships;
+create policy memberships_add_admin on public.team_memberships for insert to authenticated
+  with check (public.is_team_admin(team_id) or public.is_global_admin());
+
+drop policy if exists memberships_update_admin on public.team_memberships;
+create policy memberships_update_admin on public.team_memberships for update to authenticated
+  using (public.is_team_admin(team_id) or public.is_global_admin())
+  with check (public.is_team_admin(team_id) or public.is_global_admin());
+
+drop policy if exists memberships_delete_admin on public.team_memberships;
+create policy memberships_delete_admin on public.team_memberships for delete to authenticated
+  using (public.is_team_admin(team_id) or public.is_global_admin());
+
+drop policy if exists invitations_add_admin on public.team_invitations;
+create policy invitations_add_admin on public.team_invitations for insert to authenticated
+  with check ((public.is_team_admin(team_id) or public.is_global_admin()) and invited_by = auth.uid());
+
+drop policy if exists invitations_delete_admin on public.team_invitations;
+create policy invitations_delete_admin on public.team_invitations for delete to authenticated
+  using (public.is_team_admin(team_id) or public.is_global_admin());
+
+-- Make the new function signatures visible to PostgREST immediately after a
+-- manual SQL Editor run, otherwise `create_team` keeps its old argument list.
+notify pgrst, 'reload schema';
+
+-- ============================================================
+-- 202609020019_team_fixtures.sql
+-- ============================================================
+-- Kampkalender: the club's match schedule, imported from a tournament export.
+--
+-- A division report lists every team in the group, so the coach picks which of
+-- them are the club's own before importing. `our_teams` records that pick per
+-- match, which is what lets one calendar carry the sub-teams an age group is
+-- split into (Rød, Blå, Grønn …) and still show a derby between two of them as
+-- a single match.
+create table public.team_fixtures (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  match_number text not null check (char_length(trim(match_number)) between 1 and 120),
+  starts_at timestamptz not null,
+  home_team text not null check (char_length(trim(home_team)) between 1 and 140),
+  away_team text not null check (char_length(trim(away_team)) between 1 and 140),
+  our_teams text[] not null check (cardinality(our_teams) between 1 and 8),
+  result text not null default '' check (char_length(result) <= 40),
+  venue text not null default '' check (char_length(venue) <= 200),
+  organizer text not null default '' check (char_length(organizer) <= 200),
+  tournament text not null default '' check (char_length(tournament) <= 200),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- The match number is the schedule's own identity, so re-importing an updated
+-- export corrects the existing rows instead of doubling the calendar.
+create unique index team_fixtures_team_match_key on public.team_fixtures(team_id, match_number);
+create index team_fixtures_team_start on public.team_fixtures(team_id, starts_at);
+
+create trigger team_fixtures_touch before update on public.team_fixtures for each row execute function public.touch_updated_at();
+
+alter table public.team_fixtures enable row level security;
+
+-- Read for the whole coaching team, written only by a team admin — the same
+-- split the player roster uses, since both are club data one person maintains.
+create policy team_fixtures_read_member on public.team_fixtures for select to authenticated using (public.is_team_member(team_id));
+create policy team_fixtures_add_admin on public.team_fixtures for insert to authenticated with check (public.is_team_admin(team_id));
+create policy team_fixtures_edit_admin on public.team_fixtures for update to authenticated using (public.is_team_admin(team_id)) with check (public.is_team_admin(team_id));
+create policy team_fixtures_delete_admin on public.team_fixtures for delete to authenticated using (public.is_team_admin(team_id));
+
+revoke all on public.team_fixtures from anon, authenticated;
+grant select, insert, update, delete on public.team_fixtures to authenticated;
+
+-- ============================================================
+-- 202609020020_warmup_routines.sql
+-- ============================================================
+-- Kampoppvarming: the standing routine a team runs before a match.
+--
+-- A training session is a one-off plan; a warm-up is the same handful of
+-- activities before every match, adjusted a few times a season. So it belongs
+-- to the team, not to the fixture: the calendar shows the routine against each
+-- match rather than storing a near-identical copy 22 times a year.
+--
+-- `name` and `is_default` are here from the start so a small set of named
+-- routines ("Kort halltid", "Bortekamp") stays a UI change plus a nullable
+-- warmup_routine_id on team_fixtures, not a migration of live rows.
+create table public.warmup_routines (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  name text not null default 'Kampoppvarming' check (char_length(trim(name)) between 1 and 80),
+  is_default boolean not null default true,
+  -- How long before kick-off the squad meets at the hall. The warm-up itself
+  -- starts at kick-off minus the sum of its activities, which is derived.
+  meet_minutes_before integer not null default 60 check (meet_minutes_before between 0 and 300),
+  notes text not null default '' check (char_length(notes) <= 2000),
+  created_by uuid not null references public.profiles(id),
+  updated_by uuid not null references public.profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- One routine per team is the default; the index is what keeps a second one
+-- from silently becoming ambiguous once named routines arrive.
+create unique index warmup_routines_team_default_key on public.warmup_routines(team_id) where is_default;
+create index warmup_routines_team on public.warmup_routines(team_id);
+
+-- Activities copy the exercise's display data at insert time, exactly as
+-- session items do, so editing the library never rewrites a routine that has
+-- already been drilled.
+create table public.warmup_items (
+  id uuid primary key default gen_random_uuid(),
+  routine_id uuid not null references public.warmup_routines(id) on delete cascade,
+  kind public.session_item_kind not null,
+  exercise_id uuid references public.exercises(id) on delete set null,
+  title text not null check (char_length(trim(title)) between 1 and 140),
+  description text not null default '',
+  media_url text,
+  thumbnail_url text,
+  duration_minutes integer not null default 5 check (duration_minutes between 1 and 180),
+  coaching_notes text not null default '',
+  position integer not null check (position >= 0),
+  updated_by uuid not null references public.profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (routine_id, position) deferrable initially deferred
+);
+
+create index warmup_items_routine_position on public.warmup_items(routine_id, position);
+
+create trigger warmup_routines_touch before update on public.warmup_routines for each row execute function public.touch_updated_at();
+create trigger warmup_items_touch before update on public.warmup_items for each row execute function public.touch_updated_at();
+
+create or replace function public.can_access_warmup_routine(target_routine_id uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists(
+    select 1 from public.warmup_routines routine
+    where routine.id = target_routine_id and public.is_team_member(routine.team_id)
+  )
+$$;
+
+alter table public.warmup_routines enable row level security;
+alter table public.warmup_items enable row level security;
+
+-- The warm-up is coaching content, like a session plan, so every coach on the
+-- team may change it — unlike the roster and the match import, which are club
+-- records only an admin maintains.
+create policy warmup_routines_read_member on public.warmup_routines for select to authenticated using (public.is_team_member(team_id));
+create policy warmup_routines_add_member on public.warmup_routines for insert to authenticated with check (public.is_team_member(team_id) and created_by = auth.uid() and updated_by = auth.uid());
+create policy warmup_routines_edit_member on public.warmup_routines for update to authenticated using (public.is_team_member(team_id)) with check (public.is_team_member(team_id) and updated_by = auth.uid());
+create policy warmup_routines_delete_member on public.warmup_routines for delete to authenticated using (public.is_team_member(team_id));
+
+create policy warmup_items_read_member on public.warmup_items for select to authenticated using (public.can_access_warmup_routine(routine_id));
+create policy warmup_items_add_member on public.warmup_items for insert to authenticated with check (public.can_access_warmup_routine(routine_id) and updated_by = auth.uid());
+create policy warmup_items_edit_member on public.warmup_items for update to authenticated using (public.can_access_warmup_routine(routine_id)) with check (public.can_access_warmup_routine(routine_id) and updated_by = auth.uid());
+create policy warmup_items_delete_member on public.warmup_items for delete to authenticated using (public.can_access_warmup_routine(routine_id));
+
+-- Ordering is an RPC for the same reason block items are: the positions must
+-- stay consistent, which a sequence of client-side row updates cannot promise.
+create or replace function public.reorder_warmup_items(target_routine_id uuid, ordered_item_ids uuid[]) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.can_access_warmup_routine(target_routine_id) then raise exception 'Oppvarmingen finnes ikke'; end if;
+  if array_length(ordered_item_ids, 1) is distinct from (select count(*)::integer from public.warmup_items where routine_id = target_routine_id) then raise exception 'Aktivitetslisten er ufullstendig'; end if;
+  set constraints warmup_items_routine_id_position_key deferred;
+  update public.warmup_items item set position = ordering.position - 1, updated_by = auth.uid()
+  from unnest(ordered_item_ids) with ordinality as ordering(id, position)
+  where item.id = ordering.id and item.routine_id = target_routine_id;
+end;
+$$;
+
+revoke all on public.warmup_routines, public.warmup_items from anon, authenticated;
+grant select, insert, update, delete on public.warmup_routines, public.warmup_items to authenticated;
+revoke execute on function public.can_access_warmup_routine(uuid) from public, anon;
+grant execute on function public.can_access_warmup_routine(uuid) to authenticated;
+revoke execute on function public.reorder_warmup_items(uuid, uuid[]) from public, anon;
+grant execute on function public.reorder_warmup_items(uuid, uuid[]) to authenticated;
+
+-- ============================================================
+-- 202609020021_membership_is_global_admin_only.sql
+-- ============================================================
+-- Team administration becomes a global-admin-only power.
+--
+-- 202609020018 split the two admin roles apart but left a team admin able to
+-- invite coaches, change their team role and remove them. In practice that
+-- half-works: an invitation row only reserves a seat, and the account behind it
+-- still has to be created by hand in the Supabase dashboard
+-- (Authentication → Users → Send invitation), which a team admin has no access
+-- to. A team admin could therefore invite someone who could never sign in.
+--
+-- So membership is now handed out in exactly one place — the /admin console —
+-- and the team admin keeps what they can actually finish on their own: the
+-- roster, the club logo, the match calendar and the plans.
+--
+--   * `is_team_admin` still gates teams, players, fixtures, warmup routines and
+--     everything session-scoped. Those policies are untouched.
+--   * `team_memberships` and `team_invitations` writes now require
+--     `is_global_admin()`.
+--
+-- Note the shape of the refusal: RLS filters an UPDATE/DELETE rather than
+-- raising, so a team admin's attempt changes nothing instead of erroring. The
+-- app no longer offers the controls at all; this is the boundary behind them.
+
+drop policy if exists memberships_add_admin on public.team_memberships;
+create policy memberships_add_admin on public.team_memberships for insert to authenticated
+  with check (public.is_global_admin());
+
+drop policy if exists memberships_update_admin on public.team_memberships;
+create policy memberships_update_admin on public.team_memberships for update to authenticated
+  using (public.is_global_admin())
+  with check (public.is_global_admin());
+
+drop policy if exists memberships_delete_admin on public.team_memberships;
+create policy memberships_delete_admin on public.team_memberships for delete to authenticated
+  using (public.is_global_admin());
+
+drop policy if exists invitations_add_admin on public.team_invitations;
+create policy invitations_add_admin on public.team_invitations for insert to authenticated
+  with check (public.is_global_admin() and invited_by = auth.uid());
+
+drop policy if exists invitations_delete_admin on public.team_invitations;
+create policy invitations_delete_admin on public.team_invitations for delete to authenticated
+  using (public.is_global_admin());
+
+-- The team-admin half of `invitations_read` existed to render the pending list
+-- on /team, which is gone. What remains is the onboarding path: a coach selects
+-- the invitation addressed to their own email — token included — and claims it
+-- through `claimableInvitations`. `admin_list_teams()` is security definer and
+-- reads the console's list regardless.
+drop policy if exists invitations_read on public.team_invitations;
+create policy invitations_read on public.team_invitations for select to authenticated
+  using (public.is_global_admin() or lower(email::text) = lower(coalesce(auth.jwt() ->> 'email', '')));
+
+notify pgrst, 'reload schema';

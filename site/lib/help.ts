@@ -28,7 +28,7 @@ export const HELP_TOPICS = {
     intro: "På dagen økten er satt opp, får den en «Start»-knapp i kalenderen. Den tar deg hit, til klargjøringen.",
     ordered: true,
     points: [
-      "Registrer oppmøte: huk av hvem som er der i dag. Dette krever at spillerlisten er importert under Laginnstillinger.",
+      "Registrer oppmøte: huk av hvem som er der i dag. Dette krever at spillerlisten er importert under Lag og spillere.",
       "Generer lag eller par ut fra dem som er til stede. Endrer oppmøtet seg etterpå, må du generere på nytt før du starter.",
       "Start økten. Da låses planen: bolker og aktiviteter kan ikke endres mens økten pågår, og gruppene fryses som de er.",
       "Underveis blar du gjennom bolkene og åpner aktiviteter for å vise bilde eller video. «Avslutt økten» flytter den til Gjennomførte.",
@@ -92,11 +92,24 @@ export const HELP_TOPICS = {
     intro: "Bare medlemmene av laget kan se lagets økter og spillerliste. Øvelsesbanken er åpen for alle.",
     ordered: true,
     points: [
-      "«Inviter trener» lager en invitasjonslenke som er knyttet til én e-postadresse og utløper etter sju dager.",
-      "Ingen e-post sendes automatisk. Kopier lenken og send den selv.",
-      "Treneren må allerede ha en konto på den adressen og være logget inn når lenken åpnes.",
+      "Trenerteamet settes opp av systemadministratoren, som både gir treneren plass på laget og oppretter innloggingen.",
+      "En trener som er lagt til, blir med på laget automatisk ved første innlogging.",
+      "Skal laget ha en trener til — eller miste en — er det systemadministratoren som gjør det.",
     ],
-    note: "Administratorer kan invitere, endre roller og fjerne medlemmer. Trenere kan planlegge, redigere og publisere økter.",
+    note: "Lagadministratorer styrer spillerlisten, klubblogoen og kampkalenderen. Trenere kan planlegge, redigere og publisere økter.",
+  },
+  "match-calendar": {
+    title: "Slik fungerer kampkalenderen",
+    intro: "Kampene hentes fra terminlisten klubben laster ned fra turneringssystemet. Filen inneholder hele avdelingen, så du velger selv hvilke av lagene som er deres.",
+    ordered: true,
+    points: [
+      "Last opp regnearket. Kolonnene «Dato», «Tid», «Kampnr», «Hjemmelag», «Bortelag», «Bane», «Arrangør» og «Turnering» leses automatisk.",
+      "Huk av for lagene deres — for eksempel Rød, Blå og Grønn. Bare kampene disse lagene spiller, legges i kalenderen.",
+      "Hvert lag får sin egen farge i kalenderen, og filtrene øverst viser ett lag om gangen.",
+      "Klikk på en kamp for å se kampnummer, bane, arrangør og turnering — og kampoppvarmingen.",
+      "Laget har én kampoppvarming. Den vises på alle kampene, med oppmøte- og oppvarmingstidspunkt regnet ut fra avkast, og en endring gjelder alle kampene.",
+    ],
+    note: "Kommer det en oppdatert terminliste, laster du den bare opp på nytt: kamper med samme kampnummer rettes i stedet for å dupliseres.",
   },
 } as const satisfies Record<string, HelpTopic>;
 

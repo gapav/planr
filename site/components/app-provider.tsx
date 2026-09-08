@@ -2,8 +2,9 @@
 
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { mapAdminTeam, shortTeamName, sortAdminTeams, type AdminTeamRow } from "@/lib/admin";
 import { claimableInvitations, invitationUrl, isIdentityChange, keepSelectedTeamId, seedProfile } from "@/lib/auth";
-import { demoExercises, demoPlayers, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
+import { demoExercises, demoFixtures, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { canEditExercise } from "@/lib/exercises";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { isInvitationAlreadyUsed, norwegianServerMessage } from "@/lib/server-messages";
@@ -11,7 +12,7 @@ import { minimizePlayerName } from "@/lib/roster";
 import { nextPosition } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import type { Exercise, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole } from "@/lib/types";
+import type { AdminTeam, Exercise, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
 import { initials, makeUuid } from "@/lib/utils";
 
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
@@ -49,6 +50,17 @@ async function removeTeamLogo(supabase: SupabaseClient, teamId: string, publicUr
   await supabase.storage.from(TEAM_LOGO_BUCKET).remove([path]);
 }
 
+// Demo mode has no `admin_list_teams` to call, so the console is seeded from the
+// same fixtures the coach screens use. `demoUser` carries `isGlobalAdmin`, which
+// is what puts /admin in the sidebar during a preview.
+function demoAdminTeams(): AdminTeam[] {
+  return sortAdminTeams(structuredClone(demoTeams).map((team) => ({
+    id: team.id, name: team.name, shortName: team.shortName, logoUrl: team.logoUrl,
+    members: team.members.map((member) => ({ ...member, teamRole: member.teamRole ?? "coach" })),
+    invitations: [] as TeamInvitation[],
+  })));
+}
+
 interface GrepContextValue {
   user: Profile | null;
   authLoading: boolean;
@@ -65,6 +77,8 @@ interface GrepContextValue {
   sessions: PlannedSession[];
   invitations: TeamInvitation[];
   players: TeamPlayer[];
+  fixtures: TeamFixture[];
+  warmupRoutines: WarmupRoutine[];
   attendance: SessionAttendance[];
   groupings: SessionGrouping[];
   saveState: SaveState;
@@ -81,15 +95,33 @@ interface GrepContextValue {
   uploadExerciseMedia(file: File): Promise<string>;
   discardExerciseMedia(publicUrl: string): Promise<void>;
   archiveExercise(id: string): Promise<void>;
-  createTeam(name: string): Promise<string>;
+  createTeam(name: string, firstAdminEmail?: string): Promise<string>;
   saveTeamLogo(file: File | null): Promise<void>;
   refreshWorkspace(): Promise<void>;
-  inviteMember(email: string, role: TeamRole): Promise<string>;
-  revokeInvitation(id: string): Promise<void>;
-  updateMemberRole(profileId: string, role: TeamRole): Promise<void>;
-  removeMember(profileId: string): Promise<void>;
+  // Every team in the workspace, membership or not — only ever populated for a
+  // global admin, and read through the `admin_list_teams` RPC rather than the
+  // membership-scoped queries the rest of the provider uses.
+  adminTeams: AdminTeam[];
+  adminTeamsLoaded: boolean;
+  renameTeam(teamId: string, name: string): Promise<void>;
+  deleteTeam(teamId: string): Promise<void>;
+  adminInviteMember(teamId: string, email: string, role: TeamRole): Promise<string>;
+  adminRevokeInvitation(teamId: string, invitationId: string): Promise<void>;
+  adminSetMemberRole(teamId: string, profileId: string, role: TeamRole): Promise<void>;
+  adminRemoveMember(teamId: string, profileId: string): Promise<void>;
   importPlayers(input: TeamPlayerInput[]): Promise<{ added: number; updated: number }>;
   removePlayer(playerId: string): Promise<void>;
+  importFixtures(input: TeamFixtureInput[]): Promise<{ added: number; updated: number }>;
+  removeFixture(fixtureId: string): Promise<void>;
+  clearFixtures(): Promise<void>;
+  /** Creates the team's routine on first use and hands back its id. */
+  ensureWarmupRoutine(): Promise<string>;
+  updateWarmupRoutine(routineId: string, patch: WarmupRoutinePatch): Promise<void>;
+  addWarmupExercise(routineId: string, exercise: Exercise): Promise<void>;
+  addCustomWarmupItem(routineId: string): Promise<void>;
+  updateWarmupItem(routineId: string, itemId: string, patch: WarmupItemPatch): Promise<void>;
+  deleteWarmupItem(routineId: string, itemId: string): Promise<void>;
+  reorderWarmupItems(routineId: string, orderedIds: string[]): Promise<void>;
   createSession(): Promise<string>;
   updateSession(id: string, patch: SessionPatch): Promise<void>;
   deleteSession(id: string): Promise<void>;
@@ -131,6 +163,18 @@ interface DbSession {
   created_at: string; updated_at: string; session_blocks?: DbBlock[];
 }
 interface DbPlayer { id: string; team_id: string; full_name: string; jersey_number: string | null; created_at: string; updated_at: string; }
+interface DbFixture {
+  id: string; team_id: string; match_number: string; starts_at: string; home_team: string; away_team: string;
+  our_teams: string[]; result: string; venue: string; organizer: string; tournament: string; created_at: string; updated_at: string;
+}
+interface DbWarmupItem {
+  id: string; routine_id: string; kind: SessionItem["kind"]; exercise_id: string | null; title: string; description: string;
+  media_url: string | null; thumbnail_url: string | null; duration_minutes: number; coaching_notes: string; position: number;
+}
+interface DbWarmupRoutine {
+  id: string; team_id: string; name: string; is_default: boolean; meet_minutes_before: number; notes: string;
+  created_at: string; updated_at: string; warmup_items?: DbWarmupItem[];
+}
 interface DbAttendance { session_id: string; player_id: string; is_present: boolean; checked_in_at: string | null; }
 interface DbGrouping { session_id: string; kind: SessionGroupingKind; groups: PlayerGroup[]; generated_at: string; }
 
@@ -157,6 +201,20 @@ function profileFromUser(user: User): Profile {
   const fullName = String(user.user_metadata.full_name ?? user.email?.split("@")[0] ?? "Trener");
   return { id: user.id, email: user.email ?? "", fullName, initials: initials(fullName), color: "#f0642e" };
 }
+function mapFixture(row: DbFixture): TeamFixture {
+  return { id: row.id, teamId: row.team_id, matchNumber: row.match_number, startsAt: row.starts_at, homeTeam: row.home_team,
+    awayTeam: row.away_team, ourTeams: row.our_teams ?? [], result: row.result ?? "", venue: row.venue ?? "",
+    organizer: row.organizer ?? "", tournament: row.tournament ?? "", createdAt: row.created_at, updatedAt: row.updated_at };
+}
+function mapWarmupRoutine(row: DbWarmupRoutine): WarmupRoutine {
+  return { id: row.id, teamId: row.team_id, name: row.name, isDefault: row.is_default, meetMinutesBefore: row.meet_minutes_before,
+    notes: row.notes ?? "", createdAt: row.created_at, updatedAt: row.updated_at,
+    items: (row.warmup_items ?? []).sort((a, b) => a.position - b.position).map((item) => ({
+      id: item.id, routineId: item.routine_id, kind: item.kind, exerciseId: item.exercise_id, title: item.title,
+      description: item.description, mediaUrl: item.media_url, thumbnailUrl: item.thumbnail_url,
+      durationMinutes: item.duration_minutes, coachingNotes: item.coaching_notes, position: item.position,
+    })) };
+}
 function mapPlayer(row: DbPlayer): TeamPlayer {
   return { id: row.id, teamId: row.team_id, fullName: row.full_name, jerseyNumber: row.jersey_number, createdAt: row.created_at, updatedAt: row.updated_at };
 }
@@ -172,8 +230,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<PlannedSession[]>(() => isSupabaseConfigured ? [] : structuredClone(demoSessions));
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [players, setPlayers] = useState<TeamPlayer[]>(() => isSupabaseConfigured ? [] : structuredClone(demoPlayers));
+  const [fixtures, setFixtures] = useState<TeamFixture[]>(() => isSupabaseConfigured ? [] : structuredClone(demoFixtures));
+  const [warmupRoutines, setWarmupRoutines] = useState<WarmupRoutine[]>(() => isSupabaseConfigured ? [] : structuredClone(demoWarmupRoutines));
   const [attendance, setAttendance] = useState<SessionAttendance[]>([]);
   const [groupings, setGroupings] = useState<SessionGrouping[]>([]);
+  const [adminTeams, setAdminTeams] = useState<AdminTeam[]>(() => isSupabaseConfigured ? [] : demoAdminTeams());
+  const [adminTeamsLoaded, setAdminTeamsLoaded] = useState(!isSupabaseConfigured);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [notice, setNotice] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -187,14 +249,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!error && data) setExercises((data as unknown as DbExercise[]).map(mapExercise));
   }, [supabase]);
 
+  // The whole workspace as the platform owner sees it. Only a global admin may
+  // call the RPC — everyone else is refused by it — so it is fired from
+  // `loadPrivateData` behind the profile flag rather than joined into the batch
+  // that runs before the flag is known.
+  const loadAdminTeams = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.rpc("admin_list_teams");
+    if (error) setNotice(norwegianServerMessage(error.message, "Lagene kunne ikke lastes."));
+    else setAdminTeams(sortAdminTeams(((data ?? []) as AdminTeamRow[]).map(mapAdminTeam)));
+    // Settle either way: a page that waits on this to decide what to render
+    // would otherwise spin for ever on a failed load.
+    setAdminTeamsLoaded(true);
+  }, [supabase]);
+
   const loadPrivateData = useCallback(async (authUser: User) => {
     if (!supabase) return;
-    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: attendanceRows }, { data: groupingRows }] = await Promise.all([
+    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }] = await Promise.all([
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name, logo_url), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
       supabase.from("profiles").select("id, email, full_name, is_global_admin, must_set_password").eq("id", authUser.id).single(),
       supabase.from("team_players").select("id, team_id, full_name, jersey_number, created_at, updated_at").order("full_name"),
+      supabase.from("team_fixtures").select("id, team_id, match_number, starts_at, home_team, away_team, our_teams, result, venue, organizer, tournament, created_at, updated_at").order("starts_at"),
+      supabase.from("warmup_routines").select("*, warmup_items(*)"),
       supabase.from("session_attendance").select("session_id, player_id, is_present, checked_in_at"),
       supabase.from("session_groupings").select("session_id, kind, groups, generated_at"),
     ]);
@@ -207,7 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const grouped = new Map<string, Team>();
       for (const membership of memberships as unknown as MembershipRow[]) {
         if (!membership.teams) continue;
-        const existing = grouped.get(membership.team_id) ?? { id: membership.team_id, name: membership.teams.name, shortName: membership.teams.name.split("—").at(-1)?.trim() ?? membership.teams.name, logoUrl: membership.teams.logo_url, role: "coach" as TeamRole, members: [] };
+        const existing = grouped.get(membership.team_id) ?? { id: membership.team_id, name: membership.teams.name, shortName: shortTeamName(membership.teams.name), logoUrl: membership.teams.logo_url, role: "coach" as TeamRole, members: [] };
         if (membership.profile_id === authUser.id) existing.role = membership.role;
         if (membership.profiles && !existing.members.some((member) => member.id === membership.profile_id)) {
           existing.members.push({ id: membership.profiles.id, email: membership.profiles.email, fullName: membership.profiles.full_name, initials: initials(membership.profiles.full_name), color: membership.profile_id === authUser.id ? "#f0642e" : "#477b70", teamRole: membership.role });
@@ -223,9 +301,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (sessionRows) setSessions((sessionRows as unknown as DbSession[]).map(mapSession));
     if (invitationRows) setInvitations((invitationRows as unknown as Array<{ id: string; team_id: string; email: string; role: TeamRole; token: string; expires_at: string; accepted_at: string | null }>).map((row) => ({ id: row.id, teamId: row.team_id, email: row.email, role: row.role, token: row.token, expiresAt: row.expires_at, acceptedAt: row.accepted_at })));
     if (playerRows) setPlayers((playerRows as unknown as DbPlayer[]).map(mapPlayer));
+    if (fixtureRows) setFixtures((fixtureRows as unknown as DbFixture[]).map(mapFixture));
+    if (warmupRows) setWarmupRoutines((warmupRows as unknown as DbWarmupRoutine[]).map(mapWarmupRoutine));
     if (attendanceRows) setAttendance((attendanceRows as unknown as DbAttendance[]).map((row) => ({ sessionId: row.session_id, playerId: row.player_id, isPresent: row.is_present, checkedInAt: row.checked_in_at })));
     if (groupingRows) setGroupings((groupingRows as unknown as DbGrouping[]).map((row) => ({ sessionId: row.session_id, kind: row.kind, groups: row.groups, generatedAt: row.generated_at })));
-  }, [supabase]);
+    if (profileRow?.is_global_admin) await loadAdminTeams();
+  }, [loadAdminTeams, supabase]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -395,15 +476,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [invitations, refreshWorkspace, supabase, teams, user, workspaceLoaded]);
 
-  const createTeam = useCallback(async (name: string) => {
+  // Creating a team no longer joins it: the platform owner hands the team to a
+  // trainer, who claims the admin seat from the invitation on first sign-in, and
+  // so is the only person the team overview ever lists.
+  const createTeam = useCallback(async (name: string, firstAdminEmail?: string) => {
     if (!user) throw new Error("Logg inn for å opprette et lag");
+    if (!user.isGlobalAdmin) throw new Error("Du må være systemadministrator for å opprette lag");
+    const invitedEmail = firstAdminEmail?.trim().toLowerCase() || null;
     if (supabase) {
-      const { data, error } = await supabase.rpc("create_team", { team_name: name });
-      if (error) throw new Error(norwegianServerMessage(error.message, "Laget kunne ikke opprettes.")); await refreshWorkspace();
+      const { data, error } = await supabase.rpc("create_team", { team_name: name, first_admin_email: invitedEmail });
+      if (error) throw new Error(norwegianServerMessage(error.message, "Laget kunne ikke opprettes."));
+      await refreshWorkspace();
       return String(data);
     }
-    const id = makeUuid(); setTeams((current) => [...current, { id, name, shortName: name, logoUrl: null, role: "admin", members: [user] }]); selectTeam(id); return id;
-  }, [refreshWorkspace, selectTeam, supabase, user]);
+    const id = makeUuid();
+    const invitations: TeamInvitation[] = invitedEmail
+      ? [{ id: makeUuid(), teamId: id, email: invitedEmail, role: "admin", token: makeUuid(), expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(), acceptedAt: null }]
+      : [];
+    setAdminTeams((current) => sortAdminTeams([...current, { id, name, shortName: shortTeamName(name), logoUrl: null, members: [], invitations }]));
+    return id;
+  }, [refreshWorkspace, supabase, user]);
 
   // Upload, repoint the team row, then drop the file the team no longer uses.
   // The path starts with the team id because the storage policy reads that
@@ -437,39 +529,102 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     else if (!supabase && previousUrl?.startsWith("blob:")) URL.revokeObjectURL(previousUrl);
   }, [currentTeam, persist, supabase]);
 
-  // Nothing is emailed from here. The row grants the team and role; Supabase's
-  // own invite email creates the account. The returned link stays a fallback for
-  // a coach who already has one, and accept_team_invitation binds either route
-  // to this address.
-  const inviteMember = useCallback(async (email: string, role: TeamRole) => {
-    if (!currentTeam || !user) throw new Error("Velg et lag før du inviterer en trener");
-    const id = makeUuid(); const token = makeUuid(); const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
-    setInvitations((current) => [...current, { id, teamId: currentTeam.id, email: email.toLowerCase(), role, token, expiresAt, acceptedAt: null }]);
+  // Membership is administered only from the console, so these take the team
+  // explicitly rather than leaning on `currentTeam` — the global admin is not a
+  // member of the teams they hand out. 202609020021 is what makes them the only
+  // writers: it narrowed the membership and invitation policies to
+  // `is_global_admin()`. `adminTeams` is updated optimistically like every other
+  // mutation, and a team that is also one of *their* teams is resynced so /team
+  // agrees.
+  const patchAdminTeam = useCallback((teamId: string, patch: (team: AdminTeam) => AdminTeam) => {
+    setAdminTeams((current) => current.map((team) => team.id === teamId ? patch(team) : team));
+  }, []);
+
+  const syncOwnTeams = useCallback(async (teamId: string) => {
+    if (teams.some((team) => team.id === teamId)) await refreshWorkspace();
+  }, [refreshWorkspace, teams]);
+
+  const renameTeam = useCallback(async (teamId: string, name: string) => {
+    const trimmed = name.trim();
+    if (trimmed.length < 3) throw new Error("Lagnavnet er for kort");
+    const previous = adminTeams.find((team) => team.id === teamId);
+    patchAdminTeam(teamId, (team) => ({ ...team, name: trimmed, shortName: shortTeamName(trimmed) }));
     try {
-      await persist(supabase ? () => supabase.from("team_invitations").insert({ id, token, team_id: currentTeam.id, email: email.toLowerCase(), role, invited_by: user.id, expires_at: expiresAt }) : null);
+      await persist(supabase ? () => supabase.from("teams").update({ name: trimmed }).eq("id", teamId) : null);
     } catch (error) {
-      setInvitations((current) => current.filter((invitation) => invitation.id !== id));
+      if (previous) patchAdminTeam(teamId, () => previous);
       throw error;
     }
+    setAdminTeams((current) => sortAdminTeams(current));
+    await syncOwnTeams(teamId);
+  }, [adminTeams, patchAdminTeam, persist, supabase, syncOwnTeams]);
+
+  const deleteTeam = useCallback(async (teamId: string) => {
+    const previous = adminTeams;
+    setAdminTeams((current) => current.filter((team) => team.id !== teamId));
+    try {
+      await persist(supabase ? () => supabase.from("teams").delete().eq("id", teamId) : null);
+    } catch (error) {
+      setAdminTeams(previous);
+      throw error;
+    }
+    await syncOwnTeams(teamId);
+  }, [adminTeams, persist, supabase, syncOwnTeams]);
+
+  const adminInviteMember = useCallback(async (teamId: string, email: string, role: TeamRole) => {
+    if (!user) throw new Error("Logg inn for å invitere en trener");
+    const id = makeUuid(); const token = makeUuid(); const address = email.trim().toLowerCase();
+    const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
+    const invitation: TeamInvitation = { id, teamId, email: address, role, token, expiresAt, acceptedAt: null };
+    patchAdminTeam(teamId, (team) => ({ ...team, invitations: [...team.invitations, invitation] }));
+    try {
+      await persist(supabase ? () => supabase.from("team_invitations").insert({ id, token, team_id: teamId, email: address, role, invited_by: user.id, expires_at: expiresAt }) : null);
+    } catch (error) {
+      patchAdminTeam(teamId, (team) => ({ ...team, invitations: team.invitations.filter((entry) => entry.id !== id) }));
+      throw error;
+    }
+    await syncOwnTeams(teamId);
     return invitationUrl(window.location.origin, token);
-  }, [currentTeam, persist, supabase, user]);
+  }, [patchAdminTeam, persist, supabase, syncOwnTeams, user]);
 
-  const revokeInvitation = useCallback(async (id: string) => {
-    setInvitations((current) => current.filter((invitation) => invitation.id !== id));
-    await persist(supabase ? () => supabase.from("team_invitations").delete().eq("id", id) : null);
-  }, [persist, supabase]);
+  const adminRevokeInvitation = useCallback(async (teamId: string, invitationId: string) => {
+    const previous = adminTeams.find((team) => team.id === teamId);
+    patchAdminTeam(teamId, (team) => ({ ...team, invitations: team.invitations.filter((entry) => entry.id !== invitationId) }));
+    try {
+      await persist(supabase ? () => supabase.from("team_invitations").delete().eq("id", invitationId) : null);
+    } catch (error) {
+      if (previous) patchAdminTeam(teamId, () => previous);
+      throw error;
+    }
+    await syncOwnTeams(teamId);
+  }, [adminTeams, patchAdminTeam, persist, supabase, syncOwnTeams]);
 
-  const updateMemberRole = useCallback(async (profileId: string, role: TeamRole) => {
-    if (!currentTeam) return;
-    setTeams((current) => current.map((team) => team.id === currentTeam.id ? { ...team, members: team.members.map((member) => member.id === profileId ? { ...member, teamRole: role } : member) } : team));
-    await persist(supabase ? () => supabase.from("team_memberships").update({ role }).eq("team_id", currentTeam.id).eq("profile_id", profileId) : null);
-  }, [currentTeam, persist, supabase]);
+  const adminSetMemberRole = useCallback(async (teamId: string, profileId: string, role: TeamRole) => {
+    const previous = adminTeams.find((team) => team.id === teamId);
+    patchAdminTeam(teamId, (team) => ({ ...team, members: team.members.map((member) => member.id === profileId ? { ...member, teamRole: role } : member) }));
+    try {
+      await persist(supabase ? () => supabase.from("team_memberships").update({ role }).eq("team_id", teamId).eq("profile_id", profileId) : null);
+    } catch (error) {
+      if (previous) patchAdminTeam(teamId, () => previous);
+      throw error;
+    }
+    await syncOwnTeams(teamId);
+  }, [adminTeams, patchAdminTeam, persist, supabase, syncOwnTeams]);
 
-  const removeMember = useCallback(async (profileId: string) => {
-    if (!currentTeam) return;
-    setTeams((current) => current.map((team) => team.id === currentTeam.id ? { ...team, members: team.members.filter((member) => member.id !== profileId) } : team));
-    await persist(supabase ? () => supabase.from("team_memberships").delete().eq("team_id", currentTeam.id).eq("profile_id", profileId) : null);
-  }, [currentTeam, persist, supabase]);
+  const adminRemoveMember = useCallback(async (teamId: string, profileId: string) => {
+    const previous = adminTeams.find((team) => team.id === teamId);
+    patchAdminTeam(teamId, (team) => ({ ...team, members: team.members.filter((member) => member.id !== profileId) }));
+    try {
+      await persist(supabase ? () => supabase.from("team_memberships").delete().eq("team_id", teamId).eq("profile_id", profileId) : null);
+    } catch (error) {
+      if (previous) patchAdminTeam(teamId, () => previous);
+      throw error;
+    }
+    // Removing themselves takes the team out of their own switcher, so this one
+    // has to resync even though the row is gone from `adminTeams` already.
+    if (profileId === user?.id) await refreshWorkspace();
+    else await syncOwnTeams(teamId);
+  }, [adminTeams, patchAdminTeam, persist, refreshWorkspace, supabase, syncOwnTeams, user]);
 
   const importPlayers = useCallback(async (input: TeamPlayerInput[]) => {
     if (!currentTeam) throw new Error("Velg et lag først");
@@ -501,6 +656,133 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAttendance((current) => current.filter((entry) => entry.playerId !== playerId));
     await persist(supabase ? () => supabase.from("team_players").delete().eq("id", playerId) : null);
   }, [persist, supabase]);
+
+  // The schedule is re-published during the season, so an import is an upsert
+  // on the match number rather than an append: a moved kick-off corrects the
+  // match already on the calendar. A row the local state already knows keeps
+  // its id, which is what makes the upsert land on the same row as the unique
+  // (team, match number) index does.
+  const importFixtures = useCallback(async (input: TeamFixtureInput[]) => {
+    if (!currentTeam) throw new Error("Velg et lag først");
+    const known = new Map(fixtures.filter((fixture) => fixture.teamId === currentTeam.id).map((fixture) => [fixture.matchNumber, fixture]));
+    const now = new Date().toISOString();
+    let added = 0; let updated = 0;
+    const imported = input.map((entry) => {
+      const existing = known.get(entry.matchNumber);
+      if (existing) updated += 1; else added += 1;
+      return { ...entry, id: existing?.id ?? makeUuid(), teamId: currentTeam.id, createdAt: existing?.createdAt ?? now, updatedAt: now };
+    });
+    const importedNumbers = new Set(imported.map((fixture) => fixture.matchNumber));
+    setFixtures((current) => [...current.filter((fixture) => fixture.teamId !== currentTeam.id || !importedNumbers.has(fixture.matchNumber)), ...imported].sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
+    const rows = imported.map((fixture) => ({ id: fixture.id, team_id: fixture.teamId, match_number: fixture.matchNumber, starts_at: fixture.startsAt,
+      home_team: fixture.homeTeam, away_team: fixture.awayTeam, our_teams: fixture.ourTeams, result: fixture.result,
+      venue: fixture.venue, organizer: fixture.organizer, tournament: fixture.tournament }));
+    await persist(supabase ? () => supabase.from("team_fixtures").upsert(rows, { onConflict: "team_id,match_number" }) : null);
+    setNotice(`${added} ${added === 1 ? "kamp" : "kamper"} lagt til${updated ? `, ${updated} oppdatert` : ""}.`);
+    return { added, updated };
+  }, [currentTeam, fixtures, persist, supabase]);
+
+  // Only a team admin may delete, and Postgres enforces that by filtering the
+  // row out rather than failing, so the removal is rolled back when the row is
+  // still there afterwards.
+  const removeFixture = useCallback(async (fixtureId: string) => {
+    let removed: TeamFixture | undefined;
+    setFixtures((current) => { removed = current.find((fixture) => fixture.id === fixtureId); return current.filter((fixture) => fixture.id !== fixtureId); });
+    try {
+      await persist(supabase ? () => supabase.from("team_fixtures").delete().eq("id", fixtureId) : null);
+    } catch (error) {
+      if (removed) setFixtures((current) => current.some((fixture) => fixture.id === fixtureId) ? current : [...current, removed as TeamFixture].sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
+      throw error;
+    }
+  }, [persist, supabase]);
+
+  // The routine is created the first time a coach edits it, not when the team
+  // is made: a team that never opens the warm-up never gets an empty row, and
+  // the match modal can render "ingen oppvarming ennå" from nothing.
+  const ensureWarmupRoutine = useCallback(async () => {
+    if (!currentTeam || !user) throw new Error("Velg et lag først");
+    const existing = warmupRoutines.find((routine) => routine.teamId === currentTeam.id && routine.isDefault);
+    if (existing) return existing.id;
+    const id = makeUuid(); const now = new Date().toISOString();
+    const routine: WarmupRoutine = { id, teamId: currentTeam.id, name: "Kampoppvarming", isDefault: true, meetMinutesBefore: 60, notes: "", items: [], createdAt: now, updatedAt: now };
+    setWarmupRoutines((current) => [...current, routine]);
+    try {
+      await persist(supabase ? () => supabase.from("warmup_routines").insert({ id, team_id: currentTeam.id, name: routine.name, is_default: true, meet_minutes_before: 60, created_by: user.id, updated_by: user.id }) : null);
+    } catch (error) {
+      setWarmupRoutines((current) => current.filter((entry) => entry.id !== id));
+      throw error;
+    }
+    return id;
+  }, [currentTeam, persist, supabase, user, warmupRoutines]);
+
+  const patchRoutine = useCallback((routineId: string, change: (routine: WarmupRoutine) => WarmupRoutine) => {
+    setWarmupRoutines((current) => current.map((routine) => routine.id === routineId ? change(routine) : routine));
+  }, []);
+
+  const updateWarmupRoutine = useCallback(async (routineId: string, patch: WarmupRoutinePatch) => {
+    patchRoutine(routineId, (routine) => ({ ...routine, ...patch, updatedAt: new Date().toISOString() }));
+    const row = { ...(patch.name !== undefined && { name: patch.name }), ...(patch.meetMinutesBefore !== undefined && { meet_minutes_before: patch.meetMinutesBefore }), ...(patch.notes !== undefined && { notes: patch.notes }), updated_by: user?.id };
+    await persist(supabase ? () => supabase.from("warmup_routines").update(row).eq("id", routineId) : null);
+  }, [patchRoutine, persist, supabase, user]);
+
+  const dropWarmupItem = useCallback((routineId: string, itemId: string) => {
+    patchRoutine(routineId, (routine) => ({ ...routine, items: routine.items.filter((item) => item.id !== itemId) }));
+  }, [patchRoutine]);
+
+  const addWarmupItem = useCallback(async (routineId: string, item: WarmupItem, exerciseId: string | null) => {
+    patchRoutine(routineId, (routine) => ({ ...routine, items: [...routine.items, item] }));
+    try {
+      await persist(supabase ? () => supabase.from("warmup_items").insert({ id: item.id, routine_id: routineId, kind: item.kind, exercise_id: exerciseId,
+        title: item.title, description: item.description, media_url: item.mediaUrl, thumbnail_url: item.thumbnailUrl,
+        duration_minutes: item.durationMinutes, position: item.position, updated_by: user?.id }) : null);
+    } catch (error) {
+      dropWarmupItem(routineId, item.id);
+      throw error;
+    }
+  }, [dropWarmupItem, patchRoutine, persist, supabase, user]);
+
+  // A warm-up activity copies the exercise the same way a session item does, so
+  // the routine keeps reading the way it did the day it was put together.
+  const addWarmupExercise = useCallback(async (routineId: string, exercise: Exercise) => {
+    const items = warmupRoutines.find((routine) => routine.id === routineId)?.items ?? [];
+    await addWarmupItem(routineId, { id: makeUuid(), routineId, kind: "exercise", exerciseId: exercise.id, title: exercise.name,
+      description: exercise.description, mediaUrl: exercise.mediaUrl, thumbnailUrl: exercise.thumbnailUrl,
+      durationMinutes: 5, coachingNotes: "", position: nextPosition(items) }, exercise.id);
+  }, [addWarmupItem, warmupRoutines]);
+
+  const addCustomWarmupItem = useCallback(async (routineId: string) => {
+    const items = warmupRoutines.find((routine) => routine.id === routineId)?.items ?? [];
+    await addWarmupItem(routineId, { id: makeUuid(), routineId, kind: "custom", exerciseId: null, title: "Ny aktivitet",
+      description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes: 5, coachingNotes: "", position: nextPosition(items) }, null);
+  }, [addWarmupItem, warmupRoutines]);
+
+  const updateWarmupItem = useCallback(async (routineId: string, itemId: string, patch: WarmupItemPatch) => {
+    patchRoutine(routineId, (routine) => ({ ...routine, items: routine.items.map((item) => item.id === itemId ? { ...item, ...patch } : item) }));
+    const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.description !== undefined && { description: patch.description }), ...(patch.durationMinutes !== undefined && { duration_minutes: patch.durationMinutes }), ...(patch.coachingNotes !== undefined && { coaching_notes: patch.coachingNotes }), updated_by: user?.id };
+    await persist(supabase ? () => supabase.from("warmup_items").update(row).eq("id", itemId) : null);
+  }, [patchRoutine, persist, supabase, user]);
+
+  const deleteWarmupItem = useCallback(async (routineId: string, itemId: string) => {
+    dropWarmupItem(routineId, itemId);
+    await persist(supabase ? () => supabase.from("warmup_items").delete().eq("id", itemId) : null);
+  }, [dropWarmupItem, persist, supabase]);
+
+  const reorderWarmupItems = useCallback(async (routineId: string, orderedIds: string[]) => {
+    patchRoutine(routineId, (routine) => ({ ...routine, items: orderedIds.flatMap((id, position) => { const item = routine.items.find((entry) => entry.id === id); return item ? [{ ...item, position }] : []; }) }));
+    await persist(supabase ? () => supabase.rpc("reorder_warmup_items", { target_routine_id: routineId, ordered_item_ids: orderedIds }) : null);
+  }, [patchRoutine, persist, supabase]);
+
+  const clearFixtures = useCallback(async () => {
+    if (!currentTeam) return;
+    const removed = fixtures.filter((fixture) => fixture.teamId === currentTeam.id);
+    setFixtures((current) => current.filter((fixture) => fixture.teamId !== currentTeam.id));
+    try {
+      await persist(supabase ? () => supabase.from("team_fixtures").delete().eq("team_id", currentTeam.id) : null);
+    } catch (error) {
+      setFixtures((current) => [...current, ...removed.filter((fixture) => !current.some((entry) => entry.id === fixture.id))].sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
+      throw error;
+    }
+  }, [currentTeam, fixtures, persist, supabase]);
 
   const createSession = useCallback(async () => {
     if (!currentTeam || !user) throw new Error("Velg et lag først"); const id = makeUuid(); const now = new Date().toISOString();
@@ -652,7 +934,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
   }, [persist, supabase, user]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, sessions, invitations, players, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, inviteMember, revokeInvitation, updateMemberRole, removeMember, importPlayers, removePlayer, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, sessions, invitations, players, fixtures, warmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, sessions, invitations, players, fixtures, warmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

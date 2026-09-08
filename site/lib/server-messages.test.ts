@@ -13,6 +13,14 @@ describe("norwegianServerMessage", () => {
   it("falls back for anything it does not recognise", () => {
     expect(norwegianServerMessage("JWT expired", "Invitasjonen kunne ikke godtas.")).toBe("Invitasjonen kunne ikke godtas.");
   });
+
+  // 202609020018 raises these from `create_team` and `admin_list_teams`. They
+  // are never worded in English, so they reach the coach only because they
+  // carry a Norwegian character — keep them that way.
+  it("passes the admin-role messages through instead of swallowing them", () => {
+    expect(norwegianServerMessage("Du må være systemadministrator for å opprette lag", "Laget kunne ikke opprettes.")).toBe("Du må være systemadministrator for å opprette lag");
+    expect(norwegianServerMessage("Du må være systemadministrator", "Lagene kunne ikke lastes.")).toBe("Du må være systemadministrator");
+  });
 });
 
 describe("isInvitationAlreadyUsed", () => {
