@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp, ChevronRight, Clock3, Eye, Library, Plus, Search, Timer, Trash2, TriangleAlert, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { filterExercises } from "@/lib/exercises";
+import { countExerciseFacets, filterExercises } from "@/lib/exercises";
 import { scheduleWarmupItems, warmupSchedule } from "@/lib/warmup";
 import type { Exercise, ExerciseAgeGroup, ExerciseCategory, TeamFixture, WarmupItem, WarmupRoutine } from "@/lib/types";
 import { useGrep } from "./app-provider";
@@ -175,9 +175,12 @@ function EditRow({ item, index, routineId, first, last, onMove }: { item: Warmup
 function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDone(): void; onPreview(subject: ExerciseDetailSubject): void }) {
   const { exercises, addWarmupExercise } = useGrep();
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<ExerciseCategory | null>(null);
-  const [ageGroup, setAgeGroup] = useState<ExerciseAgeGroup | null>(null);
-  const filtered = useMemo(() => filterExercises(exercises, { query, category, ageGroup }), [exercises, query, category, ageGroup]);
+  const [categories, setCategories] = useState<ExerciseCategory[]>([]);
+  const [ageGroups, setAgeGroups] = useState<ExerciseAgeGroup[]>([]);
+  const filter = useMemo(() => ({ query, categories, ageGroups }), [query, categories, ageGroups]);
+  const filtered = useMemo(() => filterExercises(exercises, filter), [exercises, filter]);
+  const counts = useMemo(() => countExerciseFacets(exercises, filter), [exercises, filter]);
+  function resetFilters() { setQuery(""); setCategories([]); setAgeGroups([]); }
 
   async function add(exercise: Exercise) {
     await addWarmupExercise(routine.id, exercise);
@@ -186,13 +189,13 @@ function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDo
 
   return <div className="grid gap-3">
     <div className="relative"><Search className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={18} /><input className={`${inputClass} pl-10`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Søk etter øvelser …" aria-label="Søk etter øvelser" autoFocus /></div>
-    <ExerciseCategoryFilter value={category} onChange={setCategory} />
-    <ExerciseAgeGroupFilter value={ageGroup} onChange={setAgeGroup} />
+    <ExerciseCategoryFilter value={categories} onChange={setCategories} counts={counts} />
+    <ExerciseAgeGroupFilter value={ageGroups} onChange={setAgeGroups} counts={counts} />
     <p className="text-xs font-semibold text-[var(--ink-soft)]">{filtered.length} øvelser</p>
     {filtered.length ? <div className="grid max-h-[50vh] gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]">
       <button type="button" className="group/media relative h-20 w-24 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]" aria-label={`Vis detaljer for ${exercise.name}`} onClick={() => onPreview(exercise)}><ExerciseThumbnail exercise={exercise} className="h-full w-full" /><span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-8 w-8 place-items-center rounded-full bg-white/90"><Eye size={15} /></span></span></button>
       <button type="button" className="min-w-0 flex-1 text-left" aria-label={`Legg ${exercise.name} til i oppvarmingen`} onClick={() => void add(exercise)}><span className="text-[10px] font-black uppercase tracking-[.08em] text-[var(--orange)]">{exercise.category}</span><strong className="mt-1 block text-sm">{exercise.name}</strong><span className="clamp-2 mt-1 text-xs leading-5 text-[var(--ink-soft)]">{exercise.description}</span></button>
-    </div>)}</div> : <div className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv en annen kategori eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={() => { setQuery(""); setCategory(null); }}>Nullstill filtre</Button></div>}
+    </div>)}</div> : <div className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv en annen kategori eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Nullstill filtre</Button></div>}
     <div className="flex justify-between"><Button variant="ghost" onClick={onDone}>Tilbake</Button><span className="self-center text-xs text-[var(--ink-soft)]">Aktiviteten legges nederst, med fem minutter som varighet</span></div>
   </div>;
 }

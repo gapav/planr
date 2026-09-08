@@ -1,4 +1,4 @@
-import type { Exercise, ExerciseAgeGroup, ExerciseCategory, PlannedSession, Profile, SessionItem, WarmupRoutine } from "./types";
+import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type Exercise, type ExerciseAgeGroup, type ExerciseCategory, type PlannedSession, type Profile, type SessionItem, type WarmupRoutine } from "./types";
 
 /** `"6-9"` reads as `"6-9 år"`. The stored value is a key, never a label. */
 export function formatAgeGroup(group: ExerciseAgeGroup): string {
@@ -18,33 +18,139 @@ export function matchesAgeGroup(ageGroups: readonly ExerciseAgeGroup[], filter: 
   return ageGroups.includes(filter);
 }
 
+/** Several chosen bands read as "or": a 6-9 exercise survives a `["6-9", "13-15"]` filter. */
+export function matchesAgeGroups(ageGroups: readonly ExerciseAgeGroup[], filter: readonly ExerciseAgeGroup[]): boolean {
+  if (filter.length === 0) return true;
+  return filter.some((group) => matchesAgeGroup(ageGroups, group));
+}
+
 /**
- * Every field is optional and an omitted one filters nothing. `favoriteIds`
- * narrows the library to the signed-in coach's own shortlist; `null` — the
- * default, and what a signed-out visitor always gets — leaves the whole library
- * in place. A heart is never a property of the shared exercise row, so the set
- * is passed in rather than read off the exercise.
+ * Every field is optional and an omitted one filters nothing. Both chip
+ * dimensions take a list because a coach planning a session thinks in unions —
+ * "angrep or skuddferdigheter" — so values within a dimension are or-ed while
+ * the dimensions themselves are and-ed. An empty list is therefore not "match
+ * nothing" but "this dimension is not constrained", which is also what the
+ * "Alle" chip selects. `favoriteIds` narrows the library to the signed-in
+ * coach's own shortlist; `null` — the default, and what a signed-out visitor
+ * always gets — leaves the whole library in place. A heart is never a property
+ * of the shared exercise row, so the set is passed in rather than read off the
+ * exercise.
  */
 export interface ExerciseFilter {
   query?: string;
-  category?: ExerciseCategory | null;
-  ageGroup?: ExerciseAgeGroup | null;
+  categories?: readonly ExerciseCategory[];
+  ageGroups?: readonly ExerciseAgeGroup[];
   favoriteIds?: ReadonlySet<string> | null;
 }
 
-export function filterExercises<T extends Pick<Exercise, "id" | "name" | "description" | "category" | "ageGroups">>(
+type FilterableExercise = Pick<Exercise, "id" | "name" | "description" | "category" | "ageGroups">;
+
+export function filterExercises<T extends FilterableExercise>(
   exercises: readonly T[],
-  { query = "", category = null, ageGroup = null, favoriteIds = null }: ExerciseFilter = {},
+  { query = "", categories = [], ageGroups = [], favoriteIds = null }: ExerciseFilter = {},
 ): T[] {
   const normalizedQuery = query.trim().toLocaleLowerCase("nb-NO");
 
   return exercises.filter((exercise) => {
     if (favoriteIds && !favoriteIds.has(exercise.id)) return false;
-    if (category !== null && exercise.category !== category) return false;
-    if (!matchesAgeGroup(exercise.ageGroups, ageGroup)) return false;
+    if (categories.length > 0 && !categories.includes(exercise.category)) return false;
+    if (!matchesAgeGroups(exercise.ageGroups, ageGroups)) return false;
     const searchableText = `${exercise.name} ${exercise.description}`.toLocaleLowerCase("nb-NO");
     return searchableText.includes(normalizedQuery);
   });
+}
+
+/**
+ * What each filter chip is worth before it is clicked, so a coach never spends a
+ * click to discover an empty grid — the library ships with no Målvakt exercises
+ * at all, and nothing on screen used to say so.
+ *
+ * A facet count is measured with its *own* dimension lifted and every other
+ * filter still applied, which is what makes the numbers add up: the badge on
+ * "Forsvar" is exactly how many exercises remain once the current search, age
+ * bands and favourites are honoured. Because a dimension or-s its values, the
+ * badge answers "how many are Forsvar", not "how many will I have afterwards" —
+ * adding a second chip widens the result rather than narrowing it.
+ */
+export interface ExerciseFacetCounts {
+  categories: Record<ExerciseCategory, number>;
+  ageGroups: Record<ExerciseAgeGroup, number>;
+  allCategories: number;
+  allAgeGroups: number;
+}
+
+export function countExerciseFacets<T extends FilterableExercise>(
+  exercises: readonly T[],
+  filter: ExerciseFilter = {},
+): ExerciseFacetCounts {
+  const acrossCategories = filterExercises(exercises, { ...filter, categories: [] });
+  const acrossAgeGroups = filterExercises(exercises, { ...filter, ageGroups: [] });
+
+  return {
+    categories: Object.fromEntries(EXERCISE_CATEGORIES.map((category) => [
+      category,
+      acrossCategories.filter((exercise) => exercise.category === category).length,
+    ])) as Record<ExerciseCategory, number>,
+    ageGroups: Object.fromEntries(EXERCISE_AGE_GROUPS.map((group) => [
+      group,
+      acrossAgeGroups.filter((exercise) => matchesAgeGroup(exercise.ageGroups, group)).length,
+    ])) as Record<ExerciseAgeGroup, number>,
+    allCategories: acrossCategories.length,
+    allAgeGroups: acrossAgeGroups.length,
+  };
+}
+
+/**
+ * The library's filter state, and its round trip through the query string so a
+ * coach can send another coach "skuddtrening for 13-15" as a link, and so a
+ * reload or a trip into an exercise and back does not silently drop the filters.
+ * Parsing discards unknown values rather than throwing: a hand-edited or
+ * outdated link should degrade to a wider library, never to an error.
+ */
+export interface ExerciseFilterState {
+  query: string;
+  categories: ExerciseCategory[];
+  ageGroups: ExerciseAgeGroup[];
+  favoritesOnly: boolean;
+}
+
+export function emptyExerciseFilterState(): ExerciseFilterState {
+  return { query: "", categories: [], ageGroups: [], favoritesOnly: false };
+}
+
+export function hasActiveExerciseFilter(state: ExerciseFilterState): boolean {
+  return state.query.trim() !== "" || state.categories.length > 0 || state.ageGroups.length > 0 || state.favoritesOnly;
+}
+
+/** Reselecting from the constant keeps a list canonically ordered however the link was written. */
+function readList<T extends string>(params: URLSearchParams, key: string, allowed: readonly T[]): T[] {
+  const raw = (params.get(key) ?? "").split(",").map((entry) => entry.trim());
+  return allowed.filter((value) => raw.includes(value));
+}
+
+export function parseExerciseFilterParams(params: URLSearchParams): ExerciseFilterState {
+  return {
+    query: params.get("q") ?? "",
+    categories: readList(params, "kategori", EXERCISE_CATEGORIES),
+    ageGroups: readList(params, "alder", EXERCISE_AGE_GROUPS),
+    favoritesOnly: params.get("favoritter") === "1",
+  };
+}
+
+/** Only non-default fields are written, so an unfiltered library keeps a clean URL. */
+export function serializeExerciseFilterParams(state: ExerciseFilterState): URLSearchParams {
+  const params = new URLSearchParams();
+  if (state.query.trim() !== "") params.set("q", state.query);
+  if (state.categories.length > 0) params.set("kategori", state.categories.join(","));
+  if (state.ageGroups.length > 0) params.set("alder", state.ageGroups.join(","));
+  if (state.favoritesOnly) params.set("favoritter", "1");
+  return params;
+}
+
+/** Toggling a chip keeps the list in the constant's order, so links read the same however they were clicked. */
+export function toggleFilterValue<T extends string>(values: readonly T[], value: T, allowed: readonly T[]): T[] {
+  const next = values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value];
+  return allowed.filter((entry) => next.includes(entry));
 }
 
 /**

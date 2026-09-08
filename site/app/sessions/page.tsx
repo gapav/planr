@@ -12,7 +12,7 @@ import { Avatar, Button, EmptyState, Field, Modal, Tag, textareaClass } from "@/
 import { monthKey } from "@/lib/fixtures";
 import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration } from "@/lib/session";
 import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
-import type { PlannedSession, SessionTab } from "@/lib/types";
+import type { PlannedSession, Profile, SessionTab } from "@/lib/types";
 import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
 
 const tabs: Array<{ id: SessionTab; label: string }> = [{ id: "upcoming", label: "Kommende" }, { id: "drafts", label: "Utkast" }, { id: "past", label: "Gjennomførte" }];
@@ -66,38 +66,67 @@ export default function SessionsPage() {
 // sessions in it. A month the calendar padded in arrives with no sessions at
 // all — heading and focus only, which is the whole point of padding it.
 function MonthSection({ group, tab, onEditFocus, onDelete }: { group: { key: string; label: string; sessions: PlannedSession[] }; tab: SessionTab; onEditFocus(month: { key: string; label: string }): void; onDelete(session: PlannedSession): void }) {
-  const { currentTeam, monthFocus } = useGrep();
-  const note = monthFocus.find((entry) => entry.teamId === currentTeam?.id && entry.month === group.key)?.note ?? null;
+  const { currentTeam, monthFocus, user } = useGrep();
+  const focus = monthFocus.find((entry) => entry.teamId === currentTeam?.id && entry.month === group.key) ?? null;
+  // The whole coaching team writes into the same note, so the row says whose
+  // words are standing. Unlike a session row the name shows even when it is the
+  // signed-in coach: "who set this month's focus" is the question the by-line
+  // answers, and leaving your own name out leaves it open. A coach who has since
+  // left the team is no longer in `members`, so only the credit survives.
+  const author = focus ? currentTeam?.members.find((member) => member.id === focus.updatedBy) ?? null : null;
+  const credit = focus ? { author, name: focus.updatedBy === user?.id ? "deg" : author?.fullName ?? "en tidligere trener", at: focus.updatedAt } : null;
   // A month that has been and gone keeps the focus it was given — it is a record
   // of what the team worked on — but is not advertised as something to fill in.
   // An "add" button on each of twelve past months is noise, not an offer.
   const editable = group.key !== "no-date" && group.key >= monthKey(new Date());
+  const focusRow = <MonthFocusRow label={group.label} note={focus?.note ?? null} credit={credit} editable={editable} onEdit={() => onEditFocus({ key: group.key, label: group.label })} />;
+  const rows = group.sessions.length > 0 ? <ul className="flex flex-col gap-2.5">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
+    ? <SessionRow key={session.id} session={session} tab={tab} onDelete={() => onDelete(session)} />
+    : <CompactSessionRow key={session.id} session={session} onDelete={() => onDelete(session)} />)}</ul> : null;
+  // A month that holds anything is one deep tray: the focus on top, the plans it
+  // is meant to steer stacked inside it, so a plan reads as belonging to the
+  // month's theme rather than merely following it. A month that is neither
+  // written nor scheduled stays flat — the calendar pads four months ahead, and
+  // four empty trays would weigh more than the invitation inside them.
   return <section>
     <h2 className="sticky top-16 z-10 -mx-1 rounded-lg bg-[var(--paper)]/90 px-1 py-2 text-xs font-black uppercase tracking-[.16em] text-[var(--ink-soft)] backdrop-blur-sm lg:top-0">{group.label}{group.sessions.length > 0 && <span className="opacity-60">{" · "}{group.sessions.length} {group.sessions.length === 1 ? "økt" : "økter"}</span>}</h2>
-    <MonthFocusRow label={group.label} note={note} editable={editable} onEdit={() => onEditFocus({ key: group.key, label: group.label })} />
-    {group.sessions.length > 0 && <ul className="mt-1.5 flex flex-col gap-2.5">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
-      ? <SessionRow key={session.id} session={session} tab={tab} onDelete={() => onDelete(session)} />
-      : <CompactSessionRow key={session.id} session={session} onDelete={() => onDelete(session)} />)}</ul>}
+    {focus || rows
+      ? <div className="mt-1.5 flex flex-col gap-2.5 rounded-[26px] bg-[var(--paper-deep)] p-2.5 sm:p-3">{focusRow}{rows}</div>
+      : <div className="mt-1.5">{focusRow}</div>}
   </section>;
 }
 
-// The focus sits between the month name and the month's plans: close enough to
-// the heading to read as a property of the month, above the sessions it is
-// meant to steer. Paper-deep rather than orange — in this list orange means
-// "the next thing you act on", and a focus is context for the plans, not one of
-// them.
-function MonthFocusRow({ label, note, editable, onEdit }: { label: string; note: string | null; editable: boolean; onEdit(): void }) {
+// Who left the note, ready to render: `author` is absent once that coach has
+// left the team, and `name` is what the by-line says either way.
+interface FocusCredit { author: Profile | null; name: string; at: string }
+// The by-line sits under a month heading that already carries the year, so the
+// day and month are all it has to say.
+const focusDateFormat = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "short" });
+
+// The focus is the head of the month's tray, above the sessions it is meant to
+// steer and on the same ground as them: the tray is what makes it a property of
+// the month, so the row itself carries no fill of its own. No orange either —
+// in this list orange means "the next thing you act on", and a focus is context
+// for the plans, not one of them.
+function MonthFocusRow({ label, note, credit, editable, onEdit }: { label: string; note: string | null; credit: FocusCredit | null; editable: boolean; onEdit(): void }) {
   if (!note) return editable
-    ? <button type="button" onClick={onEdit} className="mt-1.5 flex min-h-11 w-full items-center gap-2 rounded-2xl border border-dashed border-[#c8c3b7] px-4 text-left text-sm font-bold text-[var(--ink-soft)] transition hover:border-[var(--ink-soft)] hover:text-[var(--ink)]"><Target size={16} />Sett månedens fokus</button>
+    ? <button type="button" onClick={onEdit} className="flex min-h-11 w-full items-center gap-2 rounded-2xl border border-dashed border-[#c8c3b7] px-4 text-left text-sm font-bold text-[var(--ink-soft)] transition hover:border-[var(--ink-soft)] hover:text-[var(--ink)]"><Target size={16} />Sett månedens fokus</button>
     : null;
   const body = <>
     <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.14em] text-[var(--ink-soft)]"><Target size={13} />Månedens fokus</span>
     <p className="mt-1.5 whitespace-pre-line text-sm font-semibold leading-6">{note}</p>
+    {credit && <span className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-soft)]">
+      {credit.author && <Avatar name={credit.author.fullName} initials={credit.author.initials} color={credit.author.color} size="sm" />}
+      <span>Satt av {credit.name} · {focusDateFormat.format(new Date(credit.at))}</span>
+    </span>}
   </>;
   // A month that can no longer be written to is text, not a control: a disabled
   // button would still be reached and announced as one.
-  if (!editable) return <div className="mt-1.5 w-full rounded-2xl bg-[var(--paper-deep)] px-4 py-3">{body}</div>;
-  return <button type="button" onClick={onEdit} aria-label={`Rediger månedens fokus for ${label}`} className="mt-1.5 w-full rounded-2xl bg-[var(--paper-deep)] px-4 py-3 text-left transition hover:bg-[#e2dccd]">{body}</button>;
+  if (!editable) return <div className="w-full rounded-2xl px-4 py-3">{body}</div>;
+  // The label replaces the button's text for a screen reader, so the credit has
+  // to be repeated in it — otherwise the one month a coach can edit is the one
+  // month that does not say who wrote it.
+  return <button type="button" onClick={onEdit} aria-label={`Rediger månedens fokus for ${label}${credit ? `, satt av ${credit.name}` : ""}`} className="w-full rounded-2xl px-4 py-3 text-left transition hover:bg-black/[.04]">{body}</button>;
 }
 
 // One short note the whole coaching team shares, so there is nothing to merge:

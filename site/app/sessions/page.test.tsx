@@ -148,6 +148,18 @@ describe("month focus", () => {
     expect(screen.getAllByRole("button", { name: "Sett månedens fokus" })).toHaveLength(4);
   });
 
+  it("names the coach whose focus is standing", () => {
+    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")], [{ ...focusFor("2026-09", "Forsvar 6-0 med aktiv midtblokk."), updatedBy: "user-nora" }]);
+
+    expect(screen.getByText("Satt av Nora Vik · 1. sep.")).toBeInTheDocument();
+  });
+
+  it("says «deg» when the focus is the signed-in coach's own", () => {
+    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")], [focusFor("2026-09", "Forsvar 6-0 med aktiv midtblokk.")]);
+
+    expect(screen.getByText("Satt av deg · 1. sep.")).toBeInTheDocument();
+  });
+
   it("saves against the month the dialog was opened from", async () => {
     renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")]);
     const october = screen.getByRole("heading", { name: "oktober 2026" }).closest("section") as HTMLElement;
