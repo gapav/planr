@@ -15,6 +15,25 @@ describe("exercise filtering", () => {
     expect(filterExercises(demoExercises, "kant", "Angrep").map((exercise) => exercise.id)).toEqual(["exercise-4"]);
     expect(filterExercises(demoExercises, "kant", "Forsvar")).toEqual([]);
   });
+
+  it("leaves the library whole when no favourites are passed", () => {
+    expect(filterExercises(demoExercises, "", null, null)).toHaveLength(demoExercises.length);
+  });
+
+  it("narrows the library to the coach's hearted exercises", () => {
+    const favorites = new Set(["exercise-2", "exercise-4"]);
+    expect(filterExercises(demoExercises, "", null, favorites).map((exercise) => exercise.id)).toEqual(["exercise-2", "exercise-4"]);
+  });
+
+  it("applies search and category on top of the favourites", () => {
+    const favorites = new Set(["exercise-2", "exercise-4"]);
+    expect(filterExercises(demoExercises, "", "Forsvar", favorites).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
+    expect(filterExercises(demoExercises, "kant", "Forsvar", favorites)).toEqual([]);
+  });
+
+  it("shows nothing rather than everything when no exercise is hearted", () => {
+    expect(filterExercises(demoExercises, "", null, new Set())).toEqual([]);
+  });
 });
 
 describe("exercise edit permission", () => {

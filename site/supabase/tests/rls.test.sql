@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(92);
+select plan(101);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -71,6 +71,8 @@ select throws_ok($$ insert into public.exercises (name, description, category, m
 set local role anon;
 select is((select count(*)::integer from public.exercises where id = '20000000-0000-0000-0000-000000000001'), 1, 'anonymous visitors can read active exercises');
 select throws_ok($$ insert into public.exercises(name, description, media_url, media_kind, created_by) values ('Blocked', 'Anonymous writes are blocked.', 'https://example.com/x.jpg', 'image', '10000000-0000-0000-0000-000000000003') $$, '42501', null, 'anonymous visitors cannot add exercises');
+select throws_ok($$ select count(*) from public.exercise_favorites $$, '42501', null, 'anonymous visitors cannot read favourites');
+select throws_ok($$ insert into public.exercise_favorites (profile_id, exercise_id) values ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot heart an exercise');
 reset role;
 
 set local role authenticated;
@@ -92,6 +94,11 @@ select is((select allowed_mime_types from storage.buckets where id = 'team-logos
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok($$ update public.exercises set description = 'An updated public exercise description.' where id = '20000000-0000-0000-0000-000000000001' $$, 'the exercise author can edit their exercise');
+-- Favoritter (202609020022): a heart belongs to the coach who set it, so it is
+-- writable only for their own profile and invisible to everyone else.
+select lives_ok($$ insert into public.exercise_favorites (profile_id, exercise_id) values ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001') $$, 'a coach can heart a library exercise');
+select throws_ok($$ insert into public.exercise_favorites (profile_id, exercise_id) values ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'a coach cannot heart an exercise on behalf of another coach');
+select is((select count(*)::integer from public.exercise_favorites), 1, 'the coach sees their own favourite');
 select lives_ok(format($$ insert into storage.objects (bucket_id, name) values ('team-logos', '%s/logo.png') $$, current_setting('plannr.test_team')), 'a team admin can upload a club logo into their team folder');
 select lives_ok($$ update public.teams set logo_url = 'https://cdn.example.com/storage/v1/object/public/team-logos/logo.png' $$, 'a team admin can set the club logo');
 select throws_ok($$ update public.teams set logo_url = 'http://cdn.example.com/logo.png' $$, '23514', null, 'a club logo must be an HTTPS URL');
@@ -118,6 +125,8 @@ select lives_ok($$ update public.exercises set description = 'Rewritten by anoth
 select is((select description from public.exercises where id = '20000000-0000-0000-0000-000000000001'), 'An updated public exercise description.', 'a coach cannot edit an exercise another coach created');
 select lives_ok($$ update public.exercises set archived_at = now() where id = '20000000-0000-0000-0000-000000000001' $$, 'an archive of another coach exercise is filtered away rather than raised');
 select is((select archived_at from public.exercises where id = '20000000-0000-0000-0000-000000000001'), null::timestamptz, 'a coach cannot archive an exercise another coach created');
+select is((select count(*)::integer from public.exercise_favorites), 0, 'a coach cannot read another coach favourites');
+select lives_ok($$ delete from public.exercise_favorites where exercise_id = '20000000-0000-0000-0000-000000000001' $$, 'a delete of another coach favourite is filtered away rather than raised');
 select throws_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reset another team workout');
 select throws_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot skip setup for another team workout');
 reset role;
@@ -131,6 +140,8 @@ reset role;
 update public.profiles set is_global_admin = false where id = '10000000-0000-0000-0000-000000000003';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.exercise_favorites where profile_id = '10000000-0000-0000-0000-000000000001'), 1, 'another coach delete never reached the favourite');
+select lives_ok($$ delete from public.exercise_favorites where exercise_id = '20000000-0000-0000-0000-000000000001' $$, 'a coach can remove their own favourite');
 select lives_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'a published workout can start without attendance or groups');
 select is((select status::text || ':' || coalesce(grouping_kind::text, 'none') from public.sessions where id = '30000000-0000-0000-0000-000000000002'), 'in_progress:none', 'skipping setup starts the workout without a grouping kind');
 select lives_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'an in-progress workout can return to setup');

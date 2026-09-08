@@ -74,6 +74,8 @@ interface GrepContextValue {
   teams: Team[];
   currentTeam: Team | null;
   exercises: Exercise[];
+  /** The signed-in coach's own hearted exercises. Empty for a signed-out visitor. */
+  favoriteExerciseIds: string[];
   sessions: PlannedSession[];
   invitations: TeamInvitation[];
   players: TeamPlayer[];
@@ -95,6 +97,7 @@ interface GrepContextValue {
   uploadExerciseMedia(file: File): Promise<string>;
   discardExerciseMedia(publicUrl: string): Promise<void>;
   archiveExercise(id: string): Promise<void>;
+  toggleFavoriteExercise(exerciseId: string): Promise<void>;
   createTeam(name: string, firstAdminEmail?: string): Promise<string>;
   saveTeamLogo(file: File | null): Promise<void>;
   refreshWorkspace(): Promise<void>;
@@ -227,6 +230,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [teams, setTeams] = useState<Team[]>(() => isSupabaseConfigured ? [] : structuredClone(demoTeams));
   const [currentTeamId, setCurrentTeamId] = useState(demoTeams[0].id);
   const [exercises, setExercises] = useState<Exercise[]>(() => isSupabaseConfigured ? [] : structuredClone(demoExercises));
+  // Private to the signed-in coach, so this stays empty until `loadPrivateData`
+  // fills it — the library itself is public and loads for everyone.
+  const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<string[]>([]);
   const [sessions, setSessions] = useState<PlannedSession[]>(() => isSupabaseConfigured ? [] : structuredClone(demoSessions));
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [players, setPlayers] = useState<TeamPlayer[]>(() => isSupabaseConfigured ? [] : structuredClone(demoPlayers));
@@ -265,7 +271,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadPrivateData = useCallback(async (authUser: User) => {
     if (!supabase) return;
-    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }] = await Promise.all([
+    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }, { data: favoriteRows }] = await Promise.all([
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name, logo_url), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
@@ -275,6 +281,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       supabase.from("warmup_routines").select("*, warmup_items(*)"),
       supabase.from("session_attendance").select("session_id, player_id, is_present, checked_in_at"),
       supabase.from("session_groupings").select("session_id, kind, groups, generated_at"),
+      supabase.from("exercise_favorites").select("exercise_id"),
     ]);
     if (profileRow) setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: "#f0642e", isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password });
     // This row carries `must_set_password`, so losing it silently means a coach
@@ -305,6 +312,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (warmupRows) setWarmupRoutines((warmupRows as unknown as DbWarmupRoutine[]).map(mapWarmupRoutine));
     if (attendanceRows) setAttendance((attendanceRows as unknown as DbAttendance[]).map((row) => ({ sessionId: row.session_id, playerId: row.player_id, isPresent: row.is_present, checkedInAt: row.checked_in_at })));
     if (groupingRows) setGroupings((groupingRows as unknown as DbGrouping[]).map((row) => ({ sessionId: row.session_id, kind: row.kind, groups: row.groups, generatedAt: row.generated_at })));
+    if (favoriteRows) setFavoriteExerciseIds((favoriteRows as unknown as Array<{ exercise_id: string }>).map((row) => row.exercise_id));
     if (profileRow?.is_global_admin) await loadAdminTeams();
   }, [loadAdminTeams, supabase]);
 
@@ -369,6 +377,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
     setUser(supabase ? null : demoUser);
+    // Øvelsesbanken stays readable signed out, so the hearts would otherwise
+    // still be on screen for whoever sits down at the machine next.
+    if (supabase) setFavoriteExerciseIds([]);
   }, [supabase]);
 
   const addExercise = useCallback(async (input: Pick<Exercise, "name" | "description" | "category" | "mediaUrl">) => {
@@ -437,6 +448,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
   }, [exercises, persist, supabase, user]);
+
+  // A heart is the coach's own, not the library's: it is a row in
+  // `exercise_favorites` keyed by profile, so favouriting never writes to an
+  // exercise another coach owns and nobody else can read the shortlist. The
+  // optimistic flip is rolled back on failure like `addExercise` — a filled
+  // heart is the only feedback the button gives, so it must not lie.
+  const toggleFavoriteExercise = useCallback(async (exerciseId: string) => {
+    if (!user) throw new Error("Logg inn for å lagre favoritter");
+    const wasFavorite = favoriteExerciseIds.includes(exerciseId);
+    const add = (current: string[]) => current.includes(exerciseId) ? current : [...current, exerciseId];
+    const remove = (current: string[]) => current.filter((id) => id !== exerciseId);
+    setFavoriteExerciseIds(wasFavorite ? remove : add);
+    try {
+      await persist(supabase ? () => wasFavorite
+        ? supabase.from("exercise_favorites").delete().eq("profile_id", user.id).eq("exercise_id", exerciseId)
+        : supabase.from("exercise_favorites").insert({ profile_id: user.id, exercise_id: exerciseId }) : null);
+    } catch (error) {
+      setFavoriteExerciseIds(wasFavorite ? add : remove);
+      throw error;
+    }
+  }, [favoriteExerciseIds, persist, supabase, user]);
 
   // Refetches teams, sessions, players and the rest for the signed-in coach.
   // Anything that changes membership outside the normal mutation path — accepting
@@ -942,7 +974,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedSessions = useMemo(() => resolveAll(sessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [sessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, sessions: resolvedSessions, invitations, players, fixtures, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, resolvedSessions, invitations, players, fixtures, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, sessions: resolvedSessions, invitations, players, fixtures, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, resolvedSessions, invitations, players, fixtures, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

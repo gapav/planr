@@ -1,13 +1,21 @@
 import type { Exercise, ExerciseCategory, PlannedSession, Profile, SessionItem, WarmupRoutine } from "./types";
 
-export function filterExercises<T extends Pick<Exercise, "name" | "description" | "category">>(
+/**
+ * `favoriteIds` narrows the library to the signed-in coach's own shortlist;
+ * `null` — the default, and what a signed-out visitor always gets — leaves the
+ * whole library in place. A heart is never a property of the shared exercise
+ * row, so the set is passed in rather than read off the exercise.
+ */
+export function filterExercises<T extends Pick<Exercise, "id" | "name" | "description" | "category">>(
   exercises: readonly T[],
   query: string,
   category: ExerciseCategory | null,
+  favoriteIds: ReadonlySet<string> | null = null,
 ): T[] {
   const normalizedQuery = query.trim().toLocaleLowerCase("nb-NO");
 
   return exercises.filter((exercise) => {
+    if (favoriteIds && !favoriteIds.has(exercise.id)) return false;
     const matchesCategory = category === null || exercise.category === category;
     const searchableText = `${exercise.name} ${exercise.description}`.toLocaleLowerCase("nb-NO");
     return matchesCategory && searchableText.includes(normalizedQuery);
