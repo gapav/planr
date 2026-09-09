@@ -49,4 +49,15 @@ describe("session builder", () => {
     fireEvent.change(picker, { target: { value: "" } });
     expect(updateItem).toHaveBeenCalledWith(draft.id, firstItem.blockId, firstItem.id, { assignedCoachId: null });
   });
+
+  it("labels the coach picker as an action while nobody is responsible", () => {
+    const unassigned = draft.blocks[0].items.find((item) => !item.assignedCoachId)!;
+    render(<SessionBuilder sessionId={draft.id} />);
+
+    const assignedChip = screen.getByRole("combobox", { name: `Ansvarlig trener for ${firstItem.title}` }).parentElement!;
+    expect(assignedChip).toHaveTextContent("Nora Vik");
+
+    const emptyChip = screen.getByRole("combobox", { name: `Ansvarlig trener for ${unassigned.title}` }).parentElement!;
+    expect(emptyChip).toHaveTextContent("Sett ansvarlig trener");
+  });
 });
