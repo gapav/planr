@@ -1,5 +1,5 @@
 import { monthKey, monthLabel, shiftMonth } from "./fixtures";
-import type { PlannedSession, SessionBlock, SessionTab } from "./types";
+import type { PlannedSession, Profile, SessionBlock, SessionItem, SessionTab } from "./types";
 export function blockDuration(block: SessionBlock) { return block.items.reduce((total, item) => total + item.durationMinutes, 0); }
 export function sessionDuration(session: PlannedSession) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
 export function deriveSessionTab(session: PlannedSession, now = new Date()): SessionTab {
@@ -10,6 +10,31 @@ export function deriveSessionTab(session: PlannedSession, now = new Date()): Ses
   const end = new Date(session.startsAt).getTime() + session.plannedDurationMinutes * 60_000;
   return end < now.getTime() ? "past" : "upcoming";
 }
+
+// A coach who is no longer on the team, standing in for the name we cannot
+// look up any more. Nothing writes this profile; it exists so a picker can
+// keep showing an assignment instead of silently reading as unassigned.
+const DEPARTED_COACH_NAME = "Trener utenfor laget";
+
+/** The coach running an activity, or null when the whole coaching team does. */
+export function assignedCoach(item: Pick<SessionItem, "assignedCoachId">, members: readonly Profile[]): Profile | null {
+  if (!item.assignedCoachId) return null;
+  return members.find((member) => member.id === item.assignedCoachId) ?? null;
+}
+
+/**
+ * Who the picker offers for one activity: the team's coaches, plus the coach
+ * the item already names when they have since left the team. Without that last
+ * entry the select would fall back to its empty option and read as "nobody is
+ * responsible" — while the stored assignment quietly stayed put, and touching
+ * any other field on the row saved it again.
+ */
+export function coachAssignmentOptions(item: Pick<SessionItem, "assignedCoachId">, members: readonly Profile[]): Profile[] {
+  const assignedId = item.assignedCoachId;
+  if (!assignedId || members.some((member) => member.id === assignedId)) return [...members];
+  return [...members, { id: assignedId, email: "", fullName: DEPARTED_COACH_NAME, initials: "?", color: "#8b9692" }];
+}
+
 export function validatePublish(session: PlannedSession) {
   const issues: string[] = [];
   if (!session.title.trim()) issues.push("Legg til en økttittel");

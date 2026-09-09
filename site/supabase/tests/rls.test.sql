@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(111);
+select plan(121);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -282,6 +282,23 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
 select is((select count(*)::integer from public.team_month_focus), 0, 'an unrelated coach cannot read another team month focus');
 select throws_ok(format($$ insert into public.team_month_focus (team_id, month, note) values ('%s', '2026-11', 'Fremmed fokus.') $$, current_setting('plannr.test_team')), '42501', null, 'an unrelated coach cannot set another team month focus');
+reset role;
+
+-- 202609020025 put a responsible coach on each activity. The browser writes it
+-- straight to PostgREST, so the "must be on this team" rule is a trigger rather
+-- than a client-side check.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok(format($$ insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by) values ('30000000-0000-0000-0000-000000000003', '%s', 'Coach assignment test', now(), 'draft', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001') $$, current_setting('plannr.test_team')), 'a coach can draft a session for their own team');
+select lives_ok($$ insert into public.session_blocks (id, session_id, title, position, updated_by) values ('31000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000003', 'Hoveddel', 0, '10000000-0000-0000-0000-000000000001') $$, 'a coach can add a block to their own session');
+select lives_ok($$ insert into public.session_items (id, block_id, kind, title, duration_minutes, position, updated_by) values ('32000000-0000-0000-0000-000000000001', '31000000-0000-0000-0000-000000000001', 'custom', 'Kontring', 10, 0, '10000000-0000-0000-0000-000000000001') $$, 'an activity starts without a responsible coach');
+select ok((select assigned_coach_id is null from public.session_items where id = '32000000-0000-0000-0000-000000000001'), 'an activity nobody was given belongs to the whole coaching team');
+select lives_ok($$ update public.session_items set assigned_coach_id = '10000000-0000-0000-0000-000000000002', updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'a coach can hand an activity to another coach on the team');
+select throws_ok($$ update public.session_items set assigned_coach_id = '10000000-0000-0000-0000-000000000003', updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'P0001', 'Ansvarlig trener må være trener på laget', 'an activity cannot be handed to a coach outside the team');
+select throws_ok($$ insert into public.session_items (block_id, kind, title, duration_minutes, position, assigned_coach_id, updated_by) values ('31000000-0000-0000-0000-000000000001', 'custom', 'Skudd', 10, 1, '10000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001') $$, 'P0001', 'Ansvarlig trener må være trener på laget', 'the platform owner is not a coach on the team either');
+select lives_ok($$ update public.session_items set coaching_notes = 'Tre runder.', updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'an untouched assignment does not have to be re-validated on every edit');
+select is((select assigned_coach_id::text from public.session_items where id = '32000000-0000-0000-0000-000000000001'), '10000000-0000-0000-0000-000000000002', 'the assignment survives an edit of the rest of the activity');
+select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000003' $$, 'the assignment test session is removed with its blocks and activities');
 reset role;
 
 select * from finish();

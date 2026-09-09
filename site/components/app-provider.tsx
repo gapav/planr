@@ -18,7 +18,7 @@ import { initials, makeUuid } from "@/lib/utils";
 
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
 type BlockPatch = Partial<Pick<SessionBlock, "title" | "notes">>;
-type ItemPatch = Partial<Pick<SessionItem, "title" | "description" | "durationMinutes" | "coachingNotes">>;
+type ItemPatch = Partial<Pick<SessionItem, "title" | "description" | "durationMinutes" | "coachingNotes" | "assignedCoachId">>;
 
 const TEAM_LOGO_BUCKET = "team-logos";
 
@@ -162,7 +162,8 @@ interface DbExercise {
 }
 interface DbItem {
   id: string; block_id: string; kind: SessionItem["kind"]; exercise_id: string | null; title: string; description: string;
-  media_url: string | null; thumbnail_url: string | null; duration_minutes: number; coaching_notes: string; position: number; updated_by: string;
+  media_url: string | null; thumbnail_url: string | null; duration_minutes: number; coaching_notes: string;
+  assigned_coach_id: string | null; position: number; updated_by: string;
 }
 interface DbBlock { id: string; session_id: string; title: string; notes?: string; position: number; updated_by: string; session_items?: DbItem[]; }
 interface DbSession {
@@ -203,7 +204,8 @@ function mapSession(row: DbSession): PlannedSession {
       items: (block.session_items ?? []).sort((a, b) => a.position - b.position).map((item) => ({
         id: item.id, blockId: item.block_id, kind: item.kind, exerciseId: item.exercise_id, title: item.title,
         description: item.description, mediaUrl: item.media_url, thumbnailUrl: item.thumbnail_url,
-        durationMinutes: item.duration_minutes, coachingNotes: item.coaching_notes, position: item.position, updatedBy: item.updated_by,
+        durationMinutes: item.duration_minutes, coachingNotes: item.coaching_notes,
+        assignedCoachId: item.assigned_coach_id ?? null, position: item.position, updatedBy: item.updated_by,
       })),
     })) };
 }
@@ -959,7 +961,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addExerciseItem = useCallback(async (sessionId: string, blockId: string, exercise: Exercise) => {
     const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = nextPosition(block?.items ?? []);
-    const item: SessionItem = { id, blockId, kind: "exercise", exerciseId: exercise.id, title: exercise.name, description: exercise.description, mediaUrl: exercise.mediaUrl, thumbnailUrl: exercise.thumbnailUrl, durationMinutes: 10, coachingNotes: "", position, updatedBy: user?.id ?? demoUser.id };
+    const item: SessionItem = { id, blockId, kind: "exercise", exerciseId: exercise.id, title: exercise.name, description: exercise.description, mediaUrl: exercise.mediaUrl, thumbnailUrl: exercise.thumbnailUrl, durationMinutes: 10, coachingNotes: "", assignedCoachId: null, position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
     try {
       await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: item.kind, exercise_id: exercise.id, title: item.title, description: item.description, media_url: item.mediaUrl, thumbnail_url: item.thumbnailUrl, duration_minutes: 10, position, updated_by: user?.id }) : null);
@@ -971,7 +973,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addCustomItem = useCallback(async (sessionId: string, blockId: string) => {
     const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = nextPosition(block?.items ?? []);
-    const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "Ny aktivitet", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes: 10, coachingNotes: "", position, updatedBy: user?.id ?? demoUser.id };
+    const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "Ny aktivitet", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes: 10, coachingNotes: "", assignedCoachId: null, position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
     try {
       await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: "custom", title: item.title, duration_minutes: 10, position, updated_by: user?.id }) : null);
@@ -981,7 +983,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [dropItem, persist, sessions, supabase, user]);
 
-  const updateItem = useCallback(async (sessionId: string, blockId: string, itemId: string, patch: ItemPatch) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.map((item) => item.id === itemId ? { ...item, ...patch, updatedBy: user?.id ?? item.updatedBy } : item) } : block) } : session)); const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.description !== undefined && { description: patch.description }), ...(patch.durationMinutes !== undefined && { duration_minutes: patch.durationMinutes }), ...(patch.coachingNotes !== undefined && { coaching_notes: patch.coachingNotes }), updated_by: user?.id }; await persist(supabase ? () => supabase.from("session_items").update(row).eq("id", itemId) : null); }, [persist, supabase, user]);
+  const updateItem = useCallback(async (sessionId: string, blockId: string, itemId: string, patch: ItemPatch) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.map((item) => item.id === itemId ? { ...item, ...patch, updatedBy: user?.id ?? item.updatedBy } : item) } : block) } : session)); const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.description !== undefined && { description: patch.description }), ...(patch.durationMinutes !== undefined && { duration_minutes: patch.durationMinutes }), ...(patch.coachingNotes !== undefined && { coaching_notes: patch.coachingNotes }), ...(patch.assignedCoachId !== undefined && { assigned_coach_id: patch.assignedCoachId }), updated_by: user?.id }; await persist(supabase ? () => supabase.from("session_items").update(row).eq("id", itemId) : null); }, [persist, supabase, user]);
   const deleteItem = useCallback(async (sessionId: string, blockId: string, itemId: string) => { dropItem(sessionId, blockId, itemId); await persist(supabase ? () => supabase.from("session_items").delete().eq("id", itemId) : null); }, [dropItem, persist, supabase]);
   const reorderItems = useCallback(async (sessionId: string, blockId: string, orderedIds: string[]) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: orderedIds.flatMap((id, position) => { const item = block.items.find((entry) => entry.id === id); return item ? [{ ...item, position }] : []; }) } : block) } : session)); await persist(supabase ? () => supabase.rpc("reorder_block_items", { target_block_id: blockId, ordered_item_ids: orderedIds }) : null); }, [persist, supabase]);
 

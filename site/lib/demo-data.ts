@@ -98,21 +98,21 @@ export const demoSessions: PlannedSession[] = [
       {
         id: "block-warmup", sessionId: "session-friday", title: "Oppvarming", notes: "Legg baller klare langs begge sidelinjene før spillerne kommer.", position: 0, updatedBy: "user-gard",
         items: [
-          { id: "item-activation", blockId: "block-warmup", kind: "exercise", exerciseId: "exercise-3", title: demoExercises[2].name, description: demoExercises[2].description, mediaUrl: demoExercises[2].mediaUrl, thumbnailUrl: demoExercises[2].thumbnailUrl, durationMinutes: 10, coachingNotes: "Start med to baller etter tre minutter.", position: 0, updatedBy: "user-gard" },
-          { id: "item-reaction", blockId: "block-warmup", kind: "exercise", exerciseId: "exercise-5", title: demoExercises[4].name, description: demoExercises[4].description, mediaUrl: demoExercises[4].mediaUrl, thumbnailUrl: demoExercises[4].thumbnailUrl, durationMinutes: 10, coachingNotes: "To runder, bytt den som roper etter hver runde.", position: 1, updatedBy: "user-nora" },
+          { id: "item-activation", blockId: "block-warmup", kind: "exercise", exerciseId: "exercise-3", title: demoExercises[2].name, description: demoExercises[2].description, mediaUrl: demoExercises[2].mediaUrl, thumbnailUrl: demoExercises[2].thumbnailUrl, durationMinutes: 10, coachingNotes: "Start med to baller etter tre minutter.", assignedCoachId: "user-nora", position: 0, updatedBy: "user-gard" },
+          { id: "item-reaction", blockId: "block-warmup", kind: "exercise", exerciseId: "exercise-5", title: demoExercises[4].name, description: demoExercises[4].description, mediaUrl: demoExercises[4].mediaUrl, thumbnailUrl: demoExercises[4].thumbnailUrl, durationMinutes: 10, coachingNotes: "To runder, bytt den som roper etter hver runde.", assignedCoachId: null, position: 1, updatedBy: "user-nora" },
         ],
       },
       {
         id: "block-main", sessionId: "session-friday", title: "Hoveddel", notes: "Hold rotasjonene korte og tempoet høyt.", position: 1, updatedBy: "user-nora",
         items: [
-          { id: "item-transition", blockId: "block-main", kind: "exercise", exerciseId: "exercise-1", title: demoExercises[0].name, description: demoExercises[0].description, mediaUrl: demoExercises[0].mediaUrl, thumbnailUrl: demoExercises[0].thumbnailUrl, durationMinutes: 25, coachingNotes: "Fullfør begge retninger før gruppene roterer.", position: 0, updatedBy: "user-nora" },
-          { id: "item-defence", blockId: "block-main", kind: "exercise", exerciseId: "exercise-2", title: demoExercises[1].name, description: demoExercises[1].description, mediaUrl: demoExercises[1].mediaUrl, thumbnailUrl: demoExercises[1].thumbnailUrl, durationMinutes: 20, coachingNotes: "Forsvarerne får poeng når de fremtvinger en pasning bakover.", position: 1, updatedBy: "user-sam" },
+          { id: "item-transition", blockId: "block-main", kind: "exercise", exerciseId: "exercise-1", title: demoExercises[0].name, description: demoExercises[0].description, mediaUrl: demoExercises[0].mediaUrl, thumbnailUrl: demoExercises[0].thumbnailUrl, durationMinutes: 25, coachingNotes: "Fullfør begge retninger før gruppene roterer.", assignedCoachId: "user-gard", position: 0, updatedBy: "user-nora" },
+          { id: "item-defence", blockId: "block-main", kind: "exercise", exerciseId: "exercise-2", title: demoExercises[1].name, description: demoExercises[1].description, mediaUrl: demoExercises[1].mediaUrl, thumbnailUrl: demoExercises[1].thumbnailUrl, durationMinutes: 20, coachingNotes: "Forsvarerne får poeng når de fremtvinger en pasning bakover.", assignedCoachId: "user-sam", position: 1, updatedBy: "user-sam" },
         ],
       },
       {
         id: "block-game", sessionId: "session-friday", title: "Spill", notes: "Bruk hele banen og tell poeng sammenlagt gjennom alle tre periodene.", position: 2, updatedBy: "user-sam",
         items: [
-          { id: "item-game", blockId: "block-game", kind: "custom", exerciseId: null, title: "6 mot 6 med betingelser", description: "Et mål teller dobbelt når det scores innen åtte sekunder etter ballerobring.", mediaUrl: null, thumbnailUrl: null, durationMinutes: 25, coachingNotes: "Tre perioder på fem minutter med raske tilbakemeldinger.", position: 0, updatedBy: "user-sam" },
+          { id: "item-game", blockId: "block-game", kind: "custom", exerciseId: null, title: "6 mot 6 med betingelser", description: "Et mål teller dobbelt når det scores innen åtte sekunder etter ballerobring.", mediaUrl: null, thumbnailUrl: null, durationMinutes: 25, coachingNotes: "Tre perioder på fem minutter med raske tilbakemeldinger.", assignedCoachId: null, position: 0, updatedBy: "user-sam" },
         ],
       },
     ],

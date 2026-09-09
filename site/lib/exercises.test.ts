@@ -229,7 +229,7 @@ describe("library resolution", () => {
   const item = {
     id: "item-1", blockId: "block-1", kind: "exercise" as const, exerciseId: demoExercises[0].id,
     title: "Gammel tittel", description: "Gammel beskrivelse", mediaUrl: null, thumbnailUrl: null,
-    durationMinutes: 25, coachingNotes: "Behold dette", position: 0, updatedBy: "user-gard",
+    durationMinutes: 25, coachingNotes: "Behold dette", assignedCoachId: "user-nora", position: 0, updatedBy: "user-gard",
   };
 
   it("shows the library's display data instead of the stored copy", () => {
@@ -240,7 +240,7 @@ describe("library resolution", () => {
   });
 
   it("keeps the plan's own fields", () => {
-    expect(resolveItemDisplay(item, library)).toMatchObject({ durationMinutes: 25, coachingNotes: "Behold dette", position: 0 });
+    expect(resolveItemDisplay(item, library)).toMatchObject({ durationMinutes: 25, coachingNotes: "Behold dette", assignedCoachId: "user-nora", position: 0 });
   });
 
   it("falls back to the copy for custom items and for archived or deleted exercises", () => {

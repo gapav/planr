@@ -30,12 +30,18 @@ export type ExerciseInput = Pick<Exercise, "name" | "description" | "category" |
  * are copied from the exercise at insert time, but the library is what a card
  * renders: `resolveSessionDisplay` overlays the current exercise, and the stored
  * copy only surfaces for custom items and for exercises since archived or
- * deleted. `durationMinutes` and `coachingNotes` belong to the plan alone.
+ * deleted. `durationMinutes`, `coachingNotes` and `assignedCoachId` belong to
+ * the plan alone.
+ *
+ * `assignedCoachId` is the coach who runs this activity — null when the whole
+ * coaching team does, which is the common case. A database trigger keeps it to
+ * members of the session's own team; it can still name a coach who has since
+ * left, so resolve it against the current roster rather than trusting it.
  */
 export interface SessionItem {
   id: string; blockId: string; kind: SessionItemKind; exerciseId: string | null; title: string;
   description: string; mediaUrl: string | null; thumbnailUrl: string | null; durationMinutes: number;
-  coachingNotes: string; position: number; updatedBy: string;
+  coachingNotes: string; assignedCoachId: string | null; position: number; updatedBy: string;
 }
 export interface SessionBlock { id: string; sessionId: string; title: string; notes: string; position: number; items: SessionItem[]; updatedBy: string; }
 export interface PlannedSession {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoSessions } from "./demo-data";
-import type { PlannedSession } from "./types";
-import { blockDuration, calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, nextPosition, pickTodaySession, relativeDayLabel, sessionDuration, validatePublish } from "./session";
+import type { PlannedSession, Profile } from "./types";
+import { assignedCoach, blockDuration, calendarMonthGroups, coachAssignmentOptions, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, nextPosition, pickTodaySession, relativeDayLabel, sessionDuration, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -183,5 +183,26 @@ describe("nextPosition", () => {
 
   it("does not assume the rows arrive sorted", () => {
     expect(nextPosition([{ position: 5 }, { position: 1 }])).toBe(6);
+  });
+});
+
+describe("coach assignment", () => {
+  const members: Profile[] = [
+    { id: "coach-1", email: "a@example.com", fullName: "Ada Lie", initials: "AL", color: "#f0642e" },
+    { id: "coach-2", email: "b@example.com", fullName: "Bo Ness", initials: "BN", color: "#477b70" },
+  ];
+  it("reads no responsible coach when the whole team runs the activity", () => {
+    expect(assignedCoach({ assignedCoachId: null }, members)).toBeNull();
+    expect(coachAssignmentOptions({ assignedCoachId: null }, members)).toEqual(members);
+  });
+  it("resolves the assigned coach from the current team", () => {
+    expect(assignedCoach({ assignedCoachId: "coach-2" }, members)?.fullName).toBe("Bo Ness");
+    expect(coachAssignmentOptions({ assignedCoachId: "coach-2" }, members)).toEqual(members);
+  });
+  it("keeps a coach who has left the team on the activity they were given", () => {
+    expect(assignedCoach({ assignedCoachId: "coach-9" }, members)).toBeNull();
+    const options = coachAssignmentOptions({ assignedCoachId: "coach-9" }, members);
+    expect(options).toHaveLength(3);
+    expect(options[2]).toMatchObject({ id: "coach-9", fullName: "Trener utenfor laget" });
   });
 });
