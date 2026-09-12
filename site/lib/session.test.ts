@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoSessions } from "./demo-data";
 import type { PlannedSession, Profile } from "./types";
-import { assignedCoach, blockDuration, calendarMonthGroups, coachAssignmentOptions, deriveSessionTab, groupSessionsByMonth, isNearTerm, isSessionStartable, nextPosition, pickTodaySession, relativeDayLabel, sessionDuration, validatePublish } from "./session";
+import { assignedCoach, autoSessionTitle, blockDuration, calendarMonthGroups, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, nextPosition, pickTodaySession, relativeDayLabel, sessionDuration, sessionTimeOptions, splitSessionStart, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -204,5 +204,55 @@ describe("coach assignment", () => {
     const options = coachAssignmentOptions({ assignedCoachId: "coach-9" }, members);
     expect(options).toHaveLength(3);
     expect(options[2]).toMatchObject({ id: "coach-9", fullName: "Trener utenfor laget" });
+  });
+});
+
+describe("session start fields", () => {
+  it("offers every quarter hour of the day", () => {
+    const options = sessionTimeOptions();
+    expect(options).toHaveLength(96);
+    expect(options.slice(0, 5)).toEqual(["00:00", "00:15", "00:30", "00:45", "01:00"]);
+    expect(options.at(-1)).toBe("23:45");
+    expect(options).toContain(DEFAULT_SESSION_TIME);
+  });
+  it("keeps an off-grid time saved elsewhere in its place", () => {
+    const options = sessionTimeOptions("17:20");
+    expect(options).toHaveLength(97);
+    expect(options.slice(options.indexOf("17:15"), options.indexOf("17:15") + 3)).toEqual(["17:15", "17:20", "17:30"]);
+  });
+  it("defaults an undated plan to 16:00", () => {
+    expect(splitSessionStart(null)).toEqual({ date: "", time: DEFAULT_SESSION_TIME });
+    expect(splitSessionStart("not a date")).toEqual({ date: "", time: DEFAULT_SESSION_TIME });
+  });
+  it("round-trips a local date and time through the stored instant", () => {
+    const startsAt = combineSessionStart("2026-09-18", "18:30");
+    expect(startsAt).not.toBeNull();
+    expect(splitSessionStart(startsAt)).toEqual({ date: "2026-09-18", time: "18:30" });
+  });
+  it("falls back to 16:00 when only a date is picked, and stays null without one", () => {
+    expect(splitSessionStart(combineSessionStart("2026-09-18", "")).time).toBe(DEFAULT_SESSION_TIME);
+    expect(combineSessionStart("", "18:30")).toBeNull();
+  });
+});
+
+describe("automatic session titles", () => {
+  it("counts ISO weeks, including the ones spanning new year", () => {
+    expect(isoWeekNumber(new Date("2026-09-18T12:00:00.000Z"), "UTC")).toBe(38);
+    expect(isoWeekNumber(new Date("2026-01-01T12:00:00.000Z"), "UTC")).toBe(1);
+    expect(isoWeekNumber(new Date("2027-01-01T12:00:00.000Z"), "UTC")).toBe(53);
+    expect(isoWeekNumber(new Date("2026-12-31T12:00:00.000Z"), "UTC")).toBe(53);
+  });
+  it("names a plan by its week and weekday", () => {
+    expect(autoSessionTitle("2026-09-18T16:00:00.000Z", "UTC")).toBe("Uke 38 - fredag");
+    expect(autoSessionTitle("2026-09-14T16:00:00.000Z", "UTC")).toBe("Uke 38 - mandag");
+  });
+  it("treats a blank, placeholder or generated title as unnamed", () => {
+    expect(isAutoSessionTitle("")).toBe(true);
+    expect(isAutoSessionTitle(UNTITLED_SESSION_TITLE)).toBe(true);
+    expect(isAutoSessionTitle("Uke 38 - fredag")).toBe(true);
+  });
+  it("leaves a title the coach wrote alone", () => {
+    expect(isAutoSessionTitle("Uke 38 - fredag: avslutningsspill")).toBe(false);
+    expect(isAutoSessionTitle("Keepertrening")).toBe(false);
   });
 });

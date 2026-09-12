@@ -70,6 +70,18 @@ export function magicLinkRedirectUrl(origin: string, next?: string | null): stri
   return `${origin.replace(/\/+$/, "")}/auth/confirm?next=${encodeURIComponent(internalPath(next))}`;
 }
 
+/**
+ * Supabase rejects an OTP request for an unknown address when account creation
+ * is disabled. That is the desired access boundary, but the public sign-in
+ * page must treat it like a successful request so it does not disclose which
+ * email addresses have Grep accounts. Older GoTrue releases returned only the
+ * message; current releases also attach the stable `user_not_found` code.
+ */
+export function isUnknownMagicLinkAddressError(error: { code?: string; message: string }): boolean {
+  const message = error.message.trim().toLowerCase();
+  return error.code === "user_not_found" || message === "user not found" || message === "signups not allowed for otp";
+}
+
 /** The link an admin sends to a coach so they can join a team once signed in. */
 export function invitationUrl(origin: string, token: string): string {
   return `${origin.replace(/\/+$/, "")}/invite/${token}`;

@@ -13,12 +13,6 @@ export function formatSessionDate(startsAt: string | null) {
   if (!startsAt) return "Dato ikke satt";
   return new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(startsAt));
 }
-export function toDateTimeLocal(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value); const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
-}
-
 // The session list shows the date as a calendar chip, so the pieces are
 // formatted separately rather than as one sentence. `timeZone` is only passed
 // by tests; the app always renders in the viewer's zone.

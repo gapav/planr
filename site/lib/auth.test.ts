@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, passwordResetRedirectUrl, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
+import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, passwordResetRedirectUrl, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
 import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
@@ -56,6 +56,20 @@ describe("magicLinkRedirectUrl", () => {
 
   it("does not carry an external redirect into the email", () => {
     expect(magicLinkRedirectUrl("https://grep.team/", "https://evil.example/steal")).toBe("https://grep.team/auth/confirm?next=%2Fsessions");
+  });
+});
+
+describe("isUnknownMagicLinkAddressError", () => {
+  it("recognizes the current Supabase error code", () => {
+    expect(isUnknownMagicLinkAddressError({ code: "user_not_found", message: "A localized or changed message" })).toBe(true);
+  });
+
+  it.each(["User not found", "Signups not allowed for otp"])("recognizes the legacy message %s", (message) => {
+    expect(isUnknownMagicLinkAddressError({ message })).toBe(true);
+  });
+
+  it("does not hide a real delivery error", () => {
+    expect(isUnknownMagicLinkAddressError({ code: "over_email_send_rate_limit", message: "Email rate limit exceeded" })).toBe(false);
   });
 });
 

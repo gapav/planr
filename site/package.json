@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "db:bootstrap": "node scripts/build-bootstrap.mts",
+    "supabase:config:diff:dev": "supabase config diff --project-ref hgjboxsgemvgrlyemudt",
+    "supabase:config:push:dev": "supabase config push --project-ref hgjboxsgemvgrlyemudt",
+    "supabase:config:diff:prod": "supabase config diff --project-ref fbbqdutatetfkybvlozx",
     "test": "vitest run",
     "test:watch": "vitest"
   },

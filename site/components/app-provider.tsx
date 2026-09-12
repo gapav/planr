@@ -3,13 +3,13 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { mapAdminAccount, mapAdminTeam, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
-import { claimableInvitations, invitationUrl, isIdentityChange, keepSelectedTeamId, magicLinkRedirectUrl, passwordResetRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
+import { claimableInvitations, invitationUrl, isIdentityChange, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, passwordResetRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
 import { demoExercises, demoFixtures, demoMonthFocus, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { isInvitationAlreadyUsed, norwegianServerMessage } from "@/lib/server-messages";
 import { minimizePlayerName } from "@/lib/roster";
-import { nextPosition } from "@/lib/session";
+import { nextPosition, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
@@ -481,7 +481,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         emailRedirectTo: magicLinkRedirectUrl(window.location.origin, next),
       },
     });
-    if (error) throw new Error(norwegianServerMessage(error.message, "Innloggingslenken kunne ikke sendes. Vent litt og prøv igjen."));
+    if (error && !isUnknownMagicLinkAddressError(error)) throw new Error(norwegianServerMessage(error.message, "Innloggingslenken kunne ikke sendes. Vent litt og prøv igjen."));
   }, [supabase]);
 
   // Supabase answers an unknown address with success, so nothing here reveals
@@ -1058,7 +1058,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const createSession = useCallback(async () => {
     if (!currentTeam || !user) throw new Error("Velg et lag først"); const id = makeUuid(); const now = new Date().toISOString();
-    const session: PlannedSession = { id, teamId: currentTeam.id, title: "Økt uten tittel", startsAt: null, venue: "", plannedDurationMinutes: 90, objective: "", notes: "", status: "draft", blocks: [], createdBy: user.id, updatedBy: user.id, createdAt: now, updatedAt: now };
+    const session: PlannedSession = { id, teamId: currentTeam.id, title: UNTITLED_SESSION_TITLE, startsAt: null, venue: "", plannedDurationMinutes: 90, objective: "", notes: "", status: "draft", blocks: [], createdBy: user.id, updatedBy: user.id, createdAt: now, updatedAt: now };
     setSessions((current) => [session, ...current]);
     await persist(supabase ? () => supabase.from("sessions").insert({ id, team_id: currentTeam.id, title: session.title, planned_duration_minutes: 90, created_by: user.id, updated_by: user.id }) : null);
     return id;

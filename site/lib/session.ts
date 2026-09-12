@@ -161,3 +161,73 @@ export function calendarMonthGroups(sessions: PlannedSession[], now = new Date()
 export function nextPosition(rows: Array<{ position: number }>) {
   return rows.reduce((highest, row) => Math.max(highest, row.position + 1), 0);
 }
+
+// Scheduling a training session is a quarter-hour decision: the free minute
+// field of `datetime-local` made the coach type "00" on every plan, so the
+// builder pairs a date input with a select built from this grid instead.
+export const SESSION_TIME_STEP_MINUTES = 15;
+export const DEFAULT_SESSION_TIME = "16:00";
+/** The title `createSession` gives a plan, and the one the builder replaces. */
+export const UNTITLED_SESSION_TITLE = "Økt uten tittel";
+
+function pad(value: number) { return String(value).padStart(2, "0"); }
+
+/**
+ * Every quarter hour of the day. A session saved off the grid — by an older
+ * build, or by another client — keeps its own time as an option so opening the
+ * builder never silently rounds it.
+ */
+export function sessionTimeOptions(current?: string | null) {
+  const options: string[] = [];
+  for (let minutes = 0; minutes < 24 * 60; minutes += SESSION_TIME_STEP_MINUTES) options.push(`${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`);
+  if (current && !options.includes(current)) options.push(current);
+  return options.sort();
+}
+
+/** `startsAt` as the two local-time fields the builder edits. */
+export function splitSessionStart(startsAt: string | null) {
+  const date = startsAt ? new Date(startsAt) : null;
+  if (!date || Number.isNaN(date.getTime())) return { date: "", time: DEFAULT_SESSION_TIME };
+  return { date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`, time: `${pad(date.getHours())}:${pad(date.getMinutes())}` };
+}
+
+/** The inverse: local `YYYY-MM-DD` + `HH:MM` back to the stored UTC instant. */
+export function combineSessionStart(date: string, time: string) {
+  if (!date) return null;
+  const at = new Date(`${date}T${time || DEFAULT_SESSION_TIME}`);
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
+}
+
+// `timeZone` is only passed by tests; the app always reads the viewer's zone.
+function zonedYearMonthDay(date: Date, timeZone?: string) {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", ...(timeZone ? { timeZone } : {}) }).format(date).split("-").map(Number);
+  return { year, month, day };
+}
+
+/** ISO-8601 week number — the week a Norwegian club's calendar is spoken in. */
+export function isoWeekNumber(date: Date, timeZone?: string) {
+  const { year, month, day } = zonedYearMonthDay(date, timeZone);
+  // The week belongs to the year holding its Thursday, so shift there first.
+  const thursday = new Date(Date.UTC(year, month - 1, day));
+  thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7));
+  return Math.ceil(((thursday.getTime() - Date.UTC(thursday.getUTCFullYear(), 0, 1)) / DAY_MS + 1) / 7);
+}
+
+/** `Uke 38 - fredag`: the name a coach would have typed anyway. */
+export function autoSessionTitle(startsAt: string, timeZone?: string) {
+  const date = new Date(startsAt);
+  if (Number.isNaN(date.getTime())) return UNTITLED_SESSION_TITLE;
+  const weekday = new Intl.DateTimeFormat("nb-NO", { weekday: "long", ...(timeZone ? { timeZone } : {}) }).format(date);
+  return `Uke ${isoWeekNumber(date, timeZone)} - ${weekday}`;
+}
+
+const AUTO_TITLE = /^Uke \d{1,2} - \p{L}+$/u;
+/**
+ * Whether the plan is still carrying a name nobody chose — blank, the placeholder
+ * `createSession` writes, or an earlier `autoSessionTitle`. Moving the date
+ * renames those and leaves anything the coach typed alone.
+ */
+export function isAutoSessionTitle(title: string) {
+  const trimmed = title.trim();
+  return !trimmed || trimmed === UNTITLED_SESSION_TITLE || AUTO_TITLE.test(trimmed);
+}

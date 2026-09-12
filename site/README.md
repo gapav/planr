@@ -20,10 +20,10 @@ Preview data is intentionally non-persistent. The production source of truth is 
 ## Local development
 
 1. Copy `.env.example` to `.env.local`.
-2. Create a Supabase project and paste its URL and publishable key into `.env.local`.
-3. Apply every file in `supabase/migrations` in filename order using the Supabase CLI or dashboard.
-4. In Supabase Auth URL configuration, set the site URL and add `http://localhost:3000/auth/confirm` to the redirect allow-list.
-5. Set the **Magic Link** email template to the contents of `supabase/templates/magic-link.html`. The confirmation page waits for a button click before consuming the token, so automated email scanners cannot use the link before the coach does.
+2. Use the `planr-dev` URL and API keys in `.env.local`; production credentials belong only in Vercel.
+3. Install Supabase CLI 2.117 or newer and run `supabase login`.
+4. Review hosted configuration drift with `npm run supabase:config:diff:dev`, then apply reviewed configuration with `npm run supabase:config:push:dev`. The project references and localhost URL override live in `supabase/config.toml`.
+5. Apply unapplied files from `supabase/migrations` to `planr-dev` in filename order. Database migrations remain an explicit, separately reviewed operation.
 6. Start the app with `npm run dev`.
 
 On `localhost`, the sign-in page also exposes **Bruk passord på localhost**.
@@ -32,6 +32,18 @@ the redirect allow-list is not available. The option is never shown on a
 deployed hostname. Magic-link login still requires
 `http://localhost:3000/auth/confirm` (or `http://localhost:3000/**`) in the
 Supabase redirect allow-list.
+
+The free-tier `planr-dev` project currently uses Supabase's default email
+provider, which rejects hosted custom-template updates. Its URL and Auth policy
+settings are managed by `config.toml`, but its default magic-link template is
+left untouched. Local password sign-in remains available for existing test
+users. To exercise the app's scanner-safe token-hash email flow in dev,
+configure custom SMTP there first, then add the `magic_link` template block to
+`remotes.development` and push the reviewed diff again.
+
+`npm run supabase:config:diff:prod` is intentionally read-only. There is no
+production push shortcut; production configuration changes should always be
+reviewed and invoked explicitly.
 
 ## Production domain
 
