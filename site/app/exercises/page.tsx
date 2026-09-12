@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
  * sits behind its own boundary and the shell above still ships as static HTML.
  */
 export default function ExercisesPage() {
-  return <AppShell publicPage>
+  return <AppShell>
     <Suspense fallback={<div className="mx-auto min-h-[70vh] max-w-[1440px] px-4 pt-9 sm:px-7 sm:pt-14" />}>
       <ExerciseLibrary />
     </Suspense>
@@ -59,7 +59,7 @@ function ExerciseLibrary() {
   function resetFilters() { setFilters(emptyExerciseFilterState()); }
 
   return <div className="mx-auto max-w-[1440px] px-4 pb-16 pt-9 sm:px-7 sm:pt-14">
-    <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><h1 className="max-w-3xl text-4xl font-black tracking-[-.055em] sm:text-6xl">Finn øvelser.<br /><span className="text-[var(--orange)]">Lag bedre økter.</span></h1><p className="mt-5 max-w-2xl text-base leading-7 text-[var(--ink-soft)] sm:text-lg"> Søk og finn de riktige øvelsene til lagets neste økt.</p></div><div className="flex shrink-0 items-center gap-2">{user ? <Button size="lg" onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={19} />Legg til øvelse</Button> : <a href="/sign-in?next=/exercises" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[var(--orange)] px-5 font-bold text-white">Logg inn for å bidra</a>}<HelpTip topic="exercises-library" /></div></div>
+    <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><h1 className="max-w-3xl text-4xl font-black tracking-[-.055em] sm:text-6xl">Finn øvelser.<br /><span className="text-[var(--orange)]">Lag bedre økter.</span></h1><p className="mt-5 max-w-2xl text-base leading-7 text-[var(--ink-soft)] sm:text-lg"> Søk og finn de riktige øvelsene til lagets neste økt.</p></div><div className="flex shrink-0 items-center gap-2"><Button size="lg" onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={19} />Legg til øvelse</Button><HelpTip topic="exercises-library" /></div></div>
 
     <div className="mt-10 grid gap-4 border-y border-[var(--line)] py-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -13,6 +13,20 @@
 /** The link types `app/auth/confirm` knows how to verify. */
 export type AuthLinkType = "invite" | "magiclink" | "recovery";
 
+/**
+ * The origin for an administrator-issued auth link.
+ *
+ * A local request must return to the local app even when the environment was
+ * copied from production. Non-local requests keep using the configured public
+ * origin so proxy host headers cannot choose where a live credential is sent.
+ */
+export function authLinkSiteUrl(configuredSiteUrl: string | undefined, requestUrl: string): string {
+  const requestOrigin = new URL(requestUrl).origin;
+  const hostname = new URL(requestOrigin).hostname;
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]") return requestOrigin;
+  return configuredSiteUrl || requestOrigin;
+}
+
 export function confirmLinkUrl(siteUrl: string, tokenHash: string, type: AuthLinkType, next?: string): string {
   const destination = next ? `&next=${encodeURIComponent(next)}` : "";
   return `${siteUrl.replace(/\/+$/, "")}/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=${type}${destination}`;

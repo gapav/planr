@@ -26,6 +26,13 @@ Preview data is intentionally non-persistent. The production source of truth is 
 5. Set the **Magic Link** email template to the contents of `supabase/templates/magic-link.html`. The confirmation page waits for a button click before consuming the token, so automated email scanners cannot use the link before the coach does.
 6. Start the app with `npm run dev`.
 
+On `localhost`, the sign-in page also exposes **Bruk passord på localhost**.
+It signs an existing Supabase user in directly and is useful when local email or
+the redirect allow-list is not available. The option is never shown on a
+deployed hostname. Magic-link login still requires
+`http://localhost:3000/auth/confirm` (or `http://localhost:3000/**`) in the
+Supabase redirect allow-list.
+
 ## Production domain
 
 The canonical production origin is `https://grep.team`.

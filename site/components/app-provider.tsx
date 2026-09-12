@@ -285,7 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentTeamId, setCurrentTeamId] = useState(demoTeams[0].id);
   const [exercises, setExercises] = useState<Exercise[]>(() => isSupabaseConfigured ? [] : structuredClone(demoExercises));
   // Private to the signed-in coach, so this stays empty until `loadPrivateData`
-  // fills it — the library itself is public and loads for everyone.
+  // fills it.
   const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<string[]>([]);
   const [sessions, setSessions] = useState<PlannedSession[]>(() => isSupabaseConfigured ? [] : structuredClone(demoSessions));
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
@@ -306,7 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const currentTeam = teams.find((team) => team.id === currentTeamId) ?? teams[0] ?? null;
   const selectTeam = useCallback((id: string) => { setCurrentTeamId(id); rememberSelectedTeamId(id); }, []);
 
-  const loadPublicExercises = useCallback(async () => {
+  const loadExercises = useCallback(async () => {
     if (!supabase) return;
     const { data, error } = await supabase.from("exercises").select("*, profiles:created_by(full_name)").is("archived_at", null).order("created_at", { ascending: false });
     if (!error && data) setExercises((data as unknown as DbExercise[]).map(mapExercise));
@@ -395,7 +395,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastWorkspaceLoad = useRef<WorkspaceLoad | null>(null);
   const settleWorkspace = useCallback((authUser: User | null) => {
     setAuthLoading(false);
-    if (!authUser) { lastWorkspaceLoad.current = null; setWorkspaceLoaded(true); return; }
+    if (!authUser) { lastWorkspaceLoad.current = null; setExercises([]); setWorkspaceLoaded(true); return; }
+    void loadExercises();
     if (!shouldLoadWorkspace(lastWorkspaceLoad.current, authUser.id, Date.now())) { setWorkspaceLoaded(true); return; }
     // Claimed before the load rather than after, so the second of two events
     // arriving while the first is still in flight is skipped too. A load that
@@ -406,11 +407,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void loadPrivateData(authUser)
       .catch(() => { lastWorkspaceLoad.current = null; })
       .finally(() => setWorkspaceLoaded(true));
-  }, [loadPrivateData]);
+  }, [loadExercises, loadPrivateData]);
 
   useEffect(() => {
     if (!supabase) return;
-    const loadTimer = window.setTimeout(() => void loadPublicExercises(), 0);
     void supabase.auth.getUser().then(({ data }) => {
       setUser((current) => seedProfile(current, data.user ? profileFromUser(data.user) : null));
       settleWorkspace(data.user ?? null);
@@ -420,8 +420,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUser((current) => seedProfile(current, session?.user ? profileFromUser(session.user) : null));
       settleWorkspace(session?.user ?? null);
     });
-    return () => { window.clearTimeout(loadTimer); listener.subscription.unsubscribe(); };
-  }, [loadPublicExercises, settleWorkspace, supabase]);
+    return () => { listener.subscription.unsubscribe(); };
+  }, [settleWorkspace, supabase]);
 
   useEffect(() => {
     const online = () => setSaveState("saved");

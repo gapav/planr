@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { confirmLinkUrl, invitationEmail, loginEmail, passwordResetEmail } from "./auth-email";
+import { authLinkSiteUrl, confirmLinkUrl, invitationEmail, loginEmail, passwordResetEmail } from "./auth-email";
+
+describe("authLinkSiteUrl", () => {
+  it("returns administrator-issued links to localhost even with a production site URL configured", () => {
+    expect(authLinkSiteUrl("https://grep.team", "http://localhost:3000/api/admin/auth-link")).toBe("http://localhost:3000");
+  });
+
+  it("uses the configured site URL outside localhost", () => {
+    expect(authLinkSiteUrl("https://grep.team", "https://preview.example/api/admin/auth-link")).toBe("https://grep.team");
+  });
+});
 
 describe("confirmLinkUrl", () => {
   it("points at the page that can verify a token hash, not at /auth/v1/verify", () => {

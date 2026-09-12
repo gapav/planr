@@ -21,12 +21,11 @@ const nav = [
 // to coach, so they are not members of them.
 const adminNav = { href: "/admin", label: "Administrasjon", icon: ShieldCheck };
 
-export function AppShell({ children, publicPage = false, immersive = false }: { children: React.ReactNode; publicPage?: boolean; immersive?: boolean }) {
+export function AppShell({ children, immersive = false }: { children: React.ReactNode; immersive?: boolean }) {
   const { user, authLoading, isDemoMode, teams, currentTeam, setCurrentTeamId, sidebarCollapsed, setSidebarCollapsed, signOut, notice, clearNotice } = useGrep();
   const pathname = usePathname(); const router = useRouter(); const [mobileOpen, setMobileOpen] = useState(false);
   const isGlobalAdmin = user?.isGlobalAdmin === true;
   const navItems = isGlobalAdmin ? [...nav, adminNav] : nav;
-  const protectedPage = !publicPage;
   function toggleDesktopSidebar() {
     setSidebarCollapsed(!sidebarCollapsed);
   }
@@ -41,10 +40,8 @@ export function AppShell({ children, publicPage = false, immersive = false }: { 
     if (pathname !== "/sessions") router.push("/sessions");
   }
 
-  if (authLoading && protectedPage) return <div className="grid min-h-screen place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--orange)]" aria-label="Laster" /></div>;
-  if (!user && protectedPage) return <div className="grid min-h-screen place-items-center p-6"><div className="w-full max-w-md rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow)]"><Logo /><h1 className="mt-8 text-3xl font-black tracking-[-.04em]">Lagets øktplaner finner du her</h1><p className="mt-3 leading-7 text-[var(--ink-soft)]">Logg inn for å se lagene dine, planlegge økter og samarbeide med trenerteamet.</p><Link href={`/sign-in?next=${encodeURIComponent(pathname)}`} className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl bg-[var(--orange)] px-6 font-bold text-white">Logg inn</Link><Link href="/exercises" className="mt-4 block text-sm font-semibold underline underline-offset-4">Se i øvelsesbanken først</Link></div></div>;
-
-  if (publicPage && !user) return <div className="min-h-screen"><header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--paper)]/92 backdrop-blur-xl"><div className="mx-auto flex h-[74px] max-w-[1440px] items-center justify-between px-4 sm:px-7"><Logo /><nav className="flex items-center gap-2"><Link href="/sign-in" className="inline-flex min-h-10 items-center rounded-xl bg-[var(--ink)] px-4 text-sm font-bold text-white">Logg inn</Link></nav></div></header><main>{children}</main>{notice && <Notice message={notice} onClose={clearNotice} />}</div>;
+  if (authLoading) return <div className="grid min-h-screen place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--orange)]" aria-label="Laster" /></div>;
+  if (!user) return <div className="grid min-h-screen place-items-center p-6"><div className="w-full max-w-md rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow)]"><Logo /><h1 className="mt-8 text-3xl font-black tracking-[-.04em]">Lagets øktplaner finner du her</h1><p className="mt-3 leading-7 text-[var(--ink-soft)]">Logg inn for å se lagene dine, planlegge økter og samarbeide med trenerteamet.</p><Link href={`/sign-in?next=${encodeURIComponent(pathname)}`} className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl bg-[var(--orange)] px-6 font-bold text-white">Logg inn</Link></div></div>;
 
   return <div className={cn("min-h-screen lg:grid lg:transition-[grid-template-columns] lg:duration-200", sidebarCollapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[252px_minmax(0,1fr)]")}>
     <aside id="app-sidebar" className={cn("fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-white/10 bg-[var(--ink)] p-4 text-white transition-transform lg:sticky lg:top-0 lg:h-screen lg:w-auto lg:translate-x-0", mobileOpen ? "translate-x-0" : "-translate-x-full", sidebarCollapsed && "lg:px-3")}>

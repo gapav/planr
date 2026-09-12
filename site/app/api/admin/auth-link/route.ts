@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { type AuthLinkType, confirmLinkUrl, invitationEmail, loginEmail } from "@/lib/auth-email";
+import { authLinkSiteUrl, type AuthLinkType, confirmLinkUrl, invitationEmail, loginEmail } from "@/lib/auth-email";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/config";
 
 /**
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
   }
 
   const next = invitationToken ? `/invite/${invitationToken}` : "/sessions";
-  const link = confirmLinkUrl(siteUrl ?? new URL(request.url).origin, generated.data.properties.hashed_token, type, next);
+  const link = confirmLinkUrl(authLinkSiteUrl(siteUrl, request.url), generated.data.properties.hashed_token, type, next);
 
   // Sending is optional. Minting the link is this route's job; delivering it is
   // a convenience on top, and a project with no verified sending domain — or no

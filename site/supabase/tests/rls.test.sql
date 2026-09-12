@@ -72,7 +72,7 @@ select throws_ok($$ insert into public.exercises (name, description, age_groups,
 select lives_ok($$ insert into public.exercises (id, name, description, age_groups, media_url, media_kind, created_by) values ('20000000-0000-0000-0000-000000000002', 'Multi-age exercise', 'This exercise suits two age bands.', array['10-12', '13-15'], 'https://example.com/exercise.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, 'an exercise can list several supported age groups');
 
 set local role anon;
-select is((select count(*)::integer from public.exercises where id = '20000000-0000-0000-0000-000000000001'), 1, 'anonymous visitors can read active exercises');
+select throws_ok($$ select count(*) from public.exercises $$, '42501', null, 'anonymous visitors cannot read exercises');
 select throws_ok($$ insert into public.exercises(name, description, media_url, media_kind, created_by) values ('Blocked', 'Anonymous writes are blocked.', 'https://example.com/x.jpg', 'image', '10000000-0000-0000-0000-000000000003') $$, '42501', null, 'anonymous visitors cannot add exercises');
 select throws_ok($$ select count(*) from public.exercise_favorites $$, '42501', null, 'anonymous visitors cannot read favourites');
 select throws_ok($$ insert into public.exercise_favorites (profile_id, exercise_id) values ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot heart an exercise');

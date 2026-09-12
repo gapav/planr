@@ -44,11 +44,11 @@ describe("AppShell navigation", () => {
     expect(mocks.push).toHaveBeenCalledWith("/sessions");
   });
 
-  it("keeps the app sidebar on the public exercise route for signed-in coaches", () => {
+  it("keeps the app sidebar on the exercise route for signed-in coaches", () => {
     const state = grepState(demoUser);
     mocks.useGrep.mockReturnValue(state);
 
-    render(<AppShell publicPage><div>Exercise library</div></AppShell>);
+    render(<AppShell><div>Exercise library</div></AppShell>);
 
     expect(screen.getByRole("complementary")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Øvelsesbank" })).toBeInTheDocument();
@@ -56,20 +56,20 @@ describe("AppShell navigation", () => {
     expect(state.setSidebarCollapsed).toHaveBeenCalledWith(true);
   });
 
-  it("uses the public header for signed-out exercise visitors", () => {
+  it("hides the exercise library behind the sign-in gate", () => {
     mocks.useGrep.mockReturnValue(grepState(null));
 
-    render(<AppShell publicPage><div>Exercise library</div></AppShell>);
+    render(<AppShell><div>Exercise library</div></AppShell>);
 
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveTextContent("Exercise library");
-    expect(screen.getByRole("link", { name: "Logg inn" })).toBeInTheDocument();
+    expect(screen.queryByText("Exercise library")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Logg inn" })).toHaveAttribute("href", "/sign-in?next=%2Fexercises");
   });
 
   it("ignores the retired temporary-password flag for passwordless accounts", () => {
     mocks.useGrep.mockReturnValue(grepState({ ...demoUser, mustSetPassword: true }));
 
-    render(<AppShell publicPage><div>Exercise library</div></AppShell>);
+    render(<AppShell><div>Exercise library</div></AppShell>);
 
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(screen.getByRole("main")).toHaveTextContent("Exercise library");
@@ -78,7 +78,7 @@ describe("AppShell navigation", () => {
   it("renders an ordinary passwordless coach session", () => {
     mocks.useGrep.mockReturnValue(grepState({ ...demoUser, mustSetPassword: false }));
 
-    render(<AppShell publicPage><div>Exercise library</div></AppShell>);
+    render(<AppShell><div>Exercise library</div></AppShell>);
 
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(screen.getByRole("main")).toHaveTextContent("Exercise library");

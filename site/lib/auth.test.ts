@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, passwordResetRedirectUrl, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
+import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, passwordResetRedirectUrl, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
 import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
@@ -56,6 +56,16 @@ describe("magicLinkRedirectUrl", () => {
 
   it("does not carry an external redirect into the email", () => {
     expect(magicLinkRedirectUrl("https://grep.team/", "https://evil.example/steal")).toBe("https://grep.team/auth/confirm?next=%2Fsessions");
+  });
+});
+
+describe("isLocalhost", () => {
+  it.each(["localhost", "127.0.0.1", "[::1]"])("recognizes %s as local", (hostname) => {
+    expect(isLocalhost(hostname)).toBe(true);
+  });
+
+  it("does not enable local-only login on the production host", () => {
+    expect(isLocalhost("grep.team")).toBe(false);
   });
 });
 

@@ -60,6 +60,11 @@ export function internalPath(value: string | null | undefined, fallback = "/sess
   return value && value.startsWith("/") && !value.startsWith("//") ? value : fallback;
 }
 
+/** Whether this browser is serving the local development copy of Grep. */
+export function isLocalhost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
 /** Where a Supabase magic-link email returns before creating the browser session. */
 export function magicLinkRedirectUrl(origin: string, next?: string | null): string {
   return `${origin.replace(/\/+$/, "")}/auth/confirm?next=${encodeURIComponent(internalPath(next))}`;
