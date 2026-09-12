@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(121);
+select plan(132);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -107,11 +107,12 @@ select lives_ok($$ update public.teams set logo_url = 'https://cdn.example.com/s
 select throws_ok($$ update public.teams set logo_url = 'http://cdn.example.com/logo.png' $$, '23514', null, 'a club logo must be an HTTPS URL');
 select lives_ok($$ update public.teams set logo_url = null $$, 'a team admin can clear the club logo');
 select lives_ok($$ delete from storage.objects where bucket_id = 'team-logos' $$, 'a team admin can delete their club logo file');
--- 202609020021 took team administration away from the team admin entirely: an
--- invitation only reserves a seat, and only the platform owner can create the
--- account behind it. The membership policies now refuse by filtering the row
--- out, so each attempt has to be checked by its effect rather than by a raise.
-select throws_ok(format($$ insert into public.team_invitations (team_id, email, role, invited_by, expires_at) values ('%s', 'recruit@example.com', 'coach', '10000000-0000-0000-0000-000000000001', now() + interval '7 days') $$, current_setting('plannr.test_team')), '42501', null, 'a team admin cannot invite a coach to their own team');
+-- 202609020027 lets a team administrator reserve coach seats, but not grant
+-- another administrator seat. Membership management remains global-admin only.
+select lives_ok(format($$ insert into public.team_invitations (team_id, email, role, invited_by, expires_at) values ('%s', 'recruit@example.com', 'coach', '10000000-0000-0000-0000-000000000001', now() + interval '7 days') $$, current_setting('plannr.test_team')), 'a team admin can invite a coach to their own team');
+select throws_ok(format($$ insert into public.team_invitations (team_id, email, role, invited_by, expires_at) values ('%s', 'other-admin@example.com', 'admin', '10000000-0000-0000-0000-000000000001', now() + interval '7 days') $$, current_setting('plannr.test_team')), '42501', null, 'a team admin cannot grant another administrator seat');
+select lives_ok($$ delete from public.team_invitations where email = 'recruit@example.com' $$, 'a team admin can revoke a pending invitation');
+select is((select count(*)::integer from public.team_invitations where email = 'recruit@example.com'), 0, 'revoking removes the pending invitation');
 select lives_ok($$ update public.team_memberships set role = 'coach' where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'a team role change by a team admin is filtered away rather than raised');
 select is((select role::text from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001'), 'admin', 'a team admin cannot change a team role');
 select lives_ok($$ delete from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'a membership delete by a team admin is filtered away rather than raised');
@@ -163,7 +164,7 @@ select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-00
 -- passes for these statements, so a column grant is the only thing stopping a
 -- coach from promoting themselves.
 select lives_ok($$ update public.profiles set full_name = 'Renamed Admin' where id = '10000000-0000-0000-0000-000000000001' $$, 'a coach can rename themselves');
-select lives_ok($$ update public.profiles set must_set_password = false where id = '10000000-0000-0000-0000-000000000001' $$, 'a coach can clear their own temporary-password flag');
+select throws_ok($$ update public.profiles set must_set_password = false where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'the retired password flag is not writable from a browser session');
 select throws_ok($$ update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'a coach cannot make themselves a global admin');
 reset role;
 
@@ -180,12 +181,11 @@ select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-0000000
 select is((select count(*)::integer from public.team_invitations), 0, 'an unrelated coach cannot see an invitation addressed to someone else');
 reset role;
 
--- 202609020021 also dropped the team-admin half of `invitations_read`; the
--- pending list it fed is gone from /team, and the console reads its own through
--- `admin_list_teams()`.
+-- A team administrator can list the pending invitations for their own team so
+-- /team can resend or revoke them.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
-select is((select count(*)::integer from public.team_invitations), 0, 'a team admin cannot see the invitations of their own team');
+select is((select count(*)::integer from public.team_invitations where email = 'coach@example.com'), 1, 'a team admin can see a pending invitation for their own team');
 reset role;
 
 set local role authenticated;
@@ -300,6 +300,37 @@ select lives_ok($$ update public.session_items set coaching_notes = 'Tre runder.
 select is((select assigned_coach_id::text from public.session_items where id = '32000000-0000-0000-0000-000000000001'), '10000000-0000-0000-0000-000000000002', 'the assignment survives an edit of the rest of the activity');
 select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000003' $$, 'the assignment test session is removed with its blocks and activities');
 reset role;
+
+-- 202609020026 moved the confirmation and shared-library rules into the schema.
+-- 202609020027 retires the forced-password flag because every account now uses
+-- passwordless links.
+insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
+values ('10000000-0000-0000-0000-000000000005', 'pending@example.com', 'first-hash', null, '{"full_name":"Unconfirmed Coach"}', 'authenticated', 'authenticated');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
+select lives_ok(format($$ insert into public.team_invitations (team_id, email, role, invited_by) values ('%s', 'pending@example.com', 'coach', '10000000-0000-0000-0000-000000000004') $$, current_setting('plannr.test_team')), 'the platform owner reserves a seat for a coach who has not signed in yet');
+reset role;
+
+select set_config('plannr.pending_token', (select token::text from public.team_invitations where email = 'pending@example.com'), true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000005","email":"pending@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.team_invitations), 0, 'an unconfirmed address cannot read the invitation token addressed to it');
+select throws_ok(format($$ select public.accept_team_invitation('%s') $$, current_setting('plannr.pending_token')), 'P0001', 'Bekreft e-postadressen din først', 'an unconfirmed address cannot claim the seat it was offered');
+select throws_ok($$ insert into public.exercises (name, description, media_url, media_kind, created_by) values ('Spam', 'Written by an account with no team.', 'https://example.com/x.jpg', 'image', '10000000-0000-0000-0000-000000000005') $$, '42501', null, 'an account with no team cannot write to the shared exercise library');
+reset role;
+
+update auth.users set email_confirmed_at = now() where id = '10000000-0000-0000-0000-000000000005';
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000005","email":"pending@example.com","role":"authenticated"}', true);
+select lives_ok(format($$ select public.accept_team_invitation('%s') $$, current_setting('plannr.pending_token')), 'the same coach claims the seat once the address is confirmed');
+select lives_ok($$ insert into public.exercises (name, description, media_url, media_kind, created_by) values ('Coached', 'Written by a coach on a team.', 'https://example.com/x.jpg', 'image', '10000000-0000-0000-0000-000000000005') $$, 'a coach on a team can write to the shared exercise library');
+select throws_ok($$ update public.profiles set must_set_password = true where id = '10000000-0000-0000-0000-000000000005' $$, '42501', null, 'a coach cannot re-enable the retired password flag');
+reset role;
+
+select ok((select not must_set_password from public.profiles where id = '10000000-0000-0000-0000-000000000005'), 'a passwordless account never owes a password');
 
 select * from finish();
 rollback;

@@ -3,7 +3,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { mapAdminTeam, shortTeamName, sortAdminTeams, type AdminTeamRow } from "@/lib/admin";
-import { claimableInvitations, invitationUrl, isIdentityChange, keepSelectedTeamId, seedProfile } from "@/lib/auth";
+import { claimableInvitations, invitationUrl, isIdentityChange, keepSelectedTeamId, magicLinkRedirectUrl, passwordResetRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
 import { demoExercises, demoFixtures, demoMonthFocus, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
@@ -93,7 +93,9 @@ interface GrepContextValue {
   setCurrentTeamId(id: string): void;
   clearNotice(): void;
   signIn(email: string, password: string): Promise<void>;
+  requestMagicLink(email: string, next?: string): Promise<void>;
   setPassword(password: string): Promise<void>;
+  requestPasswordReset(email: string): Promise<void>;
   signOut(): Promise<void>;
   addExercise(input: ExerciseInput): Promise<void>;
   updateExercise(id: string, input: ExerciseInput): Promise<void>;
@@ -111,7 +113,9 @@ interface GrepContextValue {
   adminTeamsLoaded: boolean;
   renameTeam(teamId: string, name: string): Promise<void>;
   deleteTeam(teamId: string): Promise<void>;
-  adminInviteMember(teamId: string, email: string, role: TeamRole): Promise<string>;
+  adminInviteMember(teamId: string, email: string, role: TeamRole): Promise<InviteResult>;
+  adminResendInvitation(teamId: string, invitationId: string): Promise<InviteResult>;
+  adminSendLoginLink(email: string): Promise<LoginResult>;
   adminRevokeInvitation(teamId: string, invitationId: string): Promise<void>;
   adminSetMemberRole(teamId: string, profileId: string, role: TeamRole): Promise<void>;
   adminRemoveMember(teamId: string, profileId: string): Promise<void>;
@@ -234,6 +238,25 @@ function mapPlayer(row: DbPlayer): TeamPlayer {
   return { id: row.id, teamId: row.team_id, fullName: row.full_name, jerseyNumber: row.jersey_number, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
+/**
+ * What came of inviting a coach.
+ *
+ * The seat and the account are two separate writes — the `team_invitations`
+ * row goes through RLS from here, the account is created by the one privileged
+ * route — so the email failing does not undo the seat. The console reports both
+ * halves rather than collapsing them into one success or one failure.
+ *
+ * `loginLink` is what the undelivered email would have contained, and is set
+ * only when the send failed. It matters because `inviteUrl` — the
+ * `/invite/<token>` link — is useless to the coach it was just created for:
+ * that page asks them to sign in, and an account made by `generateLink` has no
+ * password yet. Handing over `loginLink` instead is the whole fallback.
+ */
+export interface InviteResult { inviteUrl: string; loginLink: string | null; emailed: boolean; emailError: string | null }
+
+/** The same two halves as {@link InviteResult}, for an account that already exists. */
+export interface LoginResult { link: string | null; emailed: boolean; emailError: string | null }
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<Profile | null>(isSupabaseConfigured ? null : demoUser);
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
@@ -331,26 +354,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (profileRow?.is_global_admin) await loadAdminTeams();
   }, [loadAdminTeams, supabase]);
 
+  // The workspace one page load already has. `shouldLoadWorkspace` reads it to
+  // decide whether an auth event is worth eleven more queries; see the comment
+  // there for the two events that made it worth tracking.
+  const lastWorkspaceLoad = useRef<WorkspaceLoad | null>(null);
+  const settleWorkspace = useCallback((authUser: User | null) => {
+    setAuthLoading(false);
+    if (!authUser) { lastWorkspaceLoad.current = null; setWorkspaceLoaded(true); return; }
+    if (!shouldLoadWorkspace(lastWorkspaceLoad.current, authUser.id, Date.now())) { setWorkspaceLoaded(true); return; }
+    // Claimed before the load rather than after, so the second of two events
+    // arriving while the first is still in flight is skipped too. A load that
+    // throws gives the claim back so the next event retries.
+    lastWorkspaceLoad.current = { userId: authUser.id, at: Date.now() };
+    // `finally`, not `then`: a failed load still settles the workspace, or a
+    // waiting page spins for ever on the arena wifi this app is used on.
+    void loadPrivateData(authUser)
+      .catch(() => { lastWorkspaceLoad.current = null; })
+      .finally(() => setWorkspaceLoaded(true));
+  }, [loadPrivateData]);
+
   useEffect(() => {
     if (!supabase) return;
     const loadTimer = window.setTimeout(() => void loadPublicExercises(), 0);
     void supabase.auth.getUser().then(({ data }) => {
       setUser((current) => seedProfile(current, data.user ? profileFromUser(data.user) : null));
-      // `finally`, not `then`: a failed load still settles the workspace, or a
-      // waiting page spins for ever on the arena wifi this app is used on.
-      if (data.user) void loadPrivateData(data.user).finally(() => setWorkspaceLoaded(true));
-      else setWorkspaceLoaded(true);
-      setAuthLoading(false);
+      settleWorkspace(data.user ?? null);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isIdentityChange(event)) return;
       setUser((current) => seedProfile(current, session?.user ? profileFromUser(session.user) : null));
-      if (session?.user) void loadPrivateData(session.user).finally(() => setWorkspaceLoaded(true));
-      else setWorkspaceLoaded(true);
-      setAuthLoading(false);
+      settleWorkspace(session?.user ?? null);
     });
     return () => { window.clearTimeout(loadTimer); listener.subscription.unsubscribe(); };
-  }, [loadPrivateData, loadPublicExercises, supabase]);
+  }, [loadPublicExercises, settleWorkspace, supabase]);
 
   useEffect(() => {
     const online = () => setSaveState("saved");
@@ -367,10 +403,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSaveState("saved");
   }, []);
 
+  // Mints an auth link for a coach and mails it, through the one route that
+  // holds a secret key — `invite` creates the account, `login` signs an
+  // existing one in. Never throws: by the time this runs the seat is already
+  // reserved, so a mail failure is reported alongside it rather than taking the
+  // whole action down with it.
+  const sendAuthLinkEmail = useCallback(async (address: string, teamId: string | null, intent: "invite" | "login"): Promise<{ error: string | null; loginLink: string | null }> => {
+    if (!supabase) return { error: "Demomodus — det ble ikke sendt noen e-post.", loginLink: null };
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return { error: "Innloggingen din har utløpt. Logg inn på nytt.", loginLink: null };
+      const response = await fetch("/api/admin/auth-link", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: address, teamId, intent }),
+      });
+      // Whether the mail went out is the payload's to say, not the status
+      // code's: minting the link succeeds even when there is no mailer
+      // configured, and that is a supported setup rather than an error. A
+      // non-2xx means the link itself could not be made.
+      const payload = await response.json().catch(() => ({})) as { error?: string; link?: string; emailed?: boolean; emailError?: string | null };
+      if (!response.ok) return { error: payload.error ?? "Lenken kunne ikke lages.", loginLink: payload.link ?? null };
+      if (payload.emailed) return { error: null, loginLink: null };
+      return { error: payload.emailError ?? "E-posten ble ikke sendt.", loginLink: payload.link ?? null };
+    } catch {
+      return { error: "E-posten kunne ikke sendes. Sjekk nettforbindelsen.", loginLink: null };
+    }
+  }, [supabase]);
+
   const signIn = useCallback(async (email: string, password: string) => {
     if (!supabase) { setUser(demoUser); setNotice("Demomodus er aktiv — valgfritt passord åpner demoarbeidsområdet."); return; }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(norwegianServerMessage(error.message, "Feil e-postadresse eller passord."));
+  }, [supabase]);
+
+  const requestMagicLink = useCallback(async (email: string, next = "/sessions") => {
+    if (!supabase) { setUser(demoUser); setNotice("Demomodus — du er logget inn uten e-post."); return; }
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: magicLinkRedirectUrl(window.location.origin, next),
+      },
+    });
+    if (error) throw new Error(norwegianServerMessage(error.message, "Innloggingslenken kunne ikke sendes. Vent litt og prøv igjen."));
+  }, [supabase]);
+
+  // Supabase answers an unknown address with success, so nothing here reveals
+  // whether an account exists — the caller shows the same confirmation either
+  // way. A 429 is worth surfacing though: it is the email rate limit, and the
+  // coach needs to know to wait rather than to keep pressing the button.
+  const requestPasswordReset = useCallback(async (email: string) => {
+    if (!supabase) { setNotice("Demomodus — det ble ikke sendt noen e-post."); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: passwordResetRedirectUrl(window.location.origin) });
+    if (error) throw new Error(norwegianServerMessage(error.message, "E-posten kunne ikke sendes. Vent litt og prøv igjen."));
   }, [supabase]);
 
   // Accounts are created by an admin with a temporary password, so the first
@@ -386,11 +472,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.updateUser({ password });
     if (error) throw new Error(norwegianServerMessage(error.message, "Passordet kunne ikke endres."));
     setUser((current) => current && { ...current, mustSetPassword: false });
-    await persist(() => supabase.from("profiles").update({ must_set_password: false }).eq("id", data.user.id));
-  }, [persist, supabase]);
+    // Migration 202609020026 clears the flag from a trigger on the real event —
+    // the stored password changing — and revokes the column, so this write is
+    // only the fallback for a database that has not had it applied yet. Its
+    // refusal is the expected answer afterwards, so it is deliberately not run
+    // through `persist`: a permission error here must not strand a coach on the
+    // form they have just completed.
+    await supabase.from("profiles").update({ must_set_password: false }).eq("id", data.user.id);
+  }, [supabase]);
 
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
+    lastWorkspaceLoad.current = null;
     setUser(supabase ? null : demoUser);
     // Øvelsesbanken stays readable signed out, so the hearts would otherwise
     // still be on screen for whoever sits down at the machine next.
@@ -489,16 +582,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Anything that changes membership outside the normal mutation path — accepting
   // an invitation, creating a team — must call this, or the workspace stays empty
   // until the next sign-in.
+  // The explicit "give me fresh data" path, so it never consults the throttle —
+  // but its result is what the next auth event gets to reuse.
   const refreshWorkspace = useCallback(async () => {
     if (!supabase || !user) return;
+    lastWorkspaceLoad.current = { userId: user.id, at: Date.now() };
     await loadPrivateData({ id: user.id, email: user.email, user_metadata: { full_name: user.fullName } } as unknown as User);
   }, [loadPrivateData, supabase, user]);
 
-  // Onboarding no longer depends on the coach holding an /invite link. Their
-  // account is created from the Supabase dashboard, and `invitations_read` lets
-  // them select the row addressed to their own email — token included — so the
-  // membership can be claimed the moment the workspace loads. The link still
-  // works; it is just no longer the only way onto a team.
+  // Onboarding no longer depends on the coach holding an /invite link. The
+  // privileged mail route creates their account, and `invitations_read` lets
+  // them select the row addressed to their own confirmed email — token
+  // included — so the membership can be claimed as soon as the workspace
+  // loads. The explicit invite route remains a useful fallback.
   const claimedInvitations = useRef(new Set<string>());
   useEffect(() => {
     if (!supabase || !user || !workspaceLoaded) return;
@@ -534,6 +630,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.rpc("create_team", { team_name: name, first_admin_email: invitedEmail });
       if (error) throw new Error(norwegianServerMessage(error.message, "Laget kunne ikke opprettes."));
       await refreshWorkspace();
+      // The team exists either way; only the email is in doubt, and the console
+      // lists the pending invitation with a way to send it again.
+      if (invitedEmail) {
+        const { error: emailError } = await sendAuthLinkEmail(invitedEmail, String(data), "invite");
+        if (emailError) setNotice(`Laget er opprettet, men invitasjonen til ${invitedEmail} ble ikke sendt: ${emailError}. Send den på nytt fra lagkortet for å få innloggingslenken.`);
+      }
       return String(data);
     }
     const id = makeUuid();
@@ -542,7 +644,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       : [];
     setAdminTeams((current) => sortAdminTeams([...current, { id, name, shortName: shortTeamName(name), logoUrl: null, members: [], invitations }]));
     return id;
-  }, [refreshWorkspace, supabase, user]);
+  }, [refreshWorkspace, sendAuthLinkEmail, supabase, user]);
 
   // Upload, repoint the team row, then drop the file the team no longer uses.
   // The path starts with the team id because the storage policy reads that
@@ -618,7 +720,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await syncOwnTeams(teamId);
   }, [adminTeams, persist, supabase, syncOwnTeams]);
 
-  const adminInviteMember = useCallback(async (teamId: string, email: string, role: TeamRole) => {
+  const adminInviteMember = useCallback(async (teamId: string, email: string, role: TeamRole): Promise<InviteResult> => {
     if (!user) throw new Error("Logg inn for å invitere en trener");
     const id = makeUuid(); const token = makeUuid(); const address = email.trim().toLowerCase();
     const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
@@ -630,9 +732,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       patchAdminTeam(teamId, (team) => ({ ...team, invitations: team.invitations.filter((entry) => entry.id !== id) }));
       throw error;
     }
+    if (!supabase) setInvitations((current) => [...current, invitation]);
     await syncOwnTeams(teamId);
-    return invitationUrl(window.location.origin, token);
-  }, [patchAdminTeam, persist, supabase, syncOwnTeams, user]);
+    const { error: emailError, loginLink } = await sendAuthLinkEmail(address, teamId, "invite");
+    return { inviteUrl: invitationUrl(window.location.origin, token), loginLink, emailed: emailError === null, emailError };
+  }, [patchAdminTeam, persist, sendAuthLinkEmail, syncOwnTeams, supabase, user]);
+
+  // The seat already exists; this only mints a fresh link and mails it again,
+  // for an invitation that expired or an email that never arrived.
+  const adminResendInvitation = useCallback(async (teamId: string, invitationId: string): Promise<InviteResult> => {
+    const team = adminTeams.find((entry) => entry.id === teamId);
+    const invitation = team?.invitations.find((entry) => entry.id === invitationId) ?? invitations.find((entry) => entry.id === invitationId && entry.teamId === teamId);
+    if (!invitation) throw new Error("Invitasjonen ble ikke funnet");
+    const { error: emailError, loginLink } = await sendAuthLinkEmail(invitation.email, teamId, "invite");
+    return { inviteUrl: invitation.token ? invitationUrl(window.location.origin, invitation.token) : "", loginLink, emailed: emailError === null, emailError };
+  }, [adminTeams, invitations, sendAuthLinkEmail]);
+
+  // The administrator's answer to "I cannot get in": mint another one-time
+  // login link without changing the coach's existing sessions.
+  const adminSendLoginLink = useCallback(async (email: string): Promise<LoginResult> => {
+    const { error: emailError, loginLink } = await sendAuthLinkEmail(email, null, "login");
+    return { link: loginLink, emailed: emailError === null, emailError };
+  }, [sendAuthLinkEmail]);
 
   const adminRevokeInvitation = useCallback(async (teamId: string, invitationId: string) => {
     const previous = adminTeams.find((team) => team.id === teamId);
@@ -643,6 +764,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (previous) patchAdminTeam(teamId, () => previous);
       throw error;
     }
+    setInvitations((current) => current.filter((invitation) => invitation.id !== invitationId));
     await syncOwnTeams(teamId);
   }, [adminTeams, patchAdminTeam, persist, supabase, syncOwnTeams]);
 
@@ -1013,7 +1135,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedSessions = useMemo(() => resolveAll(sessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [sessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, sessions: resolvedSessions, invitations, players, fixtures, monthFocus, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, resolvedSessions, invitations, players, fixtures, monthFocus, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, sessions: resolvedSessions, invitations, players, fixtures, monthFocus, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, resolvedSessions, invitations, players, fixtures, monthFocus, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

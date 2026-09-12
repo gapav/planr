@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AppProvider } from "@/components/app-provider";
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://grep.app";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://grep.team";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

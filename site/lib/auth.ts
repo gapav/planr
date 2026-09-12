@@ -60,6 +60,11 @@ export function internalPath(value: string | null | undefined, fallback = "/sess
   return value && value.startsWith("/") && !value.startsWith("//") ? value : fallback;
 }
 
+/** Where a Supabase magic-link email returns before creating the browser session. */
+export function magicLinkRedirectUrl(origin: string, next?: string | null): string {
+  return `${origin.replace(/\/+$/, "")}/auth/confirm?next=${encodeURIComponent(internalPath(next))}`;
+}
+
 /** The link an admin sends to a coach so they can join a team once signed in. */
 export function invitationUrl(origin: string, token: string): string {
   return `${origin.replace(/\/+$/, "")}/invite/${token}`;
@@ -94,4 +99,49 @@ export function claimableInvitations(
     !joined.has(invitation.teamId) &&
     invitation.email.trim().toLowerCase() === address &&
     new Date(invitation.expiresAt).getTime() > now.getTime());
+}
+
+/**
+ * Where Supabase should send a coach after they follow a password reset email.
+ *
+ * `/auth/confirm` is the one page that can take a Supabase link of any type: it
+ * calls `verifyOtp` on the token hash, which needs no grant flow, so it sidesteps
+ * the PKCE pinning described there. A recovery link is a request to choose a new
+ * password, and that page already forwards `type=recovery` on to
+ * `/account/password`.
+ *
+ * This only matters for a Supabase email template still on the default
+ * `{{ .ConfirmationURL }}`; the token-hash template the project uses builds the
+ * same URL itself. It is sent either way so the allow-list entry and the
+ * template agree.
+ */
+export function passwordResetRedirectUrl(origin: string): string {
+  return `${origin.replace(/\/+$/, "")}/auth/confirm?type=recovery`;
+}
+
+/** When the workspace was last loaded, and for whom. */
+export interface WorkspaceLoad { userId: string; at: number }
+
+/** How long a freshly loaded workspace is reused before an auth event reloads it. */
+export const WORKSPACE_RELOAD_INTERVAL_MS = 60_000;
+
+/**
+ * Whether an auth event should pull the whole workspace down again.
+ *
+ * `loadPrivateData` is eleven parallel queries, and two things made it run far
+ * more often than there was new data to fetch. On every page load it ran twice
+ * over — once from the `getUser()` call that verifies the session against the
+ * server, and again from the `INITIAL_SESSION` event that supabase-js emits the
+ * moment the listener is attached. And Supabase re-emits `SIGNED_IN` each time
+ * the tab is refocused, so a coach switching between the plan and a video paid
+ * for the whole workspace again on every switch back.
+ *
+ * A different coach always reloads. The same coach reloads only once the data
+ * has had time to go stale, which collapses the pair on load into one and makes
+ * tab-switching free. `refreshWorkspace` is the way to ask for fresh data
+ * regardless, and is what every mutation that needs it already uses.
+ */
+export function shouldLoadWorkspace(last: WorkspaceLoad | null, userId: string, now: number, minIntervalMs: number = WORKSPACE_RELOAD_INTERVAL_MS): boolean {
+  if (!last || last.userId !== userId) return true;
+  return now - last.at >= minIntervalMs;
 }

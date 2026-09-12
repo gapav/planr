@@ -3,7 +3,7 @@
 import { BookOpen, CalendarDays, ChevronDown, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, Trophy, Wifi, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useGrep } from "./app-provider";
 import { Logo } from "./logo";
 import { TeamCrest } from "./team-crest";
@@ -27,12 +27,6 @@ export function AppShell({ children, publicPage = false, immersive = false }: { 
   const isGlobalAdmin = user?.isGlobalAdmin === true;
   const navItems = isGlobalAdmin ? [...nav, adminNav] : nav;
   const protectedPage = !publicPage;
-  // An admin-created account starts on a temporary password; nothing else in the
-  // app is reachable until the coach has replaced it.
-  const mustSetPassword = user?.mustSetPassword === true && !pathname.startsWith("/account/password");
-
-  useEffect(() => { if (mustSetPassword) router.replace(`/account/password?next=${encodeURIComponent(pathname)}`); }, [mustSetPassword, pathname, router]);
-
   function toggleDesktopSidebar() {
     setSidebarCollapsed(!sidebarCollapsed);
   }
@@ -47,7 +41,6 @@ export function AppShell({ children, publicPage = false, immersive = false }: { 
     if (pathname !== "/sessions") router.push("/sessions");
   }
 
-  if (mustSetPassword) return <div className="grid min-h-screen place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--orange)]" aria-label="Laster" /></div>;
   if (authLoading && protectedPage) return <div className="grid min-h-screen place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--orange)]" aria-label="Laster" /></div>;
   if (!user && protectedPage) return <div className="grid min-h-screen place-items-center p-6"><div className="w-full max-w-md rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow)]"><Logo /><h1 className="mt-8 text-3xl font-black tracking-[-.04em]">Lagets øktplaner finner du her</h1><p className="mt-3 leading-7 text-[var(--ink-soft)]">Logg inn for å se lagene dine, planlegge økter og samarbeide med trenerteamet.</p><Link href={`/sign-in?next=${encodeURIComponent(pathname)}`} className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl bg-[var(--orange)] px-6 font-bold text-white">Logg inn</Link><Link href="/exercises" className="mt-4 block text-sm font-semibold underline underline-offset-4">Se i øvelsesbanken først</Link></div></div>;
 

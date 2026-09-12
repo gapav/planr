@@ -66,16 +66,16 @@ describe("AppShell navigation", () => {
     expect(screen.getByRole("link", { name: "Logg inn" })).toBeInTheDocument();
   });
 
-  it("sends a coach still on a temporary password to the password page", () => {
+  it("ignores the retired temporary-password flag for passwordless accounts", () => {
     mocks.useGrep.mockReturnValue(grepState({ ...demoUser, mustSetPassword: true }));
 
     render(<AppShell publicPage><div>Exercise library</div></AppShell>);
 
-    expect(mocks.replace).toHaveBeenCalledWith("/account/password?next=%2Fexercises");
-    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("main")).toHaveTextContent("Exercise library");
   });
 
-  it("leaves a coach who has set their own password alone", () => {
+  it("renders an ordinary passwordless coach session", () => {
     mocks.useGrep.mockReturnValue(grepState({ ...demoUser, mustSetPassword: false }));
 
     render(<AppShell publicPage><div>Exercise library</div></AppShell>);

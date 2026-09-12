@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, keepSelectedTeamId, MIN_PASSWORD_LENGTH, passwordProblem } from "./auth";
+import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, passwordResetRedirectUrl, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
 import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
@@ -22,11 +22,11 @@ describe("passwordProblem", () => {
 
 describe("invitationUrl", () => {
   it("builds the invite link from the current origin", () => {
-    expect(invitationUrl("https://plannr.no", "abc")).toBe("https://plannr.no/invite/abc");
+    expect(invitationUrl("https://grep.team", "abc")).toBe("https://grep.team/invite/abc");
   });
 
   it("does not double the slash when the origin has a trailing one", () => {
-    expect(invitationUrl("https://plannr.no/", "abc")).toBe("https://plannr.no/invite/abc");
+    expect(invitationUrl("https://grep.team/", "abc")).toBe("https://grep.team/invite/abc");
   });
 });
 
@@ -46,6 +46,16 @@ describe("internalPath", () => {
 
   it("rejects a protocol-relative url that would leave the site", () => {
     expect(internalPath("//evil.example/steal")).toBe("/sessions");
+  });
+});
+
+describe("magicLinkRedirectUrl", () => {
+  it("returns through the confirmation page and preserves an internal destination", () => {
+    expect(magicLinkRedirectUrl("https://grep.team", "/today")).toBe("https://grep.team/auth/confirm?next=%2Ftoday");
+  });
+
+  it("does not carry an external redirect into the email", () => {
+    expect(magicLinkRedirectUrl("https://grep.team/", "https://evil.example/steal")).toBe("https://grep.team/auth/confirm?next=%2Fsessions");
   });
 });
 
@@ -129,5 +139,39 @@ describe("keepSelectedTeamId", () => {
 
   it("prefers the live selection over the remembered one", () => {
     expect(keepSelectedTeamId("j2016", ["j2016", "g2014"], "g2014")).toBe("j2016");
+  });
+});
+
+describe("passwordResetRedirectUrl", () => {
+  it("sends a recovery link through the page that can verify a token hash", () => {
+    expect(passwordResetRedirectUrl("https://grep.team")).toBe("https://grep.team/auth/confirm?type=recovery");
+  });
+
+  it("does not double the slash when the origin has a trailing one", () => {
+    expect(passwordResetRedirectUrl("https://grep.team/")).toBe("https://grep.team/auth/confirm?type=recovery");
+  });
+});
+
+describe("shouldLoadWorkspace", () => {
+  const last = { userId: "coach-1", at: 1_000_000 };
+
+  it("loads when nothing has been loaded yet", () => {
+    expect(shouldLoadWorkspace(null, "coach-1", 1_000_000)).toBe(true);
+  });
+
+  it("collapses the pair of loads one page load fires", () => {
+    expect(shouldLoadWorkspace(last, "coach-1", last.at + 40)).toBe(false);
+  });
+
+  it("does not refetch the workspace every time the tab is refocused", () => {
+    expect(shouldLoadWorkspace(last, "coach-1", last.at + 30_000)).toBe(false);
+  });
+
+  it("reloads once the data has had time to go stale", () => {
+    expect(shouldLoadWorkspace(last, "coach-1", last.at + WORKSPACE_RELOAD_INTERVAL_MS)).toBe(true);
+  });
+
+  it("always reloads for a different coach", () => {
+    expect(shouldLoadWorkspace(last, "coach-2", last.at + 40)).toBe(true);
   });
 });
