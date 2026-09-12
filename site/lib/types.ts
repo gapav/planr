@@ -58,6 +58,12 @@ export interface SessionGrouping { sessionId: string; kind: SessionGroupingKind;
 export interface AdminTeamMember extends Profile { teamRole: TeamRole; }
 /** A team as the platform owner sees it: every member and pending invitation, membership or not. */
 export interface AdminTeam { id: string; name: string; shortName: string; logoUrl: string | null; members: AdminTeamMember[]; invitations: TeamInvitation[]; }
+export interface AdminAccountMembership { teamId: string; teamName: string; teamRole: TeamRole; }
+/** An active Auth identity in the global account directory. Deleted profile tombstones are excluded. */
+export interface AdminAccount {
+  id: string; email: string; fullName: string; initials: string; isGlobalAdmin: boolean;
+  createdAt: string; lastSignInAt: string | null; filesOwned: number; memberships: AdminAccountMembership[];
+}
 /**
  * One match from the club's tournament export. `ourTeams` holds the club's own
  * teams taking part — a division report lists every team in the group, and the

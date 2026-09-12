@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canDemoteMember, isTeamMemberOf, mapAdminTeam, shortTeamName, sortAdminTeams, teamAdminCount, teamNeedsAdmin, type AdminTeamRow } from "./admin";
+import { canDemoteMember, isTeamMemberOf, mapAdminAccount, mapAdminTeam, shortTeamName, sortAdminAccounts, sortAdminTeams, teamAdminCount, teamNeedsAdmin, type AdminAccountRow, type AdminTeamRow } from "./admin";
 
 function row(overrides: Partial<AdminTeamRow> = {}): AdminTeamRow {
   return {
@@ -72,5 +72,29 @@ describe("admin console teams", () => {
     expect(isTeamMemberOf(team, "coach-1")).toBe(true);
     expect(isTeamMemberOf(team, "owner")).toBe(false);
     expect(isTeamMemberOf(team, null)).toBe(false);
+  });
+});
+
+describe("admin account directory", () => {
+  const accountRow: AdminAccountRow = {
+    id: "coach-1", email: "trener@klubb.no", full_name: "Kari Nordmann", is_global_admin: false,
+    created_at: "2026-09-01T10:00:00Z", last_sign_in_at: null, files_owned: 2,
+    memberships: [{ team_id: "team-1", team_name: "Fjordvik HK — Jenter 16", role: "coach" }],
+  };
+
+  it("maps account audit data and team memberships", () => {
+    expect(mapAdminAccount(accountRow)).toEqual({
+      id: "coach-1", email: "trener@klubb.no", fullName: "Kari Nordmann", initials: "KN", isGlobalAdmin: false,
+      createdAt: "2026-09-01T10:00:00Z", lastSignInAt: null, filesOwned: 2,
+      memberships: [{ teamId: "team-1", teamName: "Fjordvik HK — Jenter 16", teamRole: "coach" }],
+    });
+  });
+
+  it("sorts accounts by display name and then address", () => {
+    const accounts = [
+      mapAdminAccount({ ...accountRow, id: "b", email: "b@example.com", full_name: "Øyvind" }),
+      mapAdminAccount({ ...accountRow, id: "a", email: "a@example.com", full_name: "Ada" }),
+    ];
+    expect(sortAdminAccounts(accounts).map((account) => account.id)).toEqual(["a", "b"]);
   });
 });

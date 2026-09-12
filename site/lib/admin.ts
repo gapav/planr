@@ -1,4 +1,4 @@
-import type { AdminTeam, AdminTeamMember, TeamInvitation, TeamRole } from "./types";
+import type { AdminAccount, AdminTeam, AdminTeamMember, TeamInvitation, TeamRole } from "./types";
 import { initials } from "./utils";
 
 /**
@@ -36,6 +36,35 @@ export function mapAdminTeam(row: AdminTeamRow): AdminTeam {
 
 export function sortAdminTeams(teams: readonly AdminTeam[]): AdminTeam[] {
   return [...teams].sort((left, right) => left.shortName.localeCompare(right.shortName, "nb"));
+}
+
+/** One entry of the global-admin-only `admin_list_accounts()` payload. */
+export interface AdminAccountRow {
+  id: string; email: string; full_name: string; is_global_admin: boolean;
+  created_at: string; last_sign_in_at: string | null; files_owned: number;
+  memberships: Array<{ team_id: string; team_name: string; role: TeamRole }>;
+}
+
+export function mapAdminAccount(row: AdminAccountRow): AdminAccount {
+  return {
+    id: row.id,
+    email: row.email,
+    fullName: row.full_name,
+    initials: initials(row.full_name),
+    isGlobalAdmin: row.is_global_admin,
+    createdAt: row.created_at,
+    lastSignInAt: row.last_sign_in_at,
+    filesOwned: Number(row.files_owned ?? 0),
+    memberships: (row.memberships ?? []).map((membership) => ({
+      teamId: membership.team_id,
+      teamName: membership.team_name,
+      teamRole: membership.role,
+    })),
+  };
+}
+
+export function sortAdminAccounts(accounts: readonly AdminAccount[]): AdminAccount[] {
+  return [...accounts].sort((left, right) => left.fullName.localeCompare(right.fullName, "nb") || left.email.localeCompare(right.email, "nb"));
 }
 
 export function teamAdminCount(team: AdminTeam) { return team.members.filter((member) => member.teamRole === "admin").length; }

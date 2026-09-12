@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(132);
+select plan(145);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -331,6 +331,52 @@ select throws_ok($$ update public.profiles set must_set_password = true where id
 reset role;
 
 select ok((select not must_set_password from public.profiles where id = '10000000-0000-0000-0000-000000000005'), 'a passwordless account never owes a password');
+
+-- 202609020030 separates team membership from account deletion. The global
+-- directory contains Auth identities only, while permanent deletion leaves an
+-- anonymized profile behind so authored club content keeps valid references.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
+select is(jsonb_array_length(public.admin_list_accounts()), 5, 'the global admin can list every active Auth account, including accounts with no team');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select throws_ok($$ select public.admin_list_accounts() $$, 'P0001', 'Du må være systemadministrator', 'a coach cannot open the global account directory');
+reset role;
+
+select throws_ok(
+  $$ delete from auth.users where id = '10000000-0000-0000-0000-000000000004' $$,
+  'P0001',
+  'En systemadministrator kan ikke slettes permanent',
+  'a global-admin Auth identity is protected from permanent deletion'
+);
+
+-- Make the deletion target the last team administrator. Account deletion sits
+-- above the ordinary membership invariant and must still revoke every seat.
+update public.team_memberships set role = 'admin' where profile_id = '10000000-0000-0000-0000-000000000005';
+update public.team_memberships set role = 'coach' where profile_id = '10000000-0000-0000-0000-000000000001';
+select lives_ok(
+  $$ delete from auth.users where id = '10000000-0000-0000-0000-000000000005' $$,
+  'a non-admin Auth identity can be permanently deleted even after authoring content'
+);
+select is((select count(*)::integer from auth.users where id = '10000000-0000-0000-0000-000000000005'), 0, 'permanent deletion removes the Auth identity');
+select is((select full_name from public.profiles where id = '10000000-0000-0000-0000-000000000005'), 'Slettet bruker', 'the historical profile is anonymized');
+select ok((select deleted_at is not null from public.profiles where id = '10000000-0000-0000-0000-000000000005'), 'the tombstone records when deletion happened');
+select is((select count(*)::integer from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000005'), 0, 'permanent deletion revokes every team membership');
+select is((select count(*)::integer from public.team_memberships where role = 'admin'), 0, 'permanent deletion may leave a team awaiting a replacement administrator');
+select is((select count(*)::integer from public.exercises where created_by = '10000000-0000-0000-0000-000000000005'), 1, 'authored exercises survive account deletion');
+select like((select email::text from public.team_invitations where accepted_by = '10000000-0000-0000-0000-000000000005'), 'deleted+%@deleted.invalid', 'accepted invitation history no longer retains the deleted email address');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select is((select full_name from public.profiles where id = '10000000-0000-0000-0000-000000000005'), 'Slettet bruker', 'signed-in coaches can resolve the anonymized author on retained content');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
+select is(jsonb_array_length(public.admin_list_accounts()), 4, 'an anonymized tombstone is absent from the active account directory');
+reset role;
 
 select * from finish();
 rollback;

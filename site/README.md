@@ -44,7 +44,11 @@ Coaches sign in at `/sign-in` with their email address. Supabase keeps the brows
 
 To add a coach: a team administrator opens `/team`, presses **Inviter trener**, and enters their address. The app reserves the team seat, creates the account when necessary, and sends a one-time login link. The pending list supports resend, copy fallback, and revoke. A global administrator can do the same from `/admin` and can also grant administrator roles.
 
-This needs `SUPABASE_SECRET_KEY` on the server (see `.env.example`), read only by `app/api/admin/auth-link/route.ts`. `RESEND_API_KEY` and `RESEND_FROM` are optional for administrator-issued invitations: without them, the link is still created and shown for manual delivery. Public sign-in emails are sent by Supabase through the custom SMTP configuration above.
+This needs `SUPABASE_SECRET_KEY` on the server (see `.env.example`), read only by the auth-link and permanent-account-deletion server routes. `RESEND_API_KEY` and `RESEND_FROM` are optional for administrator-issued invitations: without them, the link is still created and shown for manual delivery. Public sign-in emails are sent by Supabase through the custom SMTP configuration above.
+
+Removing a trainer from a team removes only that membership. The Auth account remains available for other teams and later invitations. Global administrators have a separate **Brukerkontoer** directory on `/admin`; permanent deletion requires typing the account email, removes all access and private favourites, and anonymizes the retained historical profile as **Slettet bruker**. Accounts owning Storage files must have those files moved or removed first. Migration `202609020030_account_lifecycle.sql` supplies this lifecycle and must be applied before using the account directory.
+
+Never-used invitation accounts are eligible for cleanup after 30 days once they have no live invitation, membership, global-admin role, or owned file. Migration `202609020030` schedules that cleanup automatically when the Supabase `pg_cron` extension is already enabled; otherwise enable Supabase Cron and schedule `select public.purge_abandoned_auth_accounts()` once per day.
 
 **Without a verified sending domain** Resend will not deliver to arbitrary addresses. Nothing is lost when an administrator-issued email fails: the account and reserved seat remain, and the UI shows the one-time login link for direct manual delivery. Do not post that credential in a shared channel.
 
