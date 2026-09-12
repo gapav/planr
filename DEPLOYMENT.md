@@ -232,6 +232,47 @@ Before any real roster goes in:
 - [ ] Check players in, generate groups, start the workout, confirm the plan locks
 - [ ] Finish the workout; confirm it leaves Upcoming and stays locked
 - [ ] Do the last three **on the phone you'll actually use in the hall**
+- [ ] Trigger the morning email by hand (section 8) and read it on a phone
+
+## 8. The morning session email
+
+On a morning when the team trains, every coach on it gets the day's plan in
+their inbox — title, time, venue, every block and activity, with their own
+assigned activities marked. No session that day means no email at all.
+
+**What it needs**
+
+| Variable | Why |
+| --- | --- |
+| `CRON_SECRET` | Authenticates the scheduler. Vercel attaches it to every cron invocation; without it the route answers 503 and sends nothing. `openssl rand -base64 32`. |
+| `SUPABASE_SECRET_KEY` | The job runs at 07:00 with nobody signed in, so RLS has no user to authorize. It reads with the secret key, like the invite route. |
+| `RESEND_API_KEY`, `RESEND_FROM` | The delivery itself. Unset, the job still runs and reports what it *would* have sent — and claims nothing, so the first configured run sends everything. |
+
+Migration `202609020032_session_digest_email.sql` must be applied first: it adds
+the per-coach opt-out and the log the job uses to avoid sending twice.
+
+**The schedule** lives in `site/vercel.json` as `0 5 * * *` — 07:00 in Oslo in
+summer, 06:00 in winter. Vercel **Hobby allows 2 cron jobs, one run per day**,
+fired within the hour of the stated time, which is why this is a fixed morning
+digest rather than "two hours before the session". Moving to per-session timing
+means Vercel Pro, or moving the trigger to Supabase `pg_cron`.
+
+**Testing it** without waiting for tomorrow:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://your-domain.no/api/cron/daily-session-digest?dry=1"
+```
+
+`?dry=1` reads everything and reports the recipients without claiming or
+sending. Drop it to send for real. Running it twice is safe: every (session,
+coach) pair is claimed in `session_email_log` first, and only newly claimed
+pairs are mailed, so the second run reports `sent: 0`. A send that fails gives
+its claim back, so a later run that day retries it.
+
+**Turning it off.** Each coach has their own switch under *Lag og spillere*
+("Dagens økt på e-post"). To stop it for everyone, remove the `crons` entry from
+`site/vercel.json` or unset `CRON_SECRET`.
 
 ## Living with the free tier
 

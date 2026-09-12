@@ -1,3 +1,4 @@
+import { CLUB_TIME_ZONE } from "./time";
 import type { TeamFixture, TeamFixtureInput } from "./types";
 
 // The export the clubs get out of the tournament system is one row per match
@@ -20,7 +21,7 @@ type Column = keyof typeof aliases;
 type ColumnMap = Partial<Record<Column, number>>;
 
 // Matches are scheduled in Norwegian wall-clock time; the app stores UTC.
-const MATCH_TIME_ZONE = "Europe/Oslo";
+const MATCH_TIME_ZONE = CLUB_TIME_ZONE;
 const DAY_MS = 86_400_000;
 
 function normalized(value: unknown) {

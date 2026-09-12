@@ -65,7 +65,7 @@ The `/invite/<token>` link is now a fallback, not the path. `invitations_read` a
 
 ### Security model lives in Postgres, not in the app
 
-There is essentially no API layer. The browser talks to PostgREST directly, so **RLS policies and grants are the authorization boundary**. The one exception is `app/api/admin/auth-link/route.ts` (see Onboarding below), which exists only because creating an `auth.users` row is an admin operation RLS cannot express. `supabase/migrations/202609020001_initial.sql` revokes all table access and re-grants narrowly, and defines the `is_team_member` / `is_team_admin` / `can_access_session` / `can_access_block` / `is_global_admin` helpers that every policy is built from. Exercises are readable by `anon`; everything team-scoped is not.
+There is essentially no API layer. The browser talks to PostgREST directly, so **RLS policies and grants are the authorization boundary**. The exceptions are the routes holding `SUPABASE_SECRET_KEY`: `app/api/admin/auth-link/route.ts` (see Onboarding below), which exists only because creating an `auth.users` row is an admin operation RLS cannot express, `app/api/admin/accounts/route.ts`, which deletes one, and `app/api/cron/daily-session-digest/route.ts`, which runs with no signed-in user at all. `supabase/migrations/202609020001_initial.sql` revokes all table access and re-grants narrowly, and defines the `is_team_member` / `is_team_admin` / `can_access_session` / `can_access_block` / `is_global_admin` helpers that every policy is built from. Exercises are readable by `anon`; everything team-scoped is not.
 
 Anything needing a transaction or a check the client must not be able to skip is a `security definer` RPC, `revoke`d from `anon` and granted to `authenticated`: `create_team`, `accept_team_invitation`, `publish_session`, `start_session`, `reorder_session_blocks`, `reorder_block_items`. Reordering in particular is an RPC so positions stay consistent — do not reimplement it as client-side row updates.
 
@@ -78,6 +78,26 @@ DB triggers (`broadcast_session_change`) push every session/block/item write to 
 `draft → published → in_progress`, with the UI's Drafts/Upcoming/Past tabs derived, not stored — see `deriveSessionTab` in `lib/session.ts` (past = `startsAt + plannedDurationMinutes` in the past). `validatePublish` gates publishing client-side, and `validate_session_publish_transition` re-checks it in the DB. Once `start_session` succeeds, `prevent_in_progress_session_changes` locks the plan's rows; `start_session` itself re-validates that the saved groups still exactly match the present players. Dates are stored in UTC.
 
 Session items (and warm-up routine items) **copy** the exercise's display data (title, description, media, thumbnail) at insert time, but the library wins on screen: `resolveSessionDisplay` / `resolveWarmupRoutineDisplay` in `lib/exercises.ts` overlay the current exercise as the provider hands `sessions` and `warmupRoutines` to consumers. Nothing is rewritten in the database, so the stored copy is the fallback once an exercise is archived or deleted, and an `in_progress` session stays locked. `durationMinutes` and `coachingNotes` belong to the plan; the title of a linked item is therefore read-only in the builder and the warm-up dialog.
+
+### The morning session email
+
+The one scheduled job: `app/api/cron/daily-session-digest/route.ts`, called by
+Vercel Cron (`site/vercel.json`, `0 5 * * *`) and authenticated by `CRON_SECRET`
+rather than by a user token — at 07:00 nobody is signed in, which is why it reads
+with `SUPABASE_SECRET_KEY` like the auth-link route. It mails every coach on a
+team training that day the whole plan. The rules live in `lib/session-digest.ts`
+and the letter in `lib/session-email.ts`, both pure and tested; the route only
+wires them together. `lib/email-shell.ts` is the envelope both it and
+`lib/auth-email.ts` render into.
+
+Two invariants: **drafts never mail** (the status filter is the only thing
+preventing a letter about a session `start_session` would refuse), and **sending
+is idempotent** — the job claims each (session, coach) pair in
+`session_email_log` (migration `202609020032`) before sending and only mails the
+claims the database granted, giving a claim back when a send fails. A run with
+no Resend key claims nothing, so it stays a dry run. `?dry=1` reports recipients
+without claiming. `profiles.session_digest_email` is the per-coach opt-out,
+toggled from `/team`.
 
 ### Media
 

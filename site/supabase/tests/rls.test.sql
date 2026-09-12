@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(170);
+select plan(175);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -225,7 +225,16 @@ select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-00
 select lives_ok($$ update public.profiles set full_name = 'Renamed Admin' where id = '10000000-0000-0000-0000-000000000001' $$, 'a coach can rename themselves');
 select throws_ok($$ update public.profiles set must_set_password = false where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'the retired password flag is not writable from a browser session');
 select throws_ok($$ update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'a coach cannot make themselves a global admin');
+-- 202609020032 added the morning digest opt-out to that same column grant. It
+-- is a personal preference, so the grant lets a coach write it and
+-- profiles_update_self keeps it to their own row.
+select lives_ok($$ update public.profiles set session_digest_email = false where id = '10000000-0000-0000-0000-000000000001' $$, 'a coach can turn their own morning session email off');
+update public.profiles set session_digest_email = false where id = '10000000-0000-0000-0000-000000000002';
+update public.profiles set session_digest_email = true where id = '10000000-0000-0000-0000-000000000001';
 reset role;
+-- Read back outside the session's own RLS: the point is that the row was never
+-- touched, not that the coach could see it afterwards.
+select ok((select session_digest_email from public.profiles where id = '10000000-0000-0000-0000-000000000002'), 'a coach cannot unsubscribe a team-mate');
 
 -- The Supabase-dashboard onboarding leans entirely on invitations_read: a coach
 -- who never received an /invite link must still be able to select the row
@@ -435,6 +444,26 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
 select is(jsonb_array_length(public.admin_list_accounts()), 4, 'an anonymized tombstone is absent from the active account directory');
+reset role;
+
+-- 202609020032: the morning digest's own record of what it has already sent.
+-- Only the scheduled job writes it, and the job holds the secret key, so the
+-- table is readable by the team and writable by nobody with a browser session.
+insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)
+select '30000000-0000-0000-0000-000000000002', id, 'Digest log test', now(), 'published', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'
+from public.teams where id = current_setting('plannr.test_team')::uuid;
+insert into public.session_email_log (session_id, kind, recipient_profile_id, email)
+values ('30000000-0000-0000-0000-000000000002', 'daily_digest', '10000000-0000-0000-0000-000000000001', 'admin@example.com');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.session_email_log), 1, 'a coach on the team can see that the morning email went out');
+select throws_ok($$ insert into public.session_email_log (session_id, kind, recipient_profile_id, email) values ('30000000-0000-0000-0000-000000000002', 'daily_digest', '10000000-0000-0000-0000-000000000002', 'coach@example.com') $$, '42501', null, 'the digest log is not writable from a browser session');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.session_email_log), 0, 'the digest log is invisible outside the team');
 reset role;
 
 select * from finish();
