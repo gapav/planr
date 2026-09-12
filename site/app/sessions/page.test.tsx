@@ -184,4 +184,18 @@ describe("month focus", () => {
     // Nothing in the section is a control: the focus is a record now, not an offer.
     expect(within(august).queryByRole("button", { name: /månedens fokus/i })).toBeNull();
   });
+
+  // Gjennomførte is a record of what has been; the offer to plan a new session
+  // belongs under the tabs you plan in.
+  it("offers to create a session everywhere but under Gjennomførte", () => {
+    renderPage([upcoming("a", "Gjennomført", "2026-08-28T13:45:00.000Z", { status: "completed" })]);
+
+    expect(screen.getByRole("button", { name: /Opprett økt/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Kommende/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Gjennomførte/ }));
+
+    expect(screen.getByRole("heading", { name: "Gjennomført" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Opprett økt/ })).toBeNull();
+  });
 });

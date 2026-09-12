@@ -9,7 +9,7 @@ import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, res
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { isInvitationAlreadyUsed, norwegianServerMessage } from "@/lib/server-messages";
 import { minimizePlayerName } from "@/lib/roster";
-import { nextPosition, UNTITLED_SESSION_TITLE } from "@/lib/session";
+import { buildSessionCopy, nextPosition, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
@@ -17,6 +17,8 @@ import type { AdminAccount, AdminTeam, Exercise, ExerciseInput, MonthFocus, Plan
 import { initials, makeUuid } from "@/lib/utils";
 
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
+/** The two things a copy does not inherit: the name it is given, and its date. */
+export interface SessionCopyInput { title: string; startsAt: string | null }
 type BlockPatch = Partial<Pick<SessionBlock, "title" | "notes">>;
 type ItemPatch = Partial<Pick<SessionItem, "title" | "description" | "durationMinutes" | "coachingNotes" | "assignedCoachId">>;
 
@@ -161,6 +163,10 @@ interface GrepContextValue {
   startWorkoutWithoutSetup(id: string): Promise<void>;
   undoWorkoutStart(id: string): Promise<void>;
   finishWorkout(id: string): Promise<void>;
+  /** Returns a finished workout to «Klar til start», keeping attendance and groups. */
+  reopenSession(id: string): Promise<void>;
+  /** Copies a plan into a new draft and hands back its id. */
+  copySession(sourceId: string, input: SessionCopyInput): Promise<string>;
   addBlock(sessionId: string, title: string): Promise<string>;
   updateBlock(sessionId: string, blockId: string, patch: BlockPatch): Promise<void>;
   deleteBlock(sessionId: string, blockId: string): Promise<void>;
@@ -1136,6 +1142,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "completed", completedAt, updatedBy: user.id, updatedAt: completedAt } : session));
   }, [persist, supabase, user]);
 
+  // The inverse of finishing, one state further back than `undoWorkoutStart`:
+  // the plan unlocks and is ready to start again, with its attendance and
+  // groups still saved. The row only leaves the Past tab once it is given a
+  // date that has not been and gone — `reopenedSessionTab` is what the confirm
+  // dialog reads to say so.
+  const reopenSession = useCallback(async (id: string) => {
+    if (!user) return;
+    const updatedAt = new Date().toISOString();
+    await persist(supabase ? async () => {
+      const result = await supabase.rpc("reopen_session", { target_session_id: id });
+      if (result.error?.code === "PGRST202") {
+        return { ...result, error: { message: "Databaseoppdateringen for å gjenåpne økter mangler. Kjør Supabase-migrering 032, og prøv på nytt." } };
+      }
+      return result;
+    } : null);
+    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "published", startedAt: null, completedAt: null, groupingKind: null, updatedBy: user.id, updatedAt } : session));
+  }, [persist, supabase, user]);
+
+  // Copying is the one session mutation that is not optimistic: `copy_session`
+  // writes the plan, its blocks and its activities in one transaction and mints
+  // their ids, so there is nothing to show until it answers. The new draft is
+  // then read back on its own rather than through `loadPrivateData` — every
+  // other row in the workspace is already current.
+  const copySession = useCallback(async (sourceId: string, input: SessionCopyInput) => {
+    const source = sessions.find((session) => session.id === sourceId);
+    if (!source) throw new Error("Økten ble ikke funnet");
+    const userId = user?.id ?? demoUser.id;
+    if (!supabase) {
+      const copy = buildSessionCopy(source, { id: makeUuid(), title: input.title, startsAt: input.startsAt, userId, makeId: makeUuid });
+      setSessions((current) => [copy, ...current]);
+      await persist(null);
+      return copy.id;
+    }
+    let copyId = "";
+    await persist(async () => {
+      const result = await supabase.rpc("copy_session", { source_session_id: sourceId, new_title: input.title, new_starts_at: input.startsAt });
+      if (result.error?.code === "PGRST202") {
+        return { ...result, error: { message: "Databaseoppdateringen for å kopiere økter mangler. Kjør Supabase-migrering 032, og prøv på nytt." } };
+      }
+      if (!result.error && result.data) copyId = String(result.data);
+      return result;
+    });
+    // `persist` throws on an error, so a missing id here means the RPC answered
+    // without one — there is nothing to navigate to.
+    if (!copyId) throw new Error("Kopien kunne ikke lages.");
+    const { data } = await supabase.from("sessions").select("*, session_blocks(*, session_items(*))").eq("id", copyId).single();
+    if (data) setSessions((current) => [mapSession(data as unknown as DbSession), ...current]);
+    // The copy exists either way, so a failed read is not an error — the plan
+    // it opens on arrives with the next workspace load.
+    else setNotice("Kopien ble laget, men kunne ikke lastes. Oppdater siden hvis den mangler.");
+    return copyId;
+  }, [persist, sessions, supabase, user]);
+
   const dropBlock = useCallback((sessionId: string, blockId: string) => setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.filter((block) => block.id !== blockId) } : session)), []);
   const dropItem = useCallback((sessionId: string, blockId: string, itemId: string) => setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.filter((item) => item.id !== itemId) } : block) } : session)), []);
 
@@ -1214,7 +1273,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedSessions = useMemo(() => resolveAll(sessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [sessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, sessions: resolvedSessions, invitations, players, fixtures, monthFocus, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, resolvedSessions, invitations, players, fixtures, monthFocus, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, sessions: resolvedSessions, invitations, players, fixtures, monthFocus, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, resolvedSessions, invitations, players, fixtures, monthFocus, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

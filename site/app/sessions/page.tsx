@@ -1,12 +1,13 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Clock3, LayoutList, MapPin, MoreHorizontal, Pencil, Plus, Sparkles, Target, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Clock3, LayoutList, MapPin, Plus, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { HelpTip } from "@/components/help-tip";
 import { useGrep } from "@/components/app-provider";
+import { CopySessionDialog, ReopenSessionDialog, SessionMenu } from "@/components/session-actions";
 import { TeamCrest } from "@/components/team-crest";
 import { Avatar, Button, EmptyState, Field, Modal, Tag, textareaClass } from "@/components/ui";
 import { monthKey } from "@/lib/fixtures";
@@ -18,7 +19,7 @@ import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
 const tabs: Array<{ id: SessionTab; label: string }> = [{ id: "upcoming", label: "Kommende" }, { id: "drafts", label: "Utkast" }, { id: "past", label: "Gjennomførte" }];
 
 export default function SessionsPage() {
-  const { sessions, currentTeam, monthFocus, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>("upcoming"); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [focusMonth, setFocusMonth] = useState<{ key: string; label: string } | null>(null); const router = useRouter();
+  const { sessions, currentTeam, monthFocus, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>("upcoming"); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const [focusMonth, setFocusMonth] = useState<{ key: string; label: string } | null>(null); const router = useRouter();
   const current = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === tab).sort((a, b) => tab === "drafts" ? b.updatedAt.localeCompare(a.updatedAt) : tab === "upcoming" ? (a.startsAt ?? "").localeCompare(b.startsAt ?? "") : (b.startsAt ?? "").localeCompare(a.startsAt ?? "")), [sessions, currentTeam, tab]);
   const counts = useMemo(() => tabs.reduce((acc, entry) => { acc[entry.id] = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return acc; }, {} as Record<SessionTab, number>), [sessions, currentTeam]);
   // The nearest session is lifted out of its month so the one plan being
@@ -37,7 +38,7 @@ export default function SessionsPage() {
       // Drafts sort by when they were last touched, so a calendar heading would
       // group them by a date the order does not follow.
       ? (current.length
-        ? <ul className="mt-7 flex flex-col gap-2.5">{current.map((session) => <SessionRow key={session.id} session={session} tab={tab} onDelete={() => setPendingDelete(session)} />)}</ul>
+        ? <ul className="mt-7 flex flex-col gap-2.5">{current.map((session) => <SessionRow key={session.id} session={session} tab={tab} onCopy={() => setCopySource(session)} onReopen={() => setReopenSource(session)} onDelete={() => setPendingDelete(session)} />)}</ul>
         : <div className="mt-7"><EmptyState icon={<Sparkles size={22} />} title="Ingen økter under planlegging" body="Start en øktplan og inviter trenerteamet til å bidra." /></div>)
       // Upcoming is a calendar, not a list of what happens to exist: the months
       // ahead are sections whether or not anything is scheduled in them, so the
@@ -47,13 +48,17 @@ export default function SessionsPage() {
       : tab === "upcoming"
       ? <div className="mt-7 flex flex-col gap-6">
         {!current.length && <EmptyState icon={<CalendarDays size={22} />} title="Ingen planlagte økter ennå" body="Publiser et utkast, så vises det automatisk her." />}
-        {hero && <section><h2 className="mb-2.5 text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">Neste økt</h2><ul><SessionRow session={hero} tab={tab} hero onDelete={() => setPendingDelete(hero)} /></ul></section>}
-        {calendarMonthGroups(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onDelete={setPendingDelete} />)}
+        {hero && <section><h2 className="mb-2.5 text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">Neste økt</h2><ul><SessionRow session={hero} tab={tab} hero onCopy={() => setCopySource(hero)} onReopen={() => setReopenSource(hero)} onDelete={() => setPendingDelete(hero)} /></ul></section>}
+        {calendarMonthGroups(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onCopy={setCopySource} onReopen={setReopenSource} onDelete={setPendingDelete} />)}
       </div>
       : (current.length
-        ? <div className="mt-7 flex flex-col gap-6">{groupSessionsByMonth(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onDelete={setPendingDelete} />)}</div>
+        ? <div className="mt-7 flex flex-col gap-6">{groupSessionsByMonth(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onCopy={setCopySource} onReopen={setReopenSource} onDelete={setPendingDelete} />)}</div>
         : <div className="mt-7"><EmptyState icon={<CalendarDays size={22} />} title="Ingen gjennomførte økter" body="Gjennomførte økter samles her for senere bruk." /></div>)}
-    <CreateSessionCard onCreate={() => void startSession()} creating={creating} />
+    {/* Gjennomførte is a record of what has been, so it ends where the last
+        workout did. The new plan belongs under the tabs you plan in. */}
+    {tab !== "past" && <CreateSessionCard onCreate={() => void startSession()} creating={creating} />}
+    {copySource && <CopySessionDialog session={copySource} onClose={() => setCopySource(null)} />}
+    {reopenSource && <ReopenSessionDialog session={reopenSource} onClose={() => setReopenSource(null)} />}
     {focusMonth && <MonthFocusModal month={focusMonth.key} label={focusMonth.label} note={monthFocus.find((entry) => entry.teamId === currentTeam.id && entry.month === focusMonth.key)?.note ?? null} onClose={() => setFocusMonth(null)} />}
     <Modal open={Boolean(pendingDelete)} onClose={() => { if (!deleting) setPendingDelete(null); }} title="Vil du slette denne økten?" description="Planen, alle bolkene og aktivitetene blir slettet for hele laget. Dette kan ikke angres." size="sm">
       <p className="rounded-xl bg-[var(--paper)] px-4 py-3 text-sm font-bold">{pendingDelete?.title}</p>
@@ -65,7 +70,7 @@ export default function SessionsPage() {
 // One month of the calendar: the sticky heading, the month's focus, and the
 // sessions in it. A month the calendar padded in arrives with no sessions at
 // all — heading and focus only, which is the whole point of padding it.
-function MonthSection({ group, tab, onEditFocus, onDelete }: { group: { key: string; label: string; sessions: PlannedSession[] }; tab: SessionTab; onEditFocus(month: { key: string; label: string }): void; onDelete(session: PlannedSession): void }) {
+function MonthSection({ group, tab, onEditFocus, onCopy, onReopen, onDelete }: { group: { key: string; label: string; sessions: PlannedSession[] }; tab: SessionTab; onEditFocus(month: { key: string; label: string }): void; onCopy(session: PlannedSession): void; onReopen(session: PlannedSession): void; onDelete(session: PlannedSession): void }) {
   const { currentTeam, monthFocus, user } = useGrep();
   const focus = monthFocus.find((entry) => entry.teamId === currentTeam?.id && entry.month === group.key) ?? null;
   // The whole coaching team writes into the same note, so the row says whose
@@ -81,8 +86,8 @@ function MonthSection({ group, tab, onEditFocus, onDelete }: { group: { key: str
   const editable = group.key !== "no-date" && group.key >= monthKey(new Date());
   const focusRow = <MonthFocusRow label={group.label} note={focus?.note ?? null} credit={credit} editable={editable} onEdit={() => onEditFocus({ key: group.key, label: group.label })} />;
   const rows = group.sessions.length > 0 ? <ul className="flex flex-col gap-2.5">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
-    ? <SessionRow key={session.id} session={session} tab={tab} onDelete={() => onDelete(session)} />
-    : <CompactSessionRow key={session.id} session={session} onDelete={() => onDelete(session)} />)}</ul> : null;
+    ? <SessionRow key={session.id} session={session} tab={tab} onCopy={() => onCopy(session)} onReopen={() => onReopen(session)} onDelete={() => onDelete(session)} />
+    : <CompactSessionRow key={session.id} session={session} onCopy={() => onCopy(session)} onReopen={() => onReopen(session)} onDelete={() => onDelete(session)} />)}</ul> : null;
   // A month that holds anything is one deep tray: the focus on top, the plans it
   // is meant to steer stacked inside it, so a plan reads as belonging to the
   // month's theme rather than merely following it. A month that is neither
@@ -194,12 +199,9 @@ function TabSelect({ tab, onSelect, counts }: { tab: SessionTab; onSelect(tab: S
   </div>;
 }
 
-function SessionRow({ session, tab, hero = false, onDelete }: { session: PlannedSession; tab: SessionTab; hero?: boolean; onDelete(): void }) {
+function SessionRow({ session, tab, hero = false, onCopy, onReopen, onDelete }: { session: PlannedSession; tab: SessionTab; hero?: boolean; onCopy(): void; onReopen(): void; onDelete(): void }) {
   const { currentTeam, user } = useGrep(); const built = sessionDuration(session); const progress = session.plannedDurationMinutes ? Math.min(100, Math.round((built / session.plannedDurationMinutes) * 100)) : 0; const updater = currentTeam?.members.find((member) => member.id === session.updatedBy) ?? currentTeam?.members[0];
   const inProgress = session.status === "in_progress"; const date = sessionDateParts(session.startsAt); const relative = relativeDayLabel(session.startsAt); const [menuOpen, setMenuOpen] = useState(false);
-  // In-progress and completed plans are locked in the database, so the menu
-  // drops the edit entry rather than offering a screen that would bounce back.
-  const locked = inProgress || session.status === "completed";
   // Every row in a tab shares that tab's status, so only the one status that
   // does set a row apart is worth a chip. Same for the coach: it is the
   // signed-in one on every row until a team has more than one.
@@ -226,7 +228,7 @@ function SessionRow({ session, tab, hero = false, onDelete }: { session: Planned
         {tab === "drafts" && <div className="mt-3 flex items-center gap-3"><div className="h-1.5 w-full max-w-56 overflow-hidden rounded-full bg-[var(--paper-deep)]"><div className="h-full rounded-full bg-[var(--orange)] transition-all" style={{ width: `${progress}%` }} /></div><span className="text-xs font-bold text-[var(--ink-soft)]">{built} av {session.plannedDurationMinutes} min planlagt</span></div>}
       </div>
       <div className="pointer-events-auto flex shrink-0 items-center justify-end">
-        <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} editHref={locked ? null : `/sessions/${session.id}/edit`} deleteDisabled={inProgress} onDelete={onDelete} />
+        <SessionMenu session={session} open={menuOpen} onOpenChange={setMenuOpen} onCopy={onCopy} onReopen={onReopen} onDelete={onDelete} />
       </div>
     </div>
   </li>;
@@ -235,39 +237,16 @@ function SessionRow({ session, tab, hero = false, onDelete }: { session: Planned
 // Sessions further out than the coming week, and every finished one, are things
 // you read rather than act on: the same card, one line tall, carrying the date
 // and the title only. Everything else is one tap away in the plan itself.
-function CompactSessionRow({ session, onDelete }: { session: PlannedSession; onDelete(): void }) {
-  const date = sessionDateParts(session.startsAt); const [menuOpen, setMenuOpen] = useState(false); const locked = session.status === "in_progress" || session.status === "completed";
+function CompactSessionRow({ session, onCopy, onReopen, onDelete }: { session: PlannedSession; onCopy(): void; onReopen(): void; onDelete(): void }) {
+  const date = sessionDateParts(session.startsAt); const [menuOpen, setMenuOpen] = useState(false);
   return <li className={cn("group relative rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-[0_6px_20px_rgba(16,32,29,.03)] transition hover:border-[#b7b2a6] hover:shadow-[var(--shadow)]", menuOpen && "z-20 border-[#b7b2a6]")}>
     <Link href={`/sessions/${session.id}`} aria-label={`Åpne ${session.title}`} className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--orange)]" />
     <div className="pointer-events-none relative flex items-center gap-3 py-1 pl-4 pr-2">
       <span className="w-[4.25rem] shrink-0 text-xs font-black uppercase tracking-[.1em] text-[var(--ink-soft)]">{date ? `${date.weekday} ${date.day}` : "Uten dato"}</span>
       <h3 className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[-.015em] transition group-hover:text-[var(--orange)]">{session.title}</h3>
       <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
-        <RowMenu open={menuOpen} onOpenChange={setMenuOpen} title={session.title} editHref={locked ? null : `/sessions/${session.id}/edit`} deleteDisabled={session.status === "in_progress"} onDelete={onDelete} />
+        <SessionMenu session={session} open={menuOpen} onOpenChange={setMenuOpen} onCopy={onCopy} onReopen={onReopen} onDelete={onDelete} />
       </div>
     </div>
   </li>;
-}
-
-// Editing and deleting sit behind a menu so a thumb reaching for the card
-// itself cannot land on either. Pointerdown and Escape close it; the trigger
-// toggles.
-function RowMenu({ open, onOpenChange, title, editHref, deleteDisabled, onDelete }: { open: boolean; onOpenChange(open: boolean): void; title: string; editHref: string | null; deleteDisabled: boolean; onDelete(): void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: Event) => { if (!ref.current?.contains(event.target as Node)) onOpenChange(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") onOpenChange(false); };
-    document.addEventListener("pointerdown", close); document.addEventListener("keydown", escape);
-    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
-  }, [open, onOpenChange]);
-  return <div ref={ref} className="relative">
-    <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={`Flere valg for ${title}`} onClick={() => onOpenChange(!open)} className={cn("grid h-11 w-11 place-items-center rounded-xl border border-transparent text-[var(--ink-soft)] transition hover:border-[var(--line)] hover:bg-[var(--paper)] hover:text-[var(--ink)]", open && "border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]")}><MoreHorizontal size={19} /></button>
-    {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-30 w-52 rounded-xl border border-[var(--line)] bg-white p-1.5 text-sm font-semibold shadow-xl">
-      {editHref && <><Link href={editHref} role="menuitem" autoFocus onClick={() => onOpenChange(false)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-[var(--ink)] transition hover:bg-[var(--paper)]"><Pencil size={16} />Rediger</Link>
-      <div className="my-1.5 h-px bg-[var(--line)]" /></>}
-      <button type="button" role="menuitem" autoFocus={!editHref} disabled={deleteDisabled} onClick={() => { onOpenChange(false); onDelete(); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-[var(--danger)] transition enabled:hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"><Trash2 size={16} />Slett økt</button>
-      {deleteDisabled && <p className="px-3 pb-1 pt-1.5 text-xs font-normal leading-5 text-[var(--ink-soft)]">Avslutt økten før den kan slettes.</p>}
-    </div>}
-  </div>;
 }

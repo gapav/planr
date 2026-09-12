@@ -172,16 +172,27 @@ export const UNTITLED_SESSION_TITLE = "Økt uten tittel";
 
 function pad(value: number) { return String(value).padStart(2, "0"); }
 
+/** The hours of the day — the only list in the time picker long enough to scroll. */
+export const SESSION_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => pad(hour));
+
 /**
- * Every quarter hour of the day. A session saved off the grid — by an older
- * build, or by another client — keeps its own time as an option so opening the
- * builder never silently rounds it.
+ * The minutes offered beside the hour. Four buttons rather than a list: the
+ * whole point of the quarter-hour grid is that the minute is a single click.
+ * A session saved off the grid — by an older build, or by another client —
+ * keeps its own minute as a fifth option, so opening the builder never
+ * silently rounds it.
  */
-export function sessionTimeOptions(current?: string | null) {
+export function sessionMinuteOptions(current?: string | null) {
   const options: string[] = [];
-  for (let minutes = 0; minutes < 24 * 60; minutes += SESSION_TIME_STEP_MINUTES) options.push(`${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`);
+  for (let minutes = 0; minutes < 60; minutes += SESSION_TIME_STEP_MINUTES) options.push(pad(minutes));
   if (current && !options.includes(current)) options.push(current);
   return options.sort();
+}
+
+/** `HH:MM` as its two fields, falling back to the default for anything malformed. */
+export function splitSessionTime(time: string) {
+  const [hour, minute] = (/^\d{2}:\d{2}$/.test(time) ? time : DEFAULT_SESSION_TIME).split(":");
+  return { hour, minute };
 }
 
 /** `startsAt` as the two local-time fields the builder edits. */
@@ -230,4 +241,76 @@ const AUTO_TITLE = /^Uke \d{1,2} - \p{L}+$/u;
 export function isAutoSessionTitle(title: string) {
   const trimmed = title.trim();
   return !trimmed || trimmed === UNTITLED_SESSION_TITLE || AUTO_TITLE.test(trimmed);
+}
+
+/** A finished plan is the only one with anything to reopen. */
+export function canReopenSession(session: Pick<PlannedSession, "status">) {
+  return session.status === "completed";
+}
+
+/**
+ * Which tab a reopened plan actually lands in. The tabs are derived from the
+ * date rather than stored, so a workout held last month goes back to "ready to
+ * start" and still sits under Gjennomførte until somebody gives it a new date
+ * — the one thing the confirm dialog has to say out loud.
+ */
+export function reopenedSessionTab(session: PlannedSession, now = new Date()): SessionTab {
+  return deriveSessionTab({ ...session, status: "published" }, now);
+}
+
+/** The source's own weekday and time, moved forward in whole weeks from today. */
+function nextWeeklySlot(date: string, now: Date) {
+  const at = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(at.getTime())) return "";
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  do { at.setDate(at.getDate() + 7); } while (at.getTime() < today);
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+}
+
+/**
+ * What the copy dialog opens on. A copy is nearly always the same session again
+ * next week, so it offers the source's own weekday and time — moved forward in
+ * whole weeks until it is no longer behind us, so copying a plan from three
+ * weeks ago proposes the coming week rather than a date already gone. An
+ * undated source stays undated: there is nothing to move.
+ *
+ * The title is the source's own, unless that is still a name nobody chose, in
+ * which case the proposed date names it the way the builder would.
+ */
+export function sessionCopyDefaults(session: PlannedSession, now = new Date(), timeZone?: string) {
+  const start = splitSessionStart(session.startsAt);
+  const date = start.date ? nextWeeklySlot(start.date, now) : "";
+  const startsAt = combineSessionStart(date, start.time);
+  return { title: startsAt && isAutoSessionTitle(session.title) ? autoSessionTitle(startsAt, timeZone) : session.title, date, time: start.time };
+}
+
+/**
+ * The copy that `copy_session` makes, built in the browser for demo mode. The
+ * two have to agree: the plan and everything in it comes along, the date is the
+ * one the coach just chose, the status is always a fresh draft, and attendance
+ * and groups stay behind with the evening they belong to.
+ *
+ * `memberIds` drops an activity's coach once they have left the team, matching
+ * the database, where `validate_session_item_coach` would refuse the insert and
+ * take the whole copy down with it. Left out, every assignment is kept.
+ */
+export function buildSessionCopy(source: PlannedSession, options: { id: string; title: string; startsAt: string | null; userId: string; makeId(): string; memberIds?: readonly string[]; now?: Date }): PlannedSession {
+  const now = (options.now ?? new Date()).toISOString();
+  const keepsCoach = (coachId: string | null) => coachId !== null && (options.memberIds?.includes(coachId) ?? true);
+  return {
+    ...source,
+    id: options.id,
+    title: options.title.trim() || source.title,
+    startsAt: options.startsAt,
+    status: "draft",
+    startedAt: null, completedAt: null, groupingKind: null,
+    createdBy: options.userId, updatedBy: options.userId, createdAt: now, updatedAt: now,
+    blocks: source.blocks.map((block) => {
+      const blockId = options.makeId();
+      return {
+        ...block, id: blockId, sessionId: options.id, updatedBy: options.userId,
+        items: block.items.map((item) => ({ ...item, id: options.makeId(), blockId, assignedCoachId: keepsCoach(item.assignedCoachId) ? item.assignedCoachId : null, updatedBy: options.userId })),
+      };
+    }),
+  };
 }

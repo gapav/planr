@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(145);
+select plan(170);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -71,11 +71,30 @@ select is((select age_groups from public.exercises where id = '20000000-0000-000
 select throws_ok($$ insert into public.exercises (name, description, age_groups, media_url, media_kind, created_by) values ('Invalid age group', 'This exercise has an unsupported age group.', array['16-18'], 'https://example.com/invalid.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, '23514', null, 'exercise age groups are limited to the supported bands');
 select lives_ok($$ insert into public.exercises (id, name, description, age_groups, media_url, media_kind, created_by) values ('20000000-0000-0000-0000-000000000002', 'Multi-age exercise', 'This exercise suits two age bands.', array['10-12', '13-15'], 'https://example.com/exercise.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, 'an exercise can list several supported age groups');
 
+-- A plan with something in it, so `copy_session` has blocks, activities and an
+-- assignment to carry over. The second activity is handed to a coach who leaves
+-- the team before the copy is made: `validate_session_item_coach` would refuse
+-- to insert that name again, so the copy has to drop it rather than fail.
+insert into public.team_memberships (team_id, profile_id, role)
+select id, '10000000-0000-0000-0000-000000000002', 'coach' from public.teams where id = current_setting('plannr.test_team')::uuid;
+
+insert into public.session_blocks (id, session_id, title, notes, position, updated_by)
+values
+  ('60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Oppvarming', 'Rolig start.', 0, '10000000-0000-0000-0000-000000000001'),
+  ('60000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', 'Hoveddel', '', 1, '10000000-0000-0000-0000-000000000001');
+
+insert into public.session_items (id, block_id, kind, exercise_id, title, description, duration_minutes, coaching_notes, assigned_coach_id, position, updated_by)
+values
+  ('70000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'exercise', '20000000-0000-0000-0000-000000000001', 'Public test exercise', 'A useful public exercise description.', 12, 'Hold tempoet nede.', '10000000-0000-0000-0000-000000000001', 0, '10000000-0000-0000-0000-000000000001'),
+  ('70000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', 'custom', null, 'Spill med betingelser', '', 20, '', '10000000-0000-0000-0000-000000000002', 0, '10000000-0000-0000-0000-000000000001');
+
 set local role anon;
 select throws_ok($$ select count(*) from public.exercises $$, '42501', null, 'anonymous visitors cannot read exercises');
 select throws_ok($$ insert into public.exercises(name, description, media_url, media_kind, created_by) values ('Blocked', 'Anonymous writes are blocked.', 'https://example.com/x.jpg', 'image', '10000000-0000-0000-0000-000000000003') $$, '42501', null, 'anonymous visitors cannot add exercises');
 select throws_ok($$ select count(*) from public.exercise_favorites $$, '42501', null, 'anonymous visitors cannot read favourites');
 select throws_ok($$ insert into public.exercise_favorites (profile_id, exercise_id) values ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot heart an exercise');
+select throws_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot reopen a workout');
+select throws_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot copy a plan');
 reset role;
 
 set local role authenticated;
@@ -133,6 +152,8 @@ select is((select count(*)::integer from public.exercise_favorites), 0, 'a coach
 select lives_ok($$ delete from public.exercise_favorites where exercise_id = '20000000-0000-0000-0000-000000000001' $$, 'a delete of another coach favourite is filtered away rather than raised');
 select throws_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reset another team workout');
 select throws_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot skip setup for another team workout');
+select throws_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reopen another team workout');
+select throws_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot copy another team plan');
 reset role;
 
 update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000003';
@@ -158,6 +179,44 @@ select is((select status::text from public.sessions where id = '30000000-0000-00
 select ok((select completed_at is not null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'finishing records when the workout ended');
 select throws_ok($$ update public.sessions set title = 'Changed after the whistle', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten er avsluttet og låst', 'a finished plan stays locked');
 select throws_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Bare en pågående økt kan avsluttes', 'a finished workout cannot be finished twice');
+reset role;
+-- The coach holding the second activity leaves the team, which is the state a
+-- plan from an earlier season is in by the time it is copied.
+delete from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000002';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+
+-- 202609020032: copying a plan. The source is only read, so a finished workout
+-- — the one a coach most wants to run again — can be copied while it is locked.
+select lives_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001', 'Kopiert økt', '2026-12-18T16:30:00Z'::timestamptz) $$, 'a coach can copy a finished plan on their own team');
+select set_config('plannr.test_copy', (select id::text from public.sessions where title = 'Kopiert økt'), true);
+select is((select status::text from public.sessions where id = current_setting('plannr.test_copy')::uuid), 'draft', 'a copy lands as a draft, never as a published session');
+select ok((select starts_at = '2026-12-18T16:30:00Z'::timestamptz and started_at is null and completed_at is null and grouping_kind is null from public.sessions where id = current_setting('plannr.test_copy')::uuid), 'a copy takes the date it was given and none of the record of the run');
+select ok((select created_by = '10000000-0000-0000-0000-000000000001' and updated_by = '10000000-0000-0000-0000-000000000001' from public.sessions where id = current_setting('plannr.test_copy')::uuid), 'a copy belongs to the coach who made it');
+select is((select array_agg(title order by position) from public.session_blocks where session_id = current_setting('plannr.test_copy')::uuid), array['Oppvarming', 'Hoveddel']::text[], 'the blocks come along in their own order');
+select is((select notes from public.session_blocks where session_id = current_setting('plannr.test_copy')::uuid and position = 0), 'Rolig start.', 'a block keeps the note written on it');
+select is((select count(*)::integer from public.session_items item join public.session_blocks block on block.id = item.block_id where block.session_id = current_setting('plannr.test_copy')::uuid), 2, 'every activity comes along, under the block it belonged to');
+select ok((select item.exercise_id = '20000000-0000-0000-0000-000000000001' and item.duration_minutes = 12 and item.coaching_notes = 'Hold tempoet nede.' and item.assigned_coach_id = '10000000-0000-0000-0000-000000000001'
+  from public.session_items item join public.session_blocks block on block.id = item.block_id
+  where block.session_id = current_setting('plannr.test_copy')::uuid and block.position = 0), 'an activity keeps its exercise, its minutes, its notes and a coach still on the team');
+select ok((select item.assigned_coach_id is null
+  from public.session_items item join public.session_blocks block on block.id = item.block_id
+  where block.session_id = current_setting('plannr.test_copy')::uuid and block.position = 1), 'an activity handed to a coach who has left starts out unassigned');
+select is((select count(*)::integer from public.session_attendance where session_id = current_setting('plannr.test_copy')::uuid), 0, 'attendance stays with the evening it was taken in');
+select is((select count(*)::integer from public.session_groupings where session_id = current_setting('plannr.test_copy')::uuid), 0, 'the groups stay with the workout they were drawn for');
+select lives_ok($$ update public.sessions set title = 'Kopiert økt, omdøpt', updated_by = '10000000-0000-0000-0000-000000000001' where id = current_setting('plannr.test_copy')::uuid $$, 'a copy of a locked plan is not itself locked');
+select lives_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001') $$, 'a copy can be made without a name or a date');
+select is((select count(*)::integer from public.sessions where title = 'Corrected after test start' and status = 'draft' and starts_at is null), 1, 'an unnamed copy takes the source title and waits for a date');
+
+-- 202609020032: reopening a finished workout, the inverse of finishing it.
+select throws_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Bare en avsluttet økt kan gjenåpnes', 'a workout still in progress cannot be reopened');
+select lives_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000001') $$, 'a finished workout can be reopened');
+select is((select status::text from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'published', 'reopening marks the session ready to start again');
+select ok((select started_at is null and completed_at is null and grouping_kind is null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'reopening clears the record of the run it is undoing');
+select lives_ok($$ update public.sessions set title = 'Corrected after reopening', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'a reopened plan is editable again');
+select is((select count(*)::integer from public.session_attendance where session_id = '30000000-0000-0000-0000-000000000001'), 2, 'reopening keeps the attendance the workout was run with');
+select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a reopened workout can be run again on its saved attendance and groups');
+select lives_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000001') $$, 'a reopened workout can be finished again');
 select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000001' $$, 'a finished session can still be deleted with its attendance and groups');
 
 -- 202609020011 narrowed the profiles update grant. profiles_update_self still

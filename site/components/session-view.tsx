@@ -9,6 +9,7 @@ import { useGrep } from "./app-provider";
 import { ExerciseDetail, sessionItemDetailSubject } from "./exercise-detail";
 import { HelpTip } from "./help-tip";
 import { WorkoutSession } from "./live-session";
+import { CopySessionDialog, SessionMenu } from "./session-actions";
 import { TeamCrest } from "./team-crest";
 import { Avatar, Button, EmptyState, Tag } from "./ui";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
@@ -34,6 +35,8 @@ export function SessionView({ sessionId }: { sessionId: string }) {
   const store = useGrep();
   const session = store.sessions.find((entry) => entry.id === sessionId);
   const [previewItem, setPreviewItem] = useState<SessionItem | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copying, setCopying] = useState(false);
   // A reader is a collaborator too: presence keeps them out of nobody's way and
   // a broadcast from whoever is editing refreshes the plan under them.
   useSessionRealtime(sessionId, store.user, null, () => store.reloadSession(sessionId), store.isDemoMode);
@@ -49,6 +52,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
       <div className="flex items-center gap-2">
         <Link href={`/sessions/${sessionId}/live`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)]"><CirclePlay size={17} /><span className="hidden sm:inline">Start økten</span><span className="sm:hidden">Start</span></Link>
         <Link href={`/sessions/${sessionId}/edit`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(240,100,46,.22)] transition hover:-translate-y-0.5 hover:bg-[var(--orange-dark)]"><Pencil size={16} />Rediger</Link>
+        <SessionMenu session={session} open={menuOpen} onOpenChange={setMenuOpen} onCopy={() => setCopying(true)} />
       </div>
     </div></header>
 
@@ -84,6 +88,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
       {session.notes && <section className="mt-8 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5"><h2 className="font-black">Generelle notater</h2><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{session.notes}</p></section>}
     </div>
 
+    {copying && <CopySessionDialog session={session} onClose={() => setCopying(false)} />}
     <ExerciseDetail key={previewItem?.id ?? "none"} exercise={previewItem ? sessionItemDetailSubject(previewItem) : null} onClose={() => setPreviewItem(null)} />
   </div></AppShell>;
 }

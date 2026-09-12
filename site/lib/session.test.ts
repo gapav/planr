@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoSessions } from "./demo-data";
 import type { PlannedSession, Profile } from "./types";
-import { assignedCoach, autoSessionTitle, blockDuration, calendarMonthGroups, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, nextPosition, pickTodaySession, relativeDayLabel, sessionDuration, sessionTimeOptions, splitSessionStart, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
+import { assignedCoach, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, nextPosition, pickTodaySession, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, splitSessionStart, splitSessionTime, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -208,17 +208,19 @@ describe("coach assignment", () => {
 });
 
 describe("session start fields", () => {
-  it("offers every quarter hour of the day", () => {
-    const options = sessionTimeOptions();
-    expect(options).toHaveLength(96);
-    expect(options.slice(0, 5)).toEqual(["00:00", "00:15", "00:30", "00:45", "01:00"]);
-    expect(options.at(-1)).toBe("23:45");
-    expect(options).toContain(DEFAULT_SESSION_TIME);
+  it("splits the day into 24 hours and four minutes", () => {
+    expect(SESSION_HOUR_OPTIONS).toHaveLength(24);
+    expect(SESSION_HOUR_OPTIONS.slice(0, 2)).toEqual(["00", "01"]);
+    expect(SESSION_HOUR_OPTIONS.at(-1)).toBe("23");
+    expect(sessionMinuteOptions()).toEqual(["00", "15", "30", "45"]);
   });
-  it("keeps an off-grid time saved elsewhere in its place", () => {
-    const options = sessionTimeOptions("17:20");
-    expect(options).toHaveLength(97);
-    expect(options.slice(options.indexOf("17:15"), options.indexOf("17:15") + 3)).toEqual(["17:15", "17:20", "17:30"]);
+  it("keeps an off-grid minute saved elsewhere in its place", () => {
+    expect(sessionMinuteOptions("20")).toEqual(["00", "15", "20", "30", "45"]);
+  });
+  it("reads a time as its two fields, defaulting anything malformed", () => {
+    expect(splitSessionTime("18:30")).toEqual({ hour: "18", minute: "30" });
+    expect(splitSessionTime("")).toEqual({ hour: "16", minute: "00" });
+    expect(splitSessionTime(DEFAULT_SESSION_TIME)).toEqual({ hour: "16", minute: "00" });
   });
   it("defaults an undated plan to 16:00", () => {
     expect(splitSessionStart(null)).toEqual({ date: "", time: DEFAULT_SESSION_TIME });
@@ -254,5 +256,90 @@ describe("automatic session titles", () => {
   it("leaves a title the coach wrote alone", () => {
     expect(isAutoSessionTitle("Uke 38 - fredag: avslutningsspill")).toBe(false);
     expect(isAutoSessionTitle("Keepertrening")).toBe(false);
+  });
+});
+
+describe("reopening a finished session", () => {
+  const finished: PlannedSession = { ...demoSessions[0], status: "completed", startedAt: "2026-09-04T16:30:00.000Z", completedAt: "2026-09-04T18:00:00.000Z" };
+
+  it("only offers a finished plan something to reopen", () => {
+    expect(canReopenSession(finished)).toBe(true);
+    expect(canReopenSession(demoSessions[0])).toBe(false);
+    expect(canReopenSession({ status: "in_progress" })).toBe(false);
+  });
+
+  // What the confirm dialog has to warn about: the tabs are derived from the
+  // date, so reopening does not by itself move an old workout out of Past.
+  it("leaves a plan whose evening has passed where it is", () => {
+    expect(reopenedSessionTab(finished, new Date("2026-09-20T09:00:00.000Z"))).toBe("past");
+  });
+  it("reads one whose end time has not passed as Upcoming", () => {
+    expect(reopenedSessionTab(finished, new Date("2026-09-04T19:00:00.000Z"))).toBe("past");
+    expect(reopenedSessionTab(finished, new Date("2026-09-04T12:00:00.000Z"))).toBe("upcoming");
+  });
+});
+
+describe("copying a session", () => {
+  // Built from local parts so the proposed date is the same weekday whatever
+  // zone the test runs in.
+  const dated = (year: number, month: number, day: number, hour = 16, minute = 30): PlannedSession =>
+    ({ ...demoSessions[0], startsAt: new Date(year, month - 1, day, hour, minute).toISOString() });
+
+  it("proposes the same weekday and time a week on", () => {
+    const defaults = sessionCopyDefaults(dated(2026, 9, 18), new Date(2026, 8, 18));
+    expect(defaults).toEqual({ title: demoSessions[0].title, date: "2026-09-25", time: "16:30" });
+  });
+  it("skips whole weeks until the proposal is no longer behind us", () => {
+    expect(sessionCopyDefaults(dated(2026, 8, 28), new Date(2026, 8, 18)).date).toBe("2026-09-18");
+    expect(sessionCopyDefaults(dated(2026, 8, 28), new Date(2026, 8, 19)).date).toBe("2026-09-25");
+  });
+  it("keeps an undated plan undated, with its time still offered", () => {
+    expect(sessionCopyDefaults({ ...demoSessions[0], startsAt: null }, new Date(2026, 8, 18))).toEqual({ title: demoSessions[0].title, date: "", time: DEFAULT_SESSION_TIME });
+  });
+  it("renames a copy the coach never named, and leaves a chosen title alone", () => {
+    expect(sessionCopyDefaults({ ...dated(2026, 9, 18), title: "Uke 38 - fredag" }, new Date(2026, 8, 18)).title).toBe("Uke 39 - fredag");
+    expect(sessionCopyDefaults({ ...dated(2026, 9, 18), title: UNTITLED_SESSION_TITLE }, new Date(2026, 8, 18)).title).toBe("Uke 39 - fredag");
+    expect(sessionCopyDefaults({ ...dated(2026, 9, 18), title: "Keepertrening" }, new Date(2026, 8, 18)).title).toBe("Keepertrening");
+  });
+
+  describe("the copy itself", () => {
+    let counter = 0;
+    const copy = (overrides: Partial<Parameters<typeof buildSessionCopy>[1]> = {}) => {
+      counter = 0;
+      return buildSessionCopy({ ...demoSessions[0], status: "completed", startedAt: "2026-09-04T16:30:00.000Z", completedAt: "2026-09-04T18:00:00.000Z", groupingKind: "teams" }, {
+        id: "session-copy", title: "Uke 39 - fredag", startsAt: "2026-09-25T14:30:00.000Z", userId: "user-nora",
+        makeId: () => `copied-${(counter += 1)}`, now: new Date("2026-09-19T08:00:00.000Z"), ...overrides,
+      });
+    };
+
+    it("lands as a fresh draft on the chosen date, owned by whoever copied it", () => {
+      const made = copy();
+      expect(made).toMatchObject({ id: "session-copy", title: "Uke 39 - fredag", startsAt: "2026-09-25T14:30:00.000Z", status: "draft", startedAt: null, completedAt: null, groupingKind: null, createdBy: "user-nora", updatedBy: "user-nora" });
+      expect(made.createdAt).toBe("2026-09-19T08:00:00.000Z");
+    });
+    it("carries the whole plan over with fresh ids", () => {
+      const made = copy();
+      const source = demoSessions[0];
+      expect(made.blocks.map((block) => block.title)).toEqual(source.blocks.map((block) => block.title));
+      expect(made.blocks.map((block) => block.items.map((item) => [item.title, item.durationMinutes, item.coachingNotes]))).toEqual(source.blocks.map((block) => block.items.map((item) => [item.title, item.durationMinutes, item.coachingNotes])));
+      const ids = [...made.blocks.map((block) => block.id), ...made.blocks.flatMap((block) => block.items.map((item) => item.id))];
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids.some((id) => source.blocks.some((block) => block.id === id || block.items.some((item) => item.id === id)))).toBe(false);
+      expect(made.blocks.every((block) => block.sessionId === "session-copy" && block.items.every((item) => item.blockId === block.id))).toBe(true);
+    });
+    it("keeps the plan's own numbers and notes", () => {
+      expect(copy()).toMatchObject({ venue: demoSessions[0].venue, plannedDurationMinutes: demoSessions[0].plannedDurationMinutes, objective: demoSessions[0].objective, notes: demoSessions[0].notes });
+    });
+    it("falls back to the source title when the field was left blank", () => {
+      expect(copy({ title: "   " }).title).toBe(demoSessions[0].title);
+    });
+    it("keeps an activity's coach, but not one who has left the team", () => {
+      const assigned = demoSessions[0].blocks.flatMap((block) => block.items).filter((item) => item.assignedCoachId);
+      expect(assigned.length).toBeGreaterThan(0);
+      const kept = copy({ memberIds: ["user-gard", "user-nora", "user-sam"] }).blocks.flatMap((block) => block.items).filter((item) => item.assignedCoachId);
+      expect(kept).toHaveLength(assigned.length);
+      const dropped = copy({ memberIds: ["user-gard"] }).blocks.flatMap((block) => block.items).filter((item) => item.assignedCoachId);
+      expect(dropped.map((item) => item.assignedCoachId)).toEqual(["user-gard"]);
+    });
   });
 });
