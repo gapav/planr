@@ -76,17 +76,28 @@ export function passwordResetEmail({ link }: { link: string }): AuthEmail {
 
 const plainFooter = "Lenken virker én gang og utløper etter en stund. Virker den ikke lenger, be om en ny.";
 
-/** One table-based shell, because every mail client renders those the same. */
+/** A branded, table-based shell that remains dependable across email clients. */
 function shell({ heading, lead, action, link }: { heading: string; lead: string; action: string; link: string }): string {
   const safeLink = escapeHtml(link);
-  return `<!doctype html><html lang="no"><body style="margin:0;background:#f6f5f1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#10201d">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f5f1;padding:32px 16px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#fffefb;border:1px solid #e4e2da;border-radius:24px;padding:36px">
-<tr><td style="font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#f0642e">Grep</td></tr>
-<tr><td style="padding-top:18px;font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1.15">${escapeHtml(heading)}</td></tr>
-<tr><td style="padding-top:16px;font-size:16px;line-height:1.7;color:#4a5754">${lead}</td></tr>
-<tr><td style="padding-top:28px"><a href="${safeLink}" style="display:inline-block;background:#f0642e;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;padding:14px 24px;border-radius:12px">${escapeHtml(action)}</a></td></tr>
-<tr><td style="padding-top:28px;font-size:13px;line-height:1.7;color:#6b7975">${plainFooter}<br><br>Fungerer ikke knappen? Kopier denne adressen inn i nettleseren:<br><span style="word-break:break-all;color:#4a5754">${safeLink}</span></td></tr>
+  return `<!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>${escapeHtml(heading)}</title></head>
+<body style="margin:0;padding:0;background:#f5f2e9;color:#10201d;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">En sikker engangslenke fra Grep er klar.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f2e9" style="width:100%;background:#f5f2e9"><tr><td align="center" style="padding:38px 16px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px">
+<tr><td bgcolor="#10201d" style="background:#10201d;border-radius:26px 26px 0 0;padding:26px 30px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+<td valign="middle"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td width="42" height="42" align="center" valign="middle" bgcolor="#f0642e" style="width:42px;height:42px;background:#f0642e;border-radius:14px;color:#fff;font-size:22px;font-weight:900;line-height:42px">G</td><td style="padding-left:13px;color:#fff;font-size:25px;font-weight:900;letter-spacing:-.8px">Grep</td></tr></table></td>
+<td align="right" valign="middle" style="color:#dbea9c;font-size:11px;font-weight:800;letter-spacing:1.7px;text-transform:uppercase">Trenerrommet</td>
+</tr></table></td></tr>
+<tr><td bgcolor="#fffefb" style="background:#fffefb;border:1px solid #e4e2da;border-top:0;padding:42px 34px 36px">
+<p style="margin:0;color:#f0642e;font-size:12px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase">Laget samlet</p>
+<h1 style="margin:13px 0 0;color:#10201d;font-size:32px;line-height:1.12;font-weight:900;letter-spacing:-1.2px">${escapeHtml(heading)}</h1>
+<p style="margin:18px 0 0;color:#40514d;font-size:16px;line-height:1.7">${lead}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px"><tr><td align="center" bgcolor="#f0642e" style="background:#f0642e;border-radius:13px"><a href="${safeLink}" style="display:block;padding:16px 24px;color:#fff;font-size:16px;font-weight:800;line-height:1.2;text-decoration:none">${escapeHtml(action)}&nbsp;&nbsp;→</a></td></tr></table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#eef5ef" style="margin-top:28px;background:#eef5ef;border-radius:16px"><tr><td style="padding:17px 19px;color:#31564b;font-size:14px;line-height:1.55"><strong style="color:#10201d">Trygt og enkelt.</strong><br>${plainFooter}</td></tr></table>
+<p style="margin:27px 0 0;color:#6b7975;font-size:12px;line-height:1.65">Fungerer ikke knappen? Kopier denne adressen inn i nettleseren:</p><p style="margin:7px 0 0;word-break:break-all;color:#40514d;font-size:12px;line-height:1.6">${safeLink}</p>
+</td></tr>
+<tr><td bgcolor="#dbea9c" style="height:7px;background:#dbea9c;border-radius:0 0 26px 26px;font-size:0;line-height:0">&nbsp;</td></tr>
+<tr><td align="center" style="padding:22px 20px 0;color:#77827f;font-size:12px;line-height:1.6">Hvis du ikke ventet denne e-posten, kan du trygt se bort fra den.<br>Grep · laget for trenerrommet</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
