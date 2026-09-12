@@ -6,7 +6,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export function Button({ className, variant = "primary", size = "md", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger"; size?: "sm" | "md" | "lg" }) {
-  return <button className={cn("inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45", size === "sm" && "min-h-9 px-3 text-sm", size === "md" && "min-h-11 px-4 text-sm", size === "lg" && "min-h-12 px-5", variant === "primary" && "bg-[var(--orange)] text-white shadow-[0_8px_20px_rgba(240,100,46,.22)] enabled:hover:bg-[var(--orange-dark)]", variant === "secondary" && "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] enabled:hover:border-[var(--ink)]", variant === "ghost" && "text-[var(--ink-soft)] enabled:hover:bg-black/5 enabled:hover:text-[var(--ink)]", variant === "danger" && "bg-red-50 text-[var(--danger)] enabled:hover:bg-red-100", className)} {...props} />;
+  return <button className={cn("grep-button inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-45", size === "sm" && "min-h-9 px-3 text-sm", size === "md" && "min-h-11 px-4 text-sm", size === "lg" && "min-h-12 px-5", variant === "primary" && "bg-[var(--grep-apricot)] text-[var(--grep-ink)] enabled:hover:bg-[#ffa77c]", variant === "secondary" && "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] enabled:hover:border-[var(--ink)]", variant === "ghost" && "text-[var(--ink-soft)] enabled:hover:bg-black/5 enabled:hover:text-[var(--ink)]", variant === "danger" && "bg-red-50 text-[var(--danger)] enabled:hover:bg-red-100", className)} {...props} />;
 }
 
 // Modals stack: the exercise picker and the warm-up dialog each render a
@@ -65,11 +65,11 @@ export function Field({ label, hint, help, htmlFor, children }: { label: string;
   return <label className="grid min-w-0 gap-2 text-sm font-semibold"><span>{label}</span>{children}{trailing}</label>;
 }
 
-export const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3.5 text-[15px] text-[var(--ink)] shadow-sm transition placeholder:text-[#8b9692] hover:border-[#aaa69b] focus:border-[var(--orange)] focus:outline-none";
+export const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3.5 text-[15px] text-[var(--ink)] shadow-sm transition placeholder:text-[#8b9692] hover:border-[#aaa69b] focus:border-[var(--ink)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--ink)]";
 export const textareaClass = `${inputClass} min-h-28 resize-y py-3 leading-6`;
 
 export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "orange" | "green" | "blue" }) {
-  return <span className={cn("inline-flex min-h-6 items-center rounded-full px-2.5 text-xs font-bold", tone === "neutral" && "bg-black/5 text-[var(--ink-soft)]", tone === "orange" && "bg-[#fde1d5] text-[#9c3913]", tone === "green" && "bg-[#dcecdf] text-[#285546]", tone === "blue" && "bg-[#dceaf3] text-[#315c73]")}>{children}</span>;
+  return <span className={cn("inline-flex min-h-6 items-center rounded-full px-2.5 text-xs font-bold", tone === "neutral" && "bg-black/5 text-[var(--ink-soft)]", tone === "orange" && "bg-[#ffe2d2] text-[#73402c]", tone === "green" && "bg-[#e9ddf7] text-[#59416b]", tone === "blue" && "bg-[#dceaf3] text-[#315c73]")}>{children}</span>;
 }
 
 export function Avatar({ name, initials, color, size = "md" }: { name: string; initials: string; color: string; size?: "sm" | "md" | "lg" }) {

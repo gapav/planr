@@ -4,6 +4,7 @@ import { ArrowUpRight, Heart, MoreHorizontal, Plus, Search, X } from "lucide-rea
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { PageHeading } from "@/components/page-heading";
 import { useGrep } from "@/components/app-provider";
 import { ExerciseAgeGroupFilter } from "@/components/exercise-age-group-filter";
 import { ExerciseCategoryFilter } from "@/components/exercise-category-filter";
@@ -58,10 +59,18 @@ function ExerciseLibrary() {
   function openEdit(exercise: Exercise) { setEditing(exercise); setFormOpen(true); setMenuId(null); setViewing(null); }
   function resetFilters() { setFilters(emptyExerciseFilterState()); }
 
-  return <div className="mx-auto max-w-[1440px] px-4 pb-16 pt-9 sm:px-7 sm:pt-14">
-    <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><h1 className="max-w-3xl text-4xl font-black tracking-[-.055em] sm:text-6xl">Finn øvelser.<br /><span className="text-[var(--orange)]">Lag bedre økter.</span></h1><p className="mt-5 max-w-2xl text-base leading-7 text-[var(--ink-soft)] sm:text-lg"> Søk og finn de riktige øvelsene til lagets neste økt.</p></div><div className="flex shrink-0 items-center gap-2"><Button size="lg" onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={19} />Legg til øvelse</Button><HelpTip topic="exercises-library" /></div></div>
+  useEffect(() => {
+    if (!menuId) return;
+    const closeOutside = (event: PointerEvent) => { if (!(event.target as Element).closest("[data-exercise-menu]")) setMenuId(null); };
+    const closeEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { document.getElementById(`exercise-menu-${menuId}`)?.focus(); setMenuId(null); } };
+    document.addEventListener("pointerdown", closeOutside); document.addEventListener("keydown", closeEscape);
+    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeEscape); };
+  }, [menuId]);
 
-    <div className="mt-10 grid gap-4 border-y border-[var(--line)] py-5">
+  return <div className="grep-page grep-library">
+    <PageHeading eyebrow="Små ideer. Gode økter." title="Øvelsesbank" description="Finn noe som får laget i gang." actions={<><Button size="lg" onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={19} />Opprett øvelse</Button><HelpTip topic="exercises-library" /></>} />
+
+    <div className="grep-library-filters grid gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-lg">
           <Search className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={18} />
@@ -79,12 +88,12 @@ function ExerciseLibrary() {
       </div>
     </div>
 
-    {filtered.length ? <div className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{filtered.map((exercise, index) => { const canEdit = canEditExercise(user, exercise); return <article key={exercise.id} className="group relative overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_8px_30px_rgba(16,32,29,.045)] transition hover:-translate-y-1 hover:shadow-[var(--shadow)] soft-in" style={{ animationDelay: `${Math.min(index * 35, 180)}ms` }}>
+    {filtered.length ? <div className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{filtered.map((exercise, index) => { const canEdit = canEditExercise(user, exercise); return <article key={exercise.id} className="grep-exercise-card group relative overflow-hidden border border-[var(--line)] bg-[var(--surface)] transition soft-in" style={{ animationDelay: `${Math.min(index * 35, 180)}ms` }}>
       <button type="button" onClick={() => setViewing(exercise)} className="absolute inset-0 z-0 rounded-[24px] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--orange)]" aria-label={`Vis detaljer for ${exercise.name}`} />
       {user && <button type="button" aria-pressed={favorites.has(exercise.id)} aria-label={favorites.has(exercise.id) ? `Fjern ${exercise.name} fra favorittene dine` : `Legg ${exercise.name} til i favorittene dine`} onClick={() => void toggleFavoriteExercise(exercise.id).catch(() => undefined)} className={cn("absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white/90 shadow-md backdrop-blur transition hover:scale-105 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]", favorites.has(exercise.id) ? "text-[var(--orange)]" : "text-[var(--ink-soft)]")}><Heart size={18} fill={favorites.has(exercise.id) ? "currentColor" : "none"} /></button>}
       <div className="pointer-events-none relative">
         <ExerciseThumbnail exercise={exercise} className="aspect-[16/9] w-full" />
-        <div className="p-5"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-1.5"><Tag tone="orange">{exercise.category}</Tag>{exercise.ageGroups.map((group) => <Tag key={group} tone="green">{formatAgeGroup(group)}</Tag>)}</div><h2 className="mt-3 text-xl font-black tracking-[-.035em]">{exercise.name}</h2></div>{canEdit && <div className="pointer-events-auto relative"><Button variant="ghost" size="sm" className="-mr-2 -mt-2 px-2" aria-label={`Valg for ${exercise.name}`} onClick={() => setMenuId(menuId === exercise.id ? null : exercise.id)}><MoreHorizontal size={19} /></Button>{menuId === exercise.id && <div className="absolute right-0 z-10 w-36 rounded-xl border border-[var(--line)] bg-white p-1.5 text-sm font-semibold shadow-xl"><button className="w-full rounded-lg px-3 py-2 text-left hover:bg-black/5" onClick={() => openEdit(exercise)}>Rediger</button><button className="w-full rounded-lg px-3 py-2 text-left text-[var(--danger)] hover:bg-red-50" onClick={() => { if (confirm("Vil du arkivere denne øvelsen? Eksisterende økter beholder sin kopi.")) void archiveExercise(exercise.id); }}>Arkiver</button></div>}</div>}</div><p className="clamp-2 mt-2 min-h-12 text-sm leading-6 text-[var(--ink-soft)]">{exercise.description}</p><div className="mt-5 flex items-center justify-between gap-3">{exercise.mediaKind ? <Tag tone={exercise.mediaKind === "image" ? "green" : "blue"}>{exercise.mediaKind === "image" ? "Bilde" : "Video"}</Tag> : <Tag tone="green">Uten medier</Tag>}<span className="flex items-center gap-1 text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}<ArrowUpRight size={13} /></span></div></div>
+        <div className="p-5"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-1.5"><Tag tone="orange">{exercise.category}</Tag>{exercise.ageGroups.map((group) => <Tag key={group} tone="green">{formatAgeGroup(group)}</Tag>)}</div><h2 className="mt-3 text-xl font-black tracking-[-.035em]">{exercise.name}</h2></div>{canEdit && <div data-exercise-menu className="pointer-events-auto relative"><Button variant="ghost" size="sm" className="-mr-2 -mt-2 px-2" id={`exercise-menu-${exercise.id}`} aria-expanded={menuId === exercise.id} aria-label={`Valg for ${exercise.name}`} onClick={() => setMenuId(menuId === exercise.id ? null : exercise.id)}><MoreHorizontal size={19} /></Button>{menuId === exercise.id && <div className="absolute right-0 z-10 w-36 rounded-xl border border-[var(--line)] bg-white p-1.5 text-sm font-semibold shadow-xl"><button className="w-full rounded-lg px-3 py-2 text-left hover:bg-black/5" onClick={() => openEdit(exercise)}>Rediger</button><button className="w-full rounded-lg px-3 py-2 text-left text-[var(--danger)] hover:bg-red-50" onClick={() => { if (confirm("Vil du arkivere denne øvelsen? Eksisterende økter beholder sin kopi.")) { setMenuId(null); void archiveExercise(exercise.id).catch(() => undefined); } }}>Arkiver</button></div>}</div>}</div><p className="clamp-2 mt-2 min-h-12 text-sm leading-6 text-[var(--ink-soft)]">{exercise.description}</p><div className="mt-5 flex items-center justify-between gap-3">{exercise.mediaKind ? <Tag tone={exercise.mediaKind === "image" ? "green" : "blue"}>{exercise.mediaKind === "image" ? "Bilde" : "Video"}</Tag> : <Tag tone="green">Uten medier</Tag>}<span className="flex items-center gap-1 text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}<ArrowUpRight size={13} /></span></div></div>
       </div>
     </article>; })}</div> : <div className="mt-7"><EmptyState icon={<Search size={22} />} title="Fant ingen øvelser" body="Prøv en annen kategori, en annen aldersgruppe, et bredere søkeord eller nullstill filtrene." action={<Button variant="secondary" onClick={resetFilters}>Nullstill filtre</Button>} /></div>}
     <ExerciseDetail key={viewing?.id ?? "none"} exercise={viewing} onClose={() => setViewing(null)} />

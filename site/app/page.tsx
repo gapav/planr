@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { Overview } from "@/components/overview";
 
 export default function Home() {
-  redirect("/sessions");
+  return <Overview />;
 }

@@ -48,7 +48,7 @@ export function FilterChipGroup({ label, chips, onToggle }: { label: string; chi
     event.preventDefault();
   }
 
-  return <div className="flex flex-wrap gap-2" role="toolbar" aria-orientation="horizontal" aria-label={label}>
+  return <div className="grep-filter-chips flex flex-wrap gap-2" role="toolbar" aria-orientation="horizontal" aria-label={label}>
     {chips.map((chip, index) => {
       const Icon = chip.icon;
       return <button

@@ -1,14 +1,14 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Clock3, LayoutList, MapPin, Plus, Sparkles, Target, Trash2 } from "lucide-react";
+import { CalendarDays, Clock3, LayoutList, MapPin, Plus, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { HelpTip } from "@/components/help-tip";
 import { useGrep } from "@/components/app-provider";
 import { CopySessionDialog, ReopenSessionDialog, SessionMenu } from "@/components/session-actions";
-import { TeamCrest } from "@/components/team-crest";
+import { PageHeading } from "@/components/page-heading";
 import { Avatar, Button, EmptyState, Field, Modal, Tag, textareaClass } from "@/components/ui";
 import { monthKey } from "@/lib/fixtures";
 import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration } from "@/lib/session";
@@ -19,20 +19,31 @@ import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
 const tabs: Array<{ id: SessionTab; label: string }> = [{ id: "upcoming", label: "Kommende" }, { id: "drafts", label: "Utkast" }, { id: "past", label: "Gjennomførte" }];
 
 export default function SessionsPage() {
-  const { sessions, currentTeam, monthFocus, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>("upcoming"); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const [focusMonth, setFocusMonth] = useState<{ key: string; label: string } | null>(null); const router = useRouter();
+  return <Suspense><SessionsRoute /></Suspense>;
+}
+
+function SessionsRoute() {
+  const search = useSearchParams();
+  const view = search.get("view");
+  const initialTab: SessionTab = view === "past" || view === "drafts" ? view : "upcoming";
+  return <SessionsContent key={initialTab} initialTab={initialTab} />;
+}
+
+function SessionsContent({ initialTab }: { initialTab: SessionTab }) {
+  const { sessions, currentTeam, monthFocus, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>(initialTab); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const [focusMonth, setFocusMonth] = useState<{ key: string; label: string } | null>(null); const router = useRouter();
   const current = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === tab).sort((a, b) => tab === "drafts" ? b.updatedAt.localeCompare(a.updatedAt) : tab === "upcoming" ? (a.startsAt ?? "").localeCompare(b.startsAt ?? "") : (b.startsAt ?? "").localeCompare(a.startsAt ?? "")), [sessions, currentTeam, tab]);
   const counts = useMemo(() => tabs.reduce((acc, entry) => { acc[entry.id] = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return acc; }, {} as Record<SessionTab, number>), [sessions, currentTeam]);
   // The nearest session is lifted out of its month so the one plan being
   // prepared for is not one card among ten identical ones.
   const hero = tab === "upcoming" ? current[0] : undefined; const listed = hero ? current.slice(1) : current;
-  async function startSession() { setCreating(true); try { const id = await createSession(); router.push(`/sessions/${id}/edit`); } finally { setCreating(false); } }
+  async function startSession() { setCreating(true); try { const id = await createSession(); router.push(`/sessions/${id}/edit`); } catch { /* The provider shows the failure notice. */ } finally { setCreating(false); } }
   // A failed delete rolls itself back in the provider and surfaces a notice, so
   // the dialog closes either way.
   async function confirmDelete() { if (!pendingDelete) return; setDeleting(true); try { await deleteSession(pendingDelete.id); } catch { /* notice is shown by the provider */ } finally { setDeleting(false); setPendingDelete(null); } }
   if (!currentTeam) return <AppShell><div className="mx-auto max-w-3xl px-4 py-20">{user?.isGlobalAdmin
     ? <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag" body="Øktene tilhører et lag. Opprett lag og tildel trenere fra systemadministrasjonen." action={<Link href="/admin" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white">Gå til administrasjon</Link>} />
     : <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag ennå" body="Øktene tilhører et lag, slik at de riktige trenerne kan se og redigere dem. Systemadministratoren gir deg tilgang." />}</div></AppShell>;
-  return <AppShell><div className="mx-auto max-w-[1100px] px-4 pb-16 pt-7 sm:px-8 sm:pt-10"><header className="flex items-start gap-4"><TeamCrest team={currentTeam} size="lg" className="mt-1" /><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--orange)]">{currentTeam?.shortName}</p><div className="mt-2 flex items-center gap-2.5"><h1 className="text-4xl font-black tracking-[-.055em] sm:text-5xl">Øktkalender</h1><HelpTip topic="sessions-calendar" /></div><p className="mt-3 text-[var(--ink-soft)]">Alle øktplaner, fra første idé til siste heiarop.</p></div></header>
+  return <AppShell><div className="grep-page grep-calendar"><PageHeading eyebrow={currentTeam.shortName} title="Øktkalender" description="En god plan. Et samkjørt trenerteam." actions={<>{tab !== "past" && <Button size="lg" onClick={() => void startSession()} disabled={creating}><Plus size={18} />{creating ? "Oppretter…" : "Opprett økt"}</Button>}<HelpTip topic="sessions-calendar" /></>} />
     <TabSelect tab={tab} onSelect={setTab} counts={counts} />
     {tab === "drafts"
       // Drafts sort by when they were last touched, so a calendar heading would
@@ -56,7 +67,6 @@ export default function SessionsPage() {
         : <div className="mt-7"><EmptyState icon={<CalendarDays size={22} />} title="Ingen gjennomførte økter" body="Gjennomførte økter samles her for senere bruk." /></div>)}
     {/* Gjennomførte is a record of what has been, so it ends where the last
         workout did. The new plan belongs under the tabs you plan in. */}
-    {tab !== "past" && <CreateSessionCard onCreate={() => void startSession()} creating={creating} />}
     {copySource && <CopySessionDialog session={copySource} onClose={() => setCopySource(null)} />}
     {reopenSource && <ReopenSessionDialog session={reopenSource} onClose={() => setReopenSource(null)} />}
     {focusMonth && <MonthFocusModal month={focusMonth.key} label={focusMonth.label} note={monthFocus.find((entry) => entry.teamId === currentTeam.id && entry.month === focusMonth.key)?.note ?? null} onClose={() => setFocusMonth(null)} />}
@@ -160,42 +170,13 @@ function MonthFocusModal({ month, label, note, onClose }: { month: string; label
   </Modal>;
 }
 
-// Creating a session is the only action here that is not a session, so it takes
-// the shape of the rows it sits under rather than a header button: at the end of
-// the list, separated and orange, it leaves the top of a phone screen to the
-// next session — the thing the coach actually came to look at.
-function CreateSessionCard({ onCreate, creating }: { onCreate(): void; creating: boolean }) {
-  return <button type="button" onClick={onCreate} disabled={creating} className="mt-6 flex min-h-16 w-full items-center justify-center gap-2.5 rounded-2xl border border-[#efc7b1] bg-[#fdece3] px-4 text-[15px] font-black tracking-[-.015em] text-[#9c3913] shadow-[0_6px_20px_rgba(16,32,29,.03)] transition hover:-translate-y-0.5 hover:border-[var(--orange)] hover:bg-[#fbe1d3] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
-    <Plus size={19} />{creating ? "Oppretter…" : "Opprett økt"}
-  </button>;
-}
-
-// One dropdown instead of a three-way segmented control: the labels are long
-// enough that the strip had to scroll sideways on a phone, and the tab you are
-// on is the only one worth showing at rest.
+// Full labels stay visible on desktop; the native selector fits narrow screens.
 function TabSelect({ tab, onSelect, counts }: { tab: SessionTab; onSelect(tab: SessionTab): void; counts: Record<SessionTab, number> }) {
-  const [open, setOpen] = useState(false); const ref = useRef<HTMLDivElement>(null);
-  const active = tabs.find((entry) => entry.id === tab) ?? tabs[0];
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: Event) => { if (!ref.current?.contains(event.target as Node)) setOpen(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
-    document.addEventListener("pointerdown", close); document.addEventListener("keydown", escape);
-    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
-  }, [open]);
-  return <div ref={ref} className="relative mt-10 w-full sm:w-72">
-    <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)} className={cn("inline-flex min-h-12 w-full items-center gap-2.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 text-left text-[15px] font-bold text-[var(--ink)] shadow-sm transition hover:border-[#aaa69b]", open && "border-[var(--orange)]")}>
-      <span className="flex-1 truncate">{active.label}</span>
-      <span className="rounded-full bg-[var(--ink)] px-2 py-0.5 text-[10px] text-white">{counts[active.id]}</span>
-      <ChevronDown size={17} className={cn("shrink-0 text-[var(--ink-soft)] transition", open && "rotate-180")} />
-    </button>
-    {open && <div role="listbox" className="absolute left-0 top-[calc(100%+6px)] z-30 w-full rounded-2xl border border-[var(--line)] bg-white p-1.5 shadow-xl">
-      {tabs.map((entry) => <button key={entry.id} type="button" role="option" aria-selected={entry.id === tab} onClick={() => { onSelect(entry.id); setOpen(false); }} className={cn("flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-sm font-bold text-[var(--ink-soft)] transition hover:bg-[var(--paper)]", entry.id === tab && "bg-[var(--paper)] text-[var(--ink)]")}>
-        <Check size={16} className={cn("shrink-0 text-[var(--orange)]", entry.id !== tab && "opacity-0")} />
-        <span className="flex-1 truncate">{entry.label}</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px]", entry.id === tab ? "bg-[var(--ink)] text-white" : "bg-black/5")}>{counts[entry.id]}</span>
-      </button>)}
-    </div>}
+  return <div className="grep-calendar-controls">
+    <div className="grep-segments grep-calendar-desktop-tabs" role="group" aria-label="Vis økter">
+      {tabs.map((entry) => <button key={entry.id} aria-pressed={tab === entry.id} onClick={() => onSelect(entry.id)}>{entry.label}<span>{counts[entry.id]}</span></button>)}
+    </div>
+    <label className="grep-calendar-mobile-select"><span>Vis økter</span><select value={tab} onChange={(event) => onSelect(event.target.value as SessionTab)}>{tabs.map((entry) => <option key={entry.id} value={entry.id}>{entry.label} ({counts[entry.id]})</option>)}</select></label>
   </div>;
 }
 
@@ -210,7 +191,7 @@ function SessionRow({ session, tab, hero = false, onCopy, onReopen, onDelete }: 
   // The whole card opens the plan — Start and Rediger live in the plan view, so
   // the row carries no action but the menu, which opts back in to pointer
   // events. An open menu has to outrank the rows stacked after it.
-  return <li className={cn("group relative rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_6px_20px_rgba(16,32,29,.03)] transition hover:border-[#b7b2a6] hover:shadow-[var(--shadow)] sm:p-5", hero && "border-[#e9b79c] shadow-[0_10px_30px_rgba(240,100,46,.10)] hover:border-[var(--orange)]", menuOpen && "z-20")}>
+  return <li className={cn("group relative rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_6px_20px_rgba(16,32,29,.03)] transition hover:border-[#b7b2a6] hover:shadow-[var(--shadow)] sm:p-5", hero && "grep-session-featured border-[#e9b79c] shadow-[0_10px_30px_rgba(240,100,46,.10)] hover:border-[var(--orange)]", menuOpen && "z-20")}>
     <Link href={`/sessions/${session.id}`} aria-label={`Åpne ${session.title}`} className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--orange)]" />
     <div className="pointer-events-none relative flex flex-wrap items-start gap-x-4 gap-y-3.5 sm:flex-nowrap sm:items-center sm:gap-5">
       <div className={cn("grid h-14 w-14 shrink-0 place-content-center justify-items-center rounded-2xl border border-[var(--line)] text-center sm:h-16 sm:w-16", inProgress ? "border-transparent bg-[var(--orange)] text-white" : "bg-[var(--paper-deep)]")}>

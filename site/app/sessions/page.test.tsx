@@ -5,11 +5,11 @@ import { demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import type { MonthFocus, PlannedSession } from "@/lib/types";
 import SessionsPage from "./page";
 
-const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), deleteSession: vi.fn(), saveMonthFocus: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), deleteSession: vi.fn(), saveMonthFocus: vi.fn(), query: "" }));
 
 vi.mock("@/components/app-provider", () => ({ useGrep: mocks.useGrep }));
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }), useSearchParams: () => new URLSearchParams(mocks.query) }));
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode; href: string }) => <a href={href} {...props}>{children}</a>,
 }));
@@ -26,7 +26,14 @@ const rowFor = (title: string) => screen.getByRole("link", { name: `Åpne ${titl
 
 describe("session calendar rows", () => {
   beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.deleteSession.mockReset(); mocks.saveMonthFocus.mockReset(); });
-  afterEach(() => { vi.useRealTimers(); });
+  afterEach(() => { vi.useRealTimers(); mocks.query = ""; });
+
+  it("opens completed sessions from the Oversikt history shortcut", () => {
+    mocks.query = "view=past";
+    renderPage([upcoming("old", "En gjennomført økt", "2026-08-01T10:00:00Z"), upcoming("new", "Neste trening", "2026-09-05T10:00:00Z")]);
+    expect(screen.getByRole("link", { name: "Åpne En gjennomført økt" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Åpne Neste trening" })).not.toBeInTheDocument();
+  });
 
   it("lifts the nearest session out of its month and counts the rest", () => {
     renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z"), upcoming("b", "Om to dager", "2026-09-04T13:45:00.000Z"), upcoming("c", "Neste måned", "2026-10-01T13:45:00.000Z")]);
@@ -192,8 +199,7 @@ describe("month focus", () => {
 
     expect(screen.getByRole("button", { name: /Opprett økt/ })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Kommende/ }));
-    fireEvent.click(screen.getByRole("option", { name: /Gjennomførte/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Gjennomførte/ }));
 
     expect(screen.getByRole("heading", { name: "Gjennomført" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Opprett økt/ })).toBeNull();

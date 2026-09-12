@@ -31,6 +31,25 @@ describe("MatchCalendar", () => {
     expect(screen.getByText("Ingen kamper i kalenderen")).toBeInTheDocument();
   });
 
+  it("starts with a scannable list and lets the coach switch to the month grid", () => {
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    expect(screen.getByRole("button", { name: "Liste" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Månedens kamper")).not.toHaveClass("sm:hidden");
+    fireEvent.click(screen.getByRole("button", { name: "Kalender" }));
+    expect(screen.getByRole("button", { name: "Kalender" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Månedens kamper")).toHaveClass("sm:hidden");
+    fireEvent.click(screen.getByRole("button", { name: "Liste" }));
+    expect(screen.getByRole("button", { name: "Liste" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("opens full match details from the agenda", () => {
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    const agenda = screen.getByLabelText("Månedens kamper");
+    fireEvent.click(within(agenda).getByRole("button", { name: /Fjordvik Rød — Nesodden Gul/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("41041006001")).toBeInTheDocument();
+  });
+
   it("shows the month's matches and the next one up", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
     expect(screen.getByText("Neste kamp")).toBeInTheDocument();

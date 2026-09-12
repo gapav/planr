@@ -1,13 +1,19 @@
 import Link from "next/link";
 
+/** Vector translation of the selected folded-page reference, for brand review. */
 export function Logo({ compact = false }: { compact?: boolean }) {
-  return <Link href="/exercises" className="inline-flex items-center gap-2.5 rounded-lg" aria-label="Grep-forsiden">
-    <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-[11px] bg-[var(--ink)] text-white shadow-sm">
-      <svg aria-hidden="true" viewBox="0 0 36 36" className="h-full w-full">
-        <path d="M25 12.5a10 10 0 1 0 1.5 12V19H19" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
-        <circle cx="27.5" cy="9.5" r="3" fill="var(--orange)" />
-      </svg>
-    </span>
-    {!compact && <span className="text-[21px] font-black tracking-[-.055em]">grep<span className="text-[var(--orange)]">.</span></span>}
-  </Link>;
+  return <Link href="/" className="grep-logo" aria-label="Grep-forsiden"><LogoArtwork compact={compact} /></Link>;
+}
+
+/** Non-interactive artwork for decorative brand signatures. */
+export function LogoArtwork({ compact = false }: { compact?: boolean }) {
+  return <svg aria-hidden="true" viewBox={compact ? "318 156 254 274" : "318 156 894 274"} className={compact ? "grep-logo-mark" : "grep-logo-lockup"} fill="currentColor">
+      <path d="M322 239 Q322 214 349 202 L445 162 Q473 152 495 173 L547 226 Q539 234 526 223 L488 187 Q475 174 467 185 L370 323 Q362 333 372 337 Q375 339 385 333 L533 254 Q557 240 565 266 Q568 275 568 285 L568 337 Q568 362 547 372 L425 422 Q393 435 367 419 Q322 395 322 351Z" />
+      {!compact && <>
+        <path fillRule="evenodd" d="M742 218 Q723 199 697 199 C655 198 623 231 623 274 C623 315 653 346 695 346 Q723 347 742 329 L742 340 C742 367 725 378 705 378 Q674 378 669 353 Q668 350 662 352 L635 356 Q622 358 628 371 C640 401 669 414 704 414 C755 414 785 388 785 344 L785 205 Q785 201 781 201 L747 201 Q742 201 742 206Z M743 274 C743 253 726 236 705 236 C683 236 667 252 667 274 C667 296 683 312 705 312 C727 312 743 297 743 274Z" />
+        <path d="M797 346 L797 260 C797 225 819 201 851 201 L882 201 Q886 201 886 205 L886 226 Q886 238 874 238 L866 238 C851 238 841 247 841 263 L841 346 Q841 350 837 350 L801 350 Q797 350 797 346Z" />
+        <path fillRule="evenodd" d="M1032 257 Q1034 261 1028 263 L928 303 C946 323 973 322 992 299 Q996 294 1000 297 L1025 309 Q1030 311 1027 316 C1011 341 989 353 961 353 C914 353 879 320 879 275 C879 232 913 197 960 197 C997 197 1023 222 1032 257Z M919 274 L986 246 C978 236 970 233 960 233 C937 233 919 252 919 274Z" />
+        <path fillRule="evenodd" d="M1038 276 C1038 230 1075 196 1122 196 C1169 196 1205 230 1205 275 C1205 320 1170 353 1125 353 Q1099 353 1083 339 L1083 402 Q1083 407 1078 407 L1042 407 Q1038 407 1038 403Z M1161 274 C1161 252 1145 236 1122 236 C1100 236 1083 253 1083 275 C1083 297 1100 313 1122 313 C1145 313 1161 297 1161 274Z" />
+      </>}
+    </svg>;
 }

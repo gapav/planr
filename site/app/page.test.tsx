@@ -1,14 +1,12 @@
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import Home from "./page";
 
-const redirect = vi.hoisted(() => vi.fn());
-
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("@/components/overview", () => ({ Overview: () => <h1>Klar for neste økt?</h1> }));
 
 describe("home page", () => {
-  it("takes a normal app visit to sessions", () => {
-    Home();
-
-    expect(redirect).toHaveBeenCalledWith("/sessions");
+  it("opens Oversikt instead of redirecting to the calendar", () => {
+    render(<Home />);
+    expect(screen.getByRole("heading", { name: "Klar for neste økt?" })).toBeInTheDocument();
   });
 });

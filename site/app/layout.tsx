@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import { AppProvider } from "@/components/app-provider";
 import "./globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://grep.team";
+const dmSans = localFont({ src: "../public/fonts/dm-sans-latin-variable.ttf", variable: "--font-grep", display: "swap", weight: "100 1000" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -37,7 +39,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="nb">
+    <html lang="nb" className={dmSans.variable}>
       <body>
         <AppProvider>{children}</AppProvider>
       </body>

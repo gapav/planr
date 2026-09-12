@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Hash, MapPin, Trash2, Trophy } from "lucide-react";
+import { Building2, CalendarDays, Clock3, List, ChevronDown, ChevronLeft, ChevronRight, Hash, MapPin, Trash2, Trophy } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { buildCalendarMonth, dayKey, fixtureOpponent, fixtureTeamNames, groupFixturesByDay, monthKey, monthLabel, shiftMonth, teamColor, upcomingFixtures } from "@/lib/fixtures";
 import type { TeamFixture, WarmupRoutine } from "@/lib/types";
@@ -35,6 +35,7 @@ export function MatchCalendar({ fixtures, canManage, canEditWarmup }: { fixtures
   // browser fills it in on hydration.
   const today = useSyncExternalStore(subscribeToNothing, () => dayKey(new Date()), () => null);
   const [month, setMonth] = useState(() => monthKey(new Date()));
+  const [view, setView] = useState<"list" | "calendar">("list");
   const [picked, setPicked] = useState<string | null>(null);
   const [open, setOpen] = useState<TeamFixture | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -66,10 +67,10 @@ export function MatchCalendar({ fixtures, canManage, canEditWarmup }: { fixtures
   if (!fixtures.length) return <EmptyState icon={<CalendarDays size={22} />} title="Ingen kamper i kalenderen" body="Importer terminlisten fra turneringssystemet, og velg hvilke av lagene i avdelingen som er deres." />;
 
   return <>
-    {next && <button type="button" onClick={() => setOpen(next)} className="flex w-full flex-col gap-3 rounded-[22px] border border-[#efc7b1] bg-[#fdece3] p-4 text-left transition hover:-translate-y-0.5 hover:border-[var(--orange)] sm:flex-row sm:items-center sm:gap-5 sm:p-5">
-      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white text-center shadow-sm"><span><span className="block text-[10px] font-black uppercase tracking-[.1em] text-[var(--ink-soft)]">{new Intl.DateTimeFormat("nb-NO", { month: "short" }).format(new Date(next.startsAt))}</span><span className="block text-xl font-black leading-5">{new Intl.DateTimeFormat("nb-NO", { day: "numeric" }).format(new Date(next.startsAt))}</span></span></span>
-      <span className="min-w-0 flex-1"><span className="block text-[11px] font-black uppercase tracking-[.16em] text-[#9c3913]">Neste kamp</span><span className="mt-1 block truncate text-lg font-black tracking-[-.02em]">{next.homeTeam} — {next.awayTeam}</span><span className="mt-1 block truncate text-sm text-[var(--ink-soft)]">{longDate(next.startsAt)} kl. {time(next.startsAt)}{next.venue ? ` · ${next.venue}` : ""}</span></span>
-      <span className="flex shrink-0 flex-wrap gap-1.5">{next.ourTeams.map((name) => <TeamDot key={name} name={name} />)}</span>
+    {next && <button type="button" onClick={() => setOpen(next)} className="grep-match-featured">
+      <span className="grep-match-date"><span>{new Intl.DateTimeFormat("nb-NO", { month: "short" }).format(new Date(next.startsAt))}</span><strong>{new Intl.DateTimeFormat("nb-NO", { day: "numeric" }).format(new Date(next.startsAt))}</strong></span>
+      <span className="grep-match-featured-copy"><span className="grep-eyebrow">Neste kamp</span><strong>{next.homeTeam}<span className="grep-match-versus"> mot </span>{next.awayTeam}</strong><span className="grep-match-meta"><span><Clock3 size={14} />{time(next.startsAt)}</span>{next.venue && <span><MapPin size={14} />{next.venue}</span>}</span></span>
+      <ChevronRight size={21} className="grep-match-chevron" />
     </button>}
 
     {teams.length > 1 && <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrer på lag">
@@ -77,16 +78,16 @@ export function MatchCalendar({ fixtures, canManage, canEditWarmup }: { fixtures
       {teams.map((name) => <FilterChip key={name} active={team === name} color={teamColor(name)} onClick={() => setPicked(team === name ? null : name)}>{name}</FilterChip>)}
     </div>}
 
-    <div className="mt-6 flex items-center justify-between gap-3">
-      <h2 className="text-xl font-black tracking-[-.03em] first-letter:uppercase sm:text-2xl">{monthLabel(month)}</h2>
-      <div className="flex items-center gap-1.5">
+    <div className="grep-match-toolbar">
+      <h2 className="text-xl font-semibold tracking-[-.03em] first-letter:uppercase sm:text-2xl">{monthLabel(month)}</h2>
+      <div className="grep-match-controls"><div className="grep-match-view grep-segments" role="group" aria-label="Kalendervisning"><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><List size={16} />Liste</button><button type="button" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}><CalendarDays size={16} />Kalender</button></div><div className="flex items-center gap-1.5">
         <Button variant="secondary" size="sm" onClick={() => setMonth(monthKey(new Date()))}>I dag</Button>
         <Button variant="secondary" size="sm" className="px-2.5" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Forrige måned"><ChevronLeft size={17} /></Button>
         <Button variant="secondary" size="sm" className="px-2.5" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Neste måned"><ChevronRight size={17} /></Button>
       </div>
-    </div>
+    </div></div>
 
-    <div className="mt-3 hidden overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)] sm:block">
+    <div className={cn("grep-match-grid mt-3 overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface)]", view === "calendar" ? "hidden sm:block" : "hidden")}>
       <div className="grid grid-cols-7 border-b border-[var(--line)] bg-[var(--paper)]">{WEEKDAYS.map((day) => <span key={day} className="px-2 py-2 text-center text-[11px] font-black uppercase tracking-[.1em] text-[var(--ink-soft)]">{day}</span>)}</div>
       <div className="grid grid-cols-7">{weeks.flat().map((day, index) => {
         const matches = byDay.get(day.key) ?? [];
@@ -104,7 +105,7 @@ export function MatchCalendar({ fixtures, canManage, canEditWarmup }: { fixtures
 
     {/* On a phone the grid cells are too small to read a match in, so the month
         becomes the list it would have to collapse to anyway. */}
-    <div className="mt-3 sm:hidden">
+    <div className={cn("grep-match-agenda mt-4", view === "calendar" && "sm:hidden")} aria-label="Månedens kamper">
       {monthFixtures.length ? <ul className="flex flex-col gap-2">{monthFixtures.map((fixture) => <li key={fixture.id}><MatchRow fixture={fixture} onOpen={() => setOpen(fixture)} /></li>)}</ul>
         : <p className="rounded-2xl border border-dashed border-[#c8c3b7] px-4 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen kamper denne måneden.</p>}
     </div>
@@ -115,12 +116,8 @@ export function MatchCalendar({ fixtures, canManage, canEditWarmup }: { fixtures
   </>;
 }
 
-function TeamDot({ name }: { name: string }) {
-  return <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-white/70 px-2.5 text-xs font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: teamColor(name) }} aria-hidden />{name}</span>;
-}
-
 function FilterChip({ active, color, onClick, children }: { active: boolean; color?: string; onClick(): void; children: React.ReactNode }) {
-  return <button type="button" onClick={onClick} aria-pressed={active} className={cn("inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-bold transition", active ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]")}>
+  return <button type="button" onClick={onClick} aria-pressed={active} className={cn("inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-bold transition", active ? "border-[#eac8b6] bg-[#fff0e7] text-[var(--ink)]" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]")}>
     {color && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} aria-hidden />}{children}
   </button>;
 }
@@ -146,12 +143,12 @@ function DayMatches({ dayKey, matches, onClose, onOpen }: { dayKey: string | nul
 }
 
 function MatchRow({ fixture, onOpen, compact = false }: { fixture: TeamFixture; onOpen(): void; compact?: boolean }) {
-  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 text-left transition hover:border-[var(--ink)]">
-    <span className="h-10 w-1 shrink-0 rounded-full" style={{ backgroundColor: teamColor(fixture.ourTeams[0] ?? fixture.homeTeam) }} aria-hidden />
-    {compact ? <span className="w-12 shrink-0 text-center text-sm font-black tabular-nums">{time(fixture.startsAt)}</span>
-      : <span className="grid w-14 shrink-0 text-center"><span className="text-[10px] font-black uppercase tracking-[.1em] text-[var(--ink-soft)]">{new Intl.DateTimeFormat("nb-NO", { weekday: "short" }).format(new Date(fixture.startsAt))}</span><span className="text-lg font-black leading-5">{new Intl.DateTimeFormat("nb-NO", { day: "numeric" }).format(new Date(fixture.startsAt))}</span></span>}
-    <span className="min-w-0 flex-1"><span className="block truncate font-bold">{fixture.homeTeam} — {fixture.awayTeam}</span><span className="block truncate text-xs text-[var(--ink-soft)]">{compact ? fixture.venue || "Bane ikke satt" : `kl. ${time(fixture.startsAt)}${fixture.venue ? ` · ${fixture.venue}` : ""}`}</span></span>
-    {fixture.result && <Tag tone="green">{fixture.result}</Tag>}
+  const { isHome, isDerby } = fixtureOpponent(fixture);
+  return <button type="button" onClick={onOpen} className="grep-match-row">
+    {compact ? <span className="grep-match-time">{time(fixture.startsAt)}</span>
+      : <span className="grep-match-date"><span>{new Intl.DateTimeFormat("nb-NO", { weekday: "short" }).format(new Date(fixture.startsAt))}</span><strong>{new Intl.DateTimeFormat("nb-NO", { day: "numeric" }).format(new Date(fixture.startsAt))}</strong></span>}
+    <span className="grep-match-row-copy"><span className="grep-match-location">{isDerby ? "Internkamp" : isHome ? "Hjemmekamp" : "Bortekamp"}</span><strong>{fixture.homeTeam} — {fixture.awayTeam}</strong><span className="grep-match-meta">{!compact && <span><Clock3 size={13} />{time(fixture.startsAt)}</span>}<span><MapPin size={13} />{fixture.venue || "Bane ikke satt"}</span></span></span>
+    {fixture.result && <Tag tone="green">{fixture.result}</Tag>}<ChevronRight size={18} className="grep-match-chevron" />
   </button>;
 }
 
