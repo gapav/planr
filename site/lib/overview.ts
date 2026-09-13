@@ -54,3 +54,52 @@ export function overviewFocus(monthFocus: MonthFocus[], teamId: string | undefin
   const month = monthKey(now, timeZone);
   return monthFocus.find((entry) => entry.teamId === teamId && entry.month === month) ?? null;
 }
+
+/**
+ * The greeting on the front page. Nineteen lines so the trenerrom does not open
+ * with the exact same sentence every morning; they all ask the same thing, so
+ * the button below reads the same whichever one turns up.
+ */
+export const overviewHeadlines = [
+  "Klar for neste økt?",
+  "Hva skal laget øve på framover?",
+  "Skal vi planlegge en økt?",
+  "Klar for en ny treningsøkt?",
+  "Hva står på planen denne uka?",
+  "Ny dag, ny økt?",
+  "Skal vi sette opp treningen denne uka?",
+  "Hva vil du jobbe med på neste økt?",
+  "Klar for å legge en plan?",
+  "Skal vi finne på noe bra denne uka?",
+  "Hvordan blir neste trening?",
+  "Klar for hallen?",
+  "Hva skal gjengen gjøre denne uka?",
+  "Skal vi bygge neste økt?",
+  "Klar for å planlegge?",
+  "Hva blir temaet denne uka?",
+  "Klar for å komme i gang?",
+  "Hva skal vi trene på?",
+  "Skal vi gjøre klar neste trening?",
+] as const;
+
+/** Picks one greeting. Call it on the client only — the server has no opinion. */
+export function overviewHeadline(random = Math.random()) {
+  const index = Math.min(overviewHeadlines.length - 1, Math.max(0, Math.floor(random * overviewHeadlines.length)));
+  return overviewHeadlines[index];
+}
+
+/**
+ * The salutation above the headline, read off the coach's own clock. `now` is
+ * null until the browser has one, and a server rendering the hour would be
+ * rendering it in the wrong time zone anyway, so that case keeps the neutral
+ * "Hei".
+ */
+export function overviewSalutation(now: Date | null) {
+  if (!now) return "Hei";
+  const hour = now.getHours();
+  if (hour < 5) return "God natt";
+  if (hour < 10) return "God morgen";
+  if (hour < 18) return "Hei";
+  if (hour < 23) return "God kveld";
+  return "God natt";
+}

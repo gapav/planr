@@ -39,7 +39,7 @@ describe("Oversikt", () => {
   });
   it("shows the next match with the meet-up counted back from the throw-off", () => {
     render(<Overview />);
-    const card = screen.getByRole("link", { name: /Neste kamp lørdag 26. september/ });
+    const card = screen.getByRole("link", { name: /Neste kamp: lørdag 26. september/ });
     expect(card).toHaveAttribute("href", "/matches");
     expect(card).toHaveTextContent("Fjordvik Blå – Fjordvik Rød");
     expect(card).toHaveTextContent("oppmøte 12:40");
@@ -47,7 +47,7 @@ describe("Oversikt", () => {
   });
   it("drops the meet-up line when the team has no warm-up routine", () => {
     mocks.useGrep.mockReturnValue({ ...state(), warmupRoutines: [] }); render(<Overview />);
-    expect(screen.getByRole("link", { name: /Neste kamp lørdag 26. september/ })).not.toHaveTextContent("oppmøte");
+    expect(screen.getByRole("link", { name: /Neste kamp: lørdag 26. september/ })).not.toHaveTextContent("oppmøte");
   });
   it("keeps the match card and invites an admin to import when the calendar is empty", () => {
     mocks.useGrep.mockReturnValue({ ...state(), fixtures: [] }); render(<Overview />);

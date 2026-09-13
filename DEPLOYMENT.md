@@ -286,11 +286,21 @@ entirely. See [Project Pausing](https://supabase.com/docs/guides/platform/free-p
 roughly monthly:
 
 ```bash
-npx supabase db dump --db-url "postgresql://postgres:PASSWORD@db.YOUR_PROJECT.supabase.co:5432/postgres" -f backup-$(date +%F).sql
+make doctor    # one-time: check this machine can do it at all
+make backup    # guided, read-only, prompts for the password
 ```
 
+Three reasons not to reach for `supabase db dump` by hand here. It shells out to
+`pg_dump` inside **Docker**, which this project does not otherwise need; it
+**excludes the `auth` schema**, so the dump restores a schema nobody can sign in
+to; and it cannot see **Storage files** at all, so exercise videos and team logos
+are left behind. `make backup` covers all three, and steers you to the Session
+pooler because the direct `db.<ref>.supabase.co` host is IPv6-only.
+
 Keep the dumps off Supabase and off the laptop's only disk. Restore one into a
-scratch project once, so you know the command works before you need it. See
+scratch project once, so you know the command works before you need it —
+`make restore` walks through it. The full runbook, including what a backup
+*cannot* hold, is in [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md). See also
 [Database Backups](https://supabase.com/docs/guides/platform/backups).
 
 **Forgotten passwords.** Supabase → Authentication → Users → the user → reset

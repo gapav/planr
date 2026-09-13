@@ -8,7 +8,7 @@ import { useGrep } from "./app-provider";
 import { AppShell } from "./app-shell";
 import { CourtArtwork } from "./court-artwork";
 import { monthKey, monthLabel } from "@/lib/fixtures";
-import { overviewFixture, overviewFocus, overviewSessions } from "@/lib/overview";
+import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewSalutation, overviewSessions } from "@/lib/overview";
 import { calendarDaysUntil } from "@/lib/session";
 import type { MonthFocus } from "@/lib/types";
 import { cn, minutesLabel } from "@/lib/utils";
@@ -29,6 +29,13 @@ export function Overview() {
     window.addEventListener("focus", refresh);
     return () => { window.clearInterval(interval); window.removeEventListener("focus", refresh); };
   }, []);
+  // Drawn once on the client: picking during render would make the server and
+  // the first client render disagree about the greeting.
+  const [headline, setHeadline] = useState<string>(overviewHeadlines[0]);
+  useEffect(() => {
+    const draw = () => setHeadline(overviewHeadline());
+    draw();
+  }, []);
   const { next, draft } = overviewSessions(sessions, currentTeam?.id, now ?? new Date(0));
   const match = now ? overviewFixture(fixtures, currentTeam?.id, warmupRoutines, now) : null;
   const focus = now ? overviewFocus(monthFocus, currentTeam?.id, now) : null;
@@ -39,6 +46,7 @@ export function Overview() {
   const today = next && now && calendarDaysUntil(next.startsAt, now) === 0;
   const date = next?.startsAt ? new Date(next.startsAt) : null;
   const dateLabel = date ? dayFormat.format(date) : "Økten er i gang";
+  const sessionHref = next ? `/sessions/${next.id}${ongoing ? "/live" : ""}` : "";
 
   async function planSession() {
     if (creating || !currentTeam) return;
@@ -56,8 +64,8 @@ export function Overview() {
     </div>
     <header className="overview-welcome">
       <div className="overview-welcome-copy">
-        <p className="overview-greeting">Hei, {firstName}</p>
-        <h1>Klar for neste økt?</h1>
+        <p className="overview-greeting">{overviewSalutation(now)}, {firstName}</p>
+        <h1>{headline}</h1>
         <button className="grep-action" onClick={() => void planSession()} disabled={creating || loading || !currentTeam}>
           {creating ? "Klargjør økten …" : "Planlegg økt"}<ArrowRight size={19} />
         </button>
@@ -69,15 +77,15 @@ export function Overview() {
       <section className="overview-card overview-no-team"><Users size={26} /><h2>Velkommen til trenerrommet</h2><p>Når du blir invitert til et lag, finner du øktplanene og trenerteamet her.</p>{user?.isGlobalAdmin && <Link className="grep-action" href="/admin">Administrer lag<ArrowRight size={18} /></Link>}</section> : <>
       <div className="overview-cards">
         <section className="overview-card overview-next" aria-labelledby="next-session-heading">
-          <div className="overview-card-label"><span>{ongoing ? "Økten er i gang" : today ? "Dagens økt" : "Neste økt"}</span><CalendarDays size={19} /></div>
+          <div className="overview-card-label"><span>{ongoing ? "Økten er i gang" : today ? "Dagens økt" : "Neste trening:"}</span><Link href="/sessions" className="overview-card-icon" aria-label="Åpne øktkalenderen"><CalendarDays size={19} /></Link></div>
           {next ? <>
-            <h2 id="next-session-heading" className="overview-date">{dateLabel}</h2>
-            <p className="overview-session-title">{next.title}</p>
+            <h2 id="next-session-heading">{next.title}</h2>
+            <p className="overview-session-title overview-date">{dateLabel}</p>
             <div className="overview-session-meta">
               {date && <span><Clock3 size={16} />{new Intl.DateTimeFormat("nb-NO", { hour: "2-digit", minute: "2-digit" }).format(date)} · {minutesLabel(next.plannedDurationMinutes)}</span>}
               {next.venue && <span><MapPin size={16} />{next.venue}</span>}
             </div>
-            <Link className="grep-action grep-action-secondary" href={`/sessions/${next.id}${ongoing ? "/live" : ""}`}>{ongoing ? "Tilbake til økten" : "Åpne øktplan"}<ArrowRight size={17} /></Link>
+            <Link className="grep-action grep-action-secondary" href={sessionHref}>{ongoing ? "Tilbake til økten" : "Gå til økt"}<ArrowRight size={17} /></Link>
           </> : <>
             <h2 id="next-session-heading">Plass til en god økt.</h2>
             <p className="overview-empty-copy">Ingen økter i kalenderen ennå. Start en plan, eller fortsett der dere slapp.</p>
@@ -133,7 +141,7 @@ function NextMatch({ match, canImport }: { match: ReturnType<typeof overviewFixt
     // A derby is the club against itself, so there is no single opponent to name.
     ? `${match.fixture.homeTeam} – ${match.fixture.awayTeam}`
     : `Mot ${match.opponent}`);
-  const label = match?.day ? "Neste kampdag" : "Neste kamp";
+  const label = match?.day ? "Neste kampdag:" : "Neste kamp:";
   const action = match ? "Åpne kampkalenderen" : canImport ? "Importer kamper" : "Se kampkalenderen";
   return <Link href="/matches" className="overview-card overview-match" aria-label={match && kickOff ? `${label} ${dayFormat.format(kickOff)}, ${opponent}. ${action}` : action}>
     <span className="overview-match-body">

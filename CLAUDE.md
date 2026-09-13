@@ -24,6 +24,27 @@ npx vitest run -t "derives upcoming and past"  # single test by name
 
 `supabase test db` runs the pgTAP RLS suite but needs a disposable local Supabase CLI instance — only run it when the user explicitly asks and confirms.
 
+## Disaster recovery
+
+Supabase Free takes no backups. `make backup` / `make restore` (repo root,
+`scripts/*.sh`) are the whole safety net; `make doctor` checks the machine can
+run them. Full runbook in `DISASTER_RECOVERY.md`.
+
+Three facts that are easy to get wrong and expensive to discover late:
+
+- `supabase db dump` needs **Docker** and **excludes the `auth` schema**, and
+  `pg_dump` cannot see **Storage blobs** at all. A backup missing `auth.users`
+  restores a schema nobody can sign into. `make backup` covers all three.
+- The direct host `db.<ref>.supabase.co` is **IPv6-only**. Use the Session
+  pooler (port 5432); the transaction pooler (6543) cannot run `pg_dump`.
+- **Never apply `prod_bootstrap.sql` when restoring from a backup.** It contains
+  one-time cleanup migrations that delete rows — `202609020028` drops every
+  unaccepted invitation, `202609020029` drops never-signed-in auth users. The
+  bootstrap is for standing up an *empty* project, nothing else.
+
+Never put a database password on a command line or in a file; the scripts prompt
+for it and pass it through the environment.
+
 ## Hard rules
 
 - **Never mutate a database.** No `supabase db push/reset/start`, no applying migrations. The user applies SQL manually in the Supabase dashboard. Make schema changes only by adding/editing files in `site/supabase/migrations/`, and never claim a migration has been applied. Treat already-shipped migrations as immutable — add a forward migration instead, and tell the user exactly which file to run and in what order.

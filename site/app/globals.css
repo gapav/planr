@@ -141,6 +141,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-match > svg { flex-shrink: 0; color: #897a94; }
 .overview-card-label { display: flex; align-items: center; justify-content: space-between; width: 100%; color: #63526e; font-size: 13px; font-weight: 500; }
 .overview-card-label svg { color: #998ca2; }
+/* The calendar glyph is the way into the session calendar, so it takes a
+   touch target of its own rather than sitting flush in the label row. */
+.overview-card-icon { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; margin: -8px 3px -8px 0; border-radius: 10px; color: #998ca2; transition: background .15s, color .15s; }
+.overview-card-icon:hover { background: var(--grep-lilac); color: var(--grep-ink); }
 .overview-next h2, .overview-match-date { display: block; margin: 17px 0 9px; font-size: 25px; line-height: 1.2; letter-spacing: -.035em; font-weight: 600; }
 .overview-date::first-letter { text-transform: uppercase; }
 .overview-session-title { font-size: 14px; color: #62546d; overflow-wrap: anywhere; }
@@ -242,6 +246,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-match .overview-session-title { display: block; margin-top: -2px; }
 .overview-next::after { display: none; }
 .overview-card-label svg { margin-right: 12px; }
+/* The glyph is centred inside its own hit area instead, which carries the inset. */
+.overview-card-icon svg { margin-right: 0; }
 .grep-page { width: 100%; max-width: 1264px; margin: 0 auto; padding: 36px 24px 64px; }
 .grep-match-featured { display: flex; align-items: center; gap: 22px; width: 100%; padding: 26px; text-align: left; background: white; border: 1px solid var(--line); border-radius: 20px; background: #f4edf9; }
 .grep-match-date { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 62px; min-height: 70px; border-radius: 14px; background: var(--paper-deep); }
@@ -507,7 +513,9 @@ button.grep-session-focus:hover { background: var(--paper); }
 .overview-welcome { position: relative; isolation: isolate; overflow: hidden; min-height: 264px; margin: 0 0 var(--overview-gap); padding: 22px 0 0; }
 .overview-welcome-copy { position: relative; z-index: 1; }
 .overview-greeting { font-size: 22px; }
-.overview-welcome h1 { max-width: 70%; margin: 12px 0 28px; font-size: clamp(48px,4.3vw,72px); line-height: 1.12; letter-spacing: -.045em; font-weight: 700; }
+/* The court is 39% wide and pinned right, so the headline stops short of it:
+   the greetings vary in length and must never run under the graphic. */
+.overview-welcome h1 { max-width: 56%; margin: 12px 0 28px; font-size: clamp(40px,3.5vw,60px); line-height: 1.12; letter-spacing: -.045em; font-weight: 700; }
 .overview-welcome .grep-action { min-height: 60px; padding: 16px 30px; font-size: 18px; }
 .overview-court-crop { position: absolute; z-index: 0; pointer-events: none; right: 0; bottom: 0; width: 39%; height: 248px; overflow: hidden; border-radius: 160px 20px 20px 20px; }
 .overview-court-art { position: absolute; left: 0; bottom: 0; width: 100%; min-width: 442.667px; height: auto; aspect-ratio: 664 / 450; max-width: none; }
@@ -540,7 +548,7 @@ button.grep-session-focus:hover { background: var(--paper); }
   .overview-match { padding: 28px 24px 28px 32px; }
 }
 @media (min-width: 640px) and (max-width: 1023px) {
-  .overview-welcome h1 { max-width: 72%; font-size: 38px; }
+  .overview-welcome h1 { max-width: 64%; font-size: 34px; }
   .overview-court-crop { width: 29%; }
   .overview-court-art { width: 368.889px; min-width: 0; height: 250px; }
 }

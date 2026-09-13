@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { demoFixtures, demoMonthFocus, demoSessions, demoWarmupRoutines } from "./demo-data";
-import { overviewFixture, overviewFocus, overviewSessions } from "./overview";
+import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewSalutation, overviewSessions } from "./overview";
 
 const now = new Date("2026-09-12T10:00:00Z");
 const future = { ...demoSessions[1], id: "future", startsAt: "2026-09-17T14:00:00Z" };
@@ -88,5 +88,37 @@ describe("overview focus", () => {
     expect(overviewFocus([focus], "team-senior", new Date("2026-10-01T10:00:00Z"), "Europe/Oslo")).toBeNull();
     expect(overviewFocus([focus], "team-u16", new Date("2026-09-20T10:00:00Z"), "Europe/Oslo")).toBeNull();
     expect(overviewFocus([focus], undefined, new Date("2026-09-20T10:00:00Z"), "Europe/Oslo")).toBeNull();
+  });
+});
+
+describe("overview headline", () => {
+  it("offers nineteen distinct greetings", () => {
+    expect(overviewHeadlines).toHaveLength(19);
+    expect(new Set(overviewHeadlines).size).toBe(19);
+  });
+  it("picks one of them, and stays inside the list at both ends", () => {
+    expect(overviewHeadlines).toContain(overviewHeadline());
+    expect(overviewHeadline(0)).toBe(overviewHeadlines[0]);
+    expect(overviewHeadline(0.999999)).toBe(overviewHeadlines[18]);
+    expect(overviewHeadline(1)).toBe(overviewHeadlines[18]);
+  });
+});
+
+describe("overview salutation", () => {
+  const at = (hour: number) => overviewSalutation(new Date(2026, 8, 13, hour));
+  it("follows the coach's own clock", () => {
+    expect(at(6)).toBe("God morgen");
+    expect(at(13)).toBe("Hei");
+    expect(at(20)).toBe("God kveld");
+    expect(at(2)).toBe("God natt");
+  });
+  it("turns over on the hour", () => {
+    expect([at(4), at(5)]).toEqual(["God natt", "God morgen"]);
+    expect([at(9), at(10)]).toEqual(["God morgen", "Hei"]);
+    expect([at(17), at(18)]).toEqual(["Hei", "God kveld"]);
+    expect([at(22), at(23)]).toEqual(["God kveld", "God natt"]);
+  });
+  it("stays neutral before the browser has a clock", () => {
+    expect(overviewSalutation(null)).toBe("Hei");
   });
 });
