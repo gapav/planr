@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AdminAccountDirectory, filterAdminAccounts, lastSignInLabel } from "./admin-account-directory";
 import type { AdminAccount } from "@/lib/types";
@@ -21,9 +21,18 @@ describe("admin account directory", () => {
     expect(lastSignInLabel("not-a-date")).toBe("Innloggingstidspunkt ukjent");
   });
 
+  it("renames a coach whose name is still the email stub", async () => {
+    const onRename = vi.fn().mockResolvedValue(undefined);
+    render(<AdminAccountDirectory accounts={[account]} loaded currentUserId="owner" onDelete={vi.fn()} onRename={onRename} />);
+    fireEvent.click(screen.getByRole("button", { name: /Endre visningsnavn for coach@example.com/ }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Visningsnavn" }), { target: { value: "Kari Nordmann" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lagre navn" }));
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith(account.id, "Kari Nordmann"));
+  });
+
   it("requires the exact email address before permanent deletion", () => {
     const onDelete = vi.fn().mockResolvedValue(undefined);
-    render(<AdminAccountDirectory accounts={[account]} loaded currentUserId="owner" onDelete={onDelete} />);
+    render(<AdminAccountDirectory accounts={[account]} loaded currentUserId="owner" onDelete={onDelete} onRename={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Slett permanent" }));
     const destructiveButton = screen.getByRole("button", { name: "Slett konto permanent" });
     expect(destructiveButton).toBeDisabled();

@@ -9,6 +9,7 @@ vi.mock("@/components/app-provider", () => ({ useGrep: mocks.useGrep }));
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => <>{children}</> }));
 vi.mock("@/components/roster-manager", () => ({ RosterManager: ({ players, canManage }: { players: unknown[]; canManage: boolean }) => <p>Roster: {players.length}, manage: {String(canManage)}</p> }));
 vi.mock("@/components/club-logo-card", () => ({ ClubLogoCard: () => <p>Klubblogo</p> }));
+vi.mock("@/components/display-name-card", () => ({ DisplayNameCard: () => <p>Visningsnavn</p> }));
 vi.mock("@/components/session-digest-card", () => ({ SessionDigestCard: () => <p>Dagens økt på e-post</p> }));
 vi.mock("@/components/team-invitations-card", () => ({ TeamInvitationsCard: () => <button>Inviter trener</button> }));
 vi.mock("@/components/help-tip", () => ({ HelpTip: () => null }));
@@ -38,5 +39,11 @@ describe("team workspace", () => {
     render(<TeamPage />); choose(/Innstillinger/);
     expect(screen.getByText("Dagens økt på e-post")).toBeInTheDocument();
     expect(screen.getByText(/ditt personlige e-postvalg/)).toBeInTheDocument();
+    expect(screen.getByText("Visningsnavn")).toBeInTheDocument();
+  });
+  it("lets a coach without a team set their screen name anyway", () => {
+    mocks.useGrep.mockReturnValue({ ...state(), currentTeam: null, teams: [] });
+    render(<TeamPage />);
+    expect(screen.getByText("Visningsnavn")).toBeInTheDocument();
   });
 });

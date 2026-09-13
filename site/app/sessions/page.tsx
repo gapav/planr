@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Clock3, LayoutList, MapPin, Plus, Sparkles, Target, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarDays, Clock3, LayoutList, MapPin, Plus, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -43,7 +43,7 @@ function SessionsContent({ initialTab }: { initialTab: SessionTab }) {
   if (!currentTeam) return <AppShell><div className="mx-auto max-w-3xl px-4 py-20">{user?.isGlobalAdmin
     ? <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag" body="Øktene tilhører et lag. Opprett lag og tildel trenere fra systemadministrasjonen." action={<Link href="/admin" className="grep-action">Gå til administrasjon</Link>} />
     : <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag ennå" body="Øktene tilhører et lag, slik at de riktige trenerne kan se og redigere dem. Systemadministratoren gir deg tilgang." />}</div></AppShell>;
-  return <AppShell><div className="grep-page grep-calendar"><PageHeading eyebrow={currentTeam.shortName} title="Øktkalender" description="En god plan. Et samkjørt trenerteam." actions={<>{tab !== "past" && <Button size="lg" onClick={() => void startSession()} disabled={creating}><Plus size={18} />{creating ? "Oppretter…" : "Opprett økt"}</Button>}<HelpTip topic="sessions-calendar" /></>} />
+  return <AppShell><div className="grep-page grep-calendar"><PageHeading eyebrow={currentTeam.shortName} title="Øktkalender" description={<>En god plan <ArrowRight size={16} className="inline-block -mt-0.5 align-middle text-[var(--orange)]" aria-hidden /> et samkjørt trenerteam.</>} actions={<>{tab !== "past" && <Button size="lg" onClick={() => void startSession()} disabled={creating}><Plus size={18} />{creating ? "Oppretter…" : "Opprett økt"}</Button>}<HelpTip topic="sessions-calendar" /></>} />
     <TabSelect tab={tab} onSelect={setTab} counts={counts} />
     {tab === "drafts"
       // Drafts sort by when they were last touched, so a calendar heading would

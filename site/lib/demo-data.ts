@@ -1,13 +1,14 @@
+import { COACH_AVATAR_PEER, COACH_AVATAR_SELF } from "./team-palette";
 import type { Exercise, MonthFocus, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
 
 export const demoUser: Profile = {
-  id: "user-gard", email: "gard@fjordvik.no", fullName: "Gard Pavel", initials: "GP", color: "#f0642e", isGlobalAdmin: true, teamRole: "admin",
+  id: "user-gard", email: "gard@fjordvik.no", fullName: "Gard Pavel", initials: "GP", color: COACH_AVATAR_SELF, isGlobalAdmin: true, teamRole: "admin",
 };
 
 export const demoProfiles: Profile[] = [
   demoUser,
-  { id: "user-nora", email: "nora@fjordvik.no", fullName: "Nora Vik", initials: "NV", color: "#477b70", teamRole: "coach" },
-  { id: "user-sam", email: "sam@fjordvik.no", fullName: "Sam Østby", initials: "SØ", color: "#6d6bb5", teamRole: "coach" },
+  { id: "user-nora", email: "nora@fjordvik.no", fullName: "Nora Vik", initials: "NV", color: COACH_AVATAR_PEER, teamRole: "coach" },
+  { id: "user-sam", email: "sam@fjordvik.no", fullName: "Sam Østby", initials: "SØ", color: COACH_AVATAR_PEER, teamRole: "coach" },
 ];
 
 export const demoTeams: Team[] = [

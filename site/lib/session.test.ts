@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { COACH_AVATAR_PEER, COACH_AVATAR_SELF } from "./team-palette";
 import { demoSessions } from "./demo-data";
 import { clockTime } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
@@ -217,8 +218,8 @@ describe("nextPosition", () => {
 
 describe("coach assignment", () => {
   const members: Profile[] = [
-    { id: "coach-1", email: "a@example.com", fullName: "Ada Lie", initials: "AL", color: "#f0642e" },
-    { id: "coach-2", email: "b@example.com", fullName: "Bo Ness", initials: "BN", color: "#477b70" },
+    { id: "coach-1", email: "a@example.com", fullName: "Ada Lie", initials: "AL", color: COACH_AVATAR_SELF },
+    { id: "coach-2", email: "b@example.com", fullName: "Bo Ness", initials: "BN", color: COACH_AVATAR_PEER },
   ];
   it("reads no responsible coach when the whole team runs the activity", () => {
     expect(assignedCoach({ assignedCoachId: null }, members)).toBeNull();

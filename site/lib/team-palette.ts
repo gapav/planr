@@ -10,6 +10,16 @@ export const TEAM_PALETTE = [
   { id: "honey", name: "Honning", accent: "#C3A35C", tint: "#F8F2E3" },
 ] as const;
 
+/**
+ * Coach avatars, mirroring `--avatar-self` / `--avatar-peer` in `globals.css`.
+ *
+ * They are hex rather than `var(...)` because `readableInk` has to measure the
+ * background to pick a label colour, and a CSS variable has no value until the
+ * browser resolves it. Keep the two in step.
+ */
+export const COACH_AVATAR_SELF = "#67467e";
+export const COACH_AVATAR_PEER = "#e9ddf7";
+
 export function teamPalette(name: string, choice?: string) {
   const saved = TEAM_PALETTE.find((color) => color.id === choice);
   if (saved) return saved;

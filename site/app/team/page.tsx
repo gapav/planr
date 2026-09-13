@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { useGrep } from "@/components/app-provider";
 import { LogoArtwork } from "@/components/logo";
 import { ClubLogoCard } from "@/components/club-logo-card";
+import { DisplayNameCard } from "@/components/display-name-card";
 import { HelpTip } from "@/components/help-tip";
 import { PageHeading } from "@/components/page-heading";
 import { RosterManager } from "@/components/roster-manager";
@@ -23,7 +24,11 @@ export default function TeamPage() {
   const tabs = [{ id: "players" as const, label: "Spillere", count: teamPlayers.length }, { id: "coaches" as const, label: "Trenere", count: currentTeam?.members.length ?? 0 }, { id: "settings" as const, label: "Innstillinger", count: null }];
   return <AppShell><div className="grep-page grep-team-page">
     <PageHeading eyebrow={currentTeam?.name ?? "Trenerrommet"} title="Laget" description="Alle med. Alle på samme side." actions={currentTeam && <TeamCrest team={currentTeam} size="lg" />} />
-    {!workspaceLoaded ? <p role="status" className="overview-loading">Henter laget …</p> : !currentTeam ? <EmptyState icon={<Users size={24} />} title="Du er ikke med på noe lag ennå" body="Når du blir invitert til et lag, finner du spillerne og trenerteamet her." action={user?.isGlobalAdmin && <Link className="grep-action" href="/admin">Administrer lag</Link>} /> : <>
+    {!workspaceLoaded ? <p role="status" className="overview-loading">Henter laget …</p> : !currentTeam ? <><EmptyState icon={<Users size={24} />} title="Du er ikke med på noe lag ennå" body="Når du blir invitert til et lag, finner du spillerne og trenerteamet her." action={user?.isGlobalAdmin && <Link className="grep-action" href="/admin">Administrer lag</Link>} />
+      {/* A coach without a team still has a profile, so the screen name has to be
+          reachable before the first invitation lands. */}
+      <div className="grep-team-content"><h2 className="grep-settings-label">For deg</h2><DisplayNameCard /></div>
+    </> : <>
       <div className="grep-segments grep-team-tabs" role="group" aria-label="Vis laginformasjon">{tabs.map((tab) => <button key={tab.id} aria-pressed={view === tab.id} onClick={() => setView(tab.id)}>{tab.label}{tab.count !== null && <span>{tab.count}</span>}</button>)}</div>
       <div className="grep-team-content">
         {view === "players" && <><div className="grep-context-note"><ShieldCheck size={19} /><p>Bare trenerteamet ser spillerlisten. Vi lagrer kun navn og draktnummer.</p></div><RosterManager players={teamPlayers} canManage={isAdmin} /></>}
@@ -35,7 +40,7 @@ export default function TeamPage() {
         </>}
         {view === "settings" && <div className="grep-settings-grid">
           <div><h2 className="grep-settings-label">For laget</h2><ClubLogoCard team={currentTeam} canManage={isAdmin} /><section className="grep-other-teams"><h3>Dine lag</h3><div className="mt-4 grid gap-2">{teams.map((team) => <div key={team.id} className="flex items-center gap-3 rounded-xl bg-[var(--paper)] p-3"><TeamCrest team={team} size="sm" /><span className="min-w-0 flex-1 text-sm">{team.shortName}</span><Tag>{team.role === "admin" ? "Administrator" : "Trener"}</Tag></div>)}</div>{user?.isGlobalAdmin ? <Link className="grep-text-link mt-4" href="/admin"><ShieldCheck size={17} />Administrer alle lag</Link> : <p className="mt-4 text-sm text-[var(--ink-soft)]">Nye lag opprettes av systemadministratoren.</p>}</section></div>
-          <div><h2 className="grep-settings-label">For deg</h2><SessionDigestCard /><p className="grep-settings-hint">Dette er ditt personlige e-postvalg. Det endrer ikke varsler for de andre trenerne.</p><section className="grep-privacy-note"><LogoArtwork /><h3>Et trygt trenerrom.</h3><p>Lagets økter og spillerliste er bare tilgjengelig for lagets medlemmer.</p></section></div>
+          <div><h2 className="grep-settings-label">For deg</h2><DisplayNameCard /><p className="grep-settings-hint">Navnet vises for trenerteamet. Innlogging skjer fortsatt med e-postadressen din.</p><SessionDigestCard /><p className="grep-settings-hint">Dette er ditt personlige e-postvalg. Det endrer ikke varsler for de andre trenerne.</p><section className="grep-privacy-note"><LogoArtwork /><h3>Et trygt trenerrom.</h3><p>Lagets økter og spillerliste er bare tilgjengelig for lagets medlemmer.</p></section></div>
         </div>}
       </div>
     </>}

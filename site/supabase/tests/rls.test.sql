@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(192);
+select plan(202);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -223,6 +223,16 @@ select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-00
 -- passes for these statements, so a column grant is the only thing stopping a
 -- coach from promoting themselves.
 select lives_ok($$ update public.profiles set full_name = 'Renamed Admin' where id = '10000000-0000-0000-0000-000000000001' $$, 'a coach can rename themselves');
+-- 202609130003 made full_name user input from the settings tab: the trigger
+-- tidies whitespace and the constraint states the same rule the form does.
+select is((select full_name from public.profiles where id = '10000000-0000-0000-0000-000000000001'), 'Renamed Admin', 'the chosen screen name is what is stored');
+select lives_ok($$ update public.profiles set full_name = '  Renamed   Admin  ' where id = '10000000-0000-0000-0000-000000000001' $$, 'a screen name with stray whitespace is accepted');
+select is((select full_name from public.profiles where id = '10000000-0000-0000-0000-000000000001'), 'Renamed Admin', 'the stored screen name is trimmed and its inner whitespace collapsed');
+select throws_ok($$ update public.profiles set full_name = 'A' where id = '10000000-0000-0000-0000-000000000001' $$, '23514', null, 'a one-character screen name is refused');
+select throws_ok($$ update public.profiles set full_name = repeat('a', 61) where id = '10000000-0000-0000-0000-000000000001' $$, '23514', null, 'a screen name longer than the column allows is refused');
+update public.profiles set full_name = 'Hijacked' where id = '10000000-0000-0000-0000-000000000002';
+select is((select count(*)::integer from public.profiles where full_name = 'Hijacked'), 0, 'a coach cannot rename another coach');
+select throws_ok($$ select public.admin_set_display_name('10000000-0000-0000-0000-000000000002', 'Hijacked') $$, 'P0001', 'Du må være systemadministrator', 'a team admin cannot rename another coach through the admin RPC');
 select throws_ok($$ update public.profiles set must_set_password = false where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'the retired password flag is not writable from a browser session');
 select throws_ok($$ update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'a coach cannot make themselves a global admin');
 -- 202609020032 added the morning digest opt-out to that same column grant. It
@@ -276,6 +286,12 @@ select lives_ok(format($$ insert into public.team_memberships (team_id, profile_
 select lives_ok(format($$ update public.team_memberships set role = 'admin' where team_id = '%s' and profile_id = '10000000-0000-0000-0000-000000000003' $$, current_setting('plannr.test_team')), 'a global admin can change a trainer role on a team they are not on');
 select lives_ok(format($$ delete from public.team_memberships where team_id = '%s' and profile_id = '10000000-0000-0000-0000-000000000003' $$, current_setting('plannr.test_team')), 'a global admin can remove a trainer from a team they are not on');
 select lives_ok(format($$ update public.teams set name = 'Test Team renamed by the owner' where id = '%s' $$, current_setting('plannr.test_team')), 'a global admin can rename any team');
+-- 202609130004: the same administrator fixes a coach's screen name, which is
+-- the email local part until somebody changes it.
+select lives_ok($$ select public.admin_set_display_name('10000000-0000-0000-0000-000000000002', '  Kari   Nordmann ') $$, 'a global admin renames a coach');
+select is((select full_name from public.profiles where id = '10000000-0000-0000-0000-000000000002'), 'Kari Nordmann', 'the administrator rename is tidied the same way as the coach own rename');
+select throws_ok($$ select public.admin_set_display_name('10000000-0000-0000-0000-000000000002', 'K') $$, '23514', null, 'the length rule holds for an administrator too');
+select throws_ok($$ select public.admin_set_display_name('10000000-0000-0000-0000-000000000099', 'Ingen Her') $$, 'P0001', 'Fant ikke kontoen', 'renaming an account that does not exist is refused');
 reset role;
 
 set local role authenticated;

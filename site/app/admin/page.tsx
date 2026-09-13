@@ -9,12 +9,14 @@ import { TeamCrest } from "@/components/team-crest";
 import { Avatar, Button, EmptyState, Field, inputClass, Modal, Tag } from "@/components/ui";
 import { canDemoteMember, isTeamMemberOf, teamNeedsAdmin } from "@/lib/admin";
 import { invitationUrl } from "@/lib/auth";
+import { DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MIN_LENGTH } from "@/lib/profile";
+import { COACH_AVATAR_SELF } from "@/lib/team-palette";
 import type { AdminTeam, AdminTeamMember, TeamInvitation, TeamRole } from "@/lib/types";
 
 const roleLabel: Record<TeamRole, string> = { admin: "Lagadministrator", coach: "Trener" };
 
 export default function AdminPage() {
-  const { user, workspaceLoaded, adminTeams, adminTeamsLoaded, adminAccounts, adminAccountsLoaded, createTeam, deleteAccountPermanently } = useGrep();
+  const { user, workspaceLoaded, adminTeams, adminTeamsLoaded, adminAccounts, adminAccountsLoaded, createTeam, deleteAccountPermanently, adminSetDisplayName } = useGrep();
   const [createOpen, setCreateOpen] = useState(false); const [teamName, setTeamName] = useState(""); const [adminEmail, setAdminEmail] = useState(""); const [saving, setSaving] = useState(false); const [error, setError] = useState<string | null>(null);
   const isGlobalAdmin = user?.isGlobalAdmin === true;
 
@@ -37,7 +39,7 @@ export default function AdminPage() {
       : adminTeams.length === 0 ? <div className="mt-8"><EmptyState icon={<Users size={22} />} title="Ingen lag ennå" body="Opprett det første laget og inviter en lagadministrator som kan planlegge for det." action={<Button onClick={() => setCreateOpen(true)}><Plus size={17} />Opprett lag</Button>} /></div>
       : <div className="mt-8 grid gap-5">{adminTeams.map((team) => <AdminTeamCard key={team.id} team={team} />)}</div>}
 
-    <AdminAccountDirectory accounts={adminAccounts} loaded={adminAccountsLoaded} currentUserId={user.id} onDelete={deleteAccountPermanently} />
+    <AdminAccountDirectory accounts={adminAccounts} loaded={adminAccountsLoaded} currentUserId={user.id} onDelete={deleteAccountPermanently} onRename={adminSetDisplayName} />
 
     <Modal open={createOpen} onClose={() => { setCreateOpen(false); setError(null); }} title="Opprett et lag" description="Laget får sin egen lagadministrator. Du blir ikke medlem.">
       <form className="grid gap-5" onSubmit={submit}>
@@ -51,10 +53,11 @@ export default function AdminPage() {
 }
 
 function AdminTeamCard({ team }: { team: AdminTeam }) {
-  const { user, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminRemoveMember } = useGrep();
+  const { user, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember } = useGrep();
   const [inviteOpen, setInviteOpen] = useState(false); const [renameOpen, setRenameOpen] = useState(false);
   const [email, setEmail] = useState(""); const [role, setRole] = useState<TeamRole>("coach"); const [name, setName] = useState(team.name);
   const [invited, setInvited] = useState<InviteResult | null>(null); const [copied, setCopied] = useState<string | null>(null); const [resent, setResent] = useState<string | null>(null); const [handover, setHandover] = useState<{ email: string; link: string; kind: "invite" | "login" } | null>(null); const [loginSent, setLoginSent] = useState<string | null>(null);
+  const [renameMember, setRenameMember] = useState<AdminTeamMember | null>(null); const [memberName, setMemberName] = useState("");
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
   const isGlobalAdmin = user?.isGlobalAdmin === true;
   const youAreOnTeam = isTeamMemberOf(team, user?.id);
@@ -81,13 +84,24 @@ function AdminTeamCard({ team }: { team: AdminTeam }) {
     finally { setBusy(false); }
   }
   async function rename(event: React.FormEvent) { event.preventDefault(); await run(() => renameTeam(team.id, name)); setRenameOpen(false); }
+  // A coach's name starts as the email local part, and the administrator who
+  // onboards them sees it first. They can still fix it themselves from /team.
+  async function renameCoach(event: React.FormEvent) {
+    event.preventDefault();
+    if (!renameMember) return;
+    const target = renameMember;
+    setBusy(true); setError(null);
+    try { await adminSetDisplayName(target.id, memberName); setRenameMember(null); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Navnet kunne ikke lagres"); }
+    finally { setBusy(false); }
+  }
 
   return <section className="overflow-hidden rounded-[26px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_8px_30px_rgba(16,32,29,.04)]">
     <div className="flex flex-wrap items-center gap-4 border-b border-[var(--line)] p-5 sm:p-6"><TeamCrest team={team} size="lg" /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="truncate text-xl font-black">{team.shortName}</h2>{teamNeedsAdmin(team) && <Tag tone="orange">Mangler lagadministrator</Tag>}{youAreOnTeam && <Tag>Du er medlem</Tag>}</div><p className="mt-1 truncate text-sm text-[var(--ink-soft)]">{team.name} · {team.members.length} {team.members.length === 1 ? "medlem" : "medlemmer"}</p></div><div className="flex items-center gap-2"><Button variant="secondary" size="sm" onClick={() => { setName(team.name); setRenameOpen(true); }}><Pencil size={16} />Endre navn</Button><Button size="sm" onClick={() => setInviteOpen(true)}><UserPlus size={16} />Inviter</Button><Button variant="ghost" size="sm" className="px-2 text-[var(--danger)]" aria-label={`Slett ${team.shortName}`} disabled={busy} onClick={() => { if (confirm(`Vil du slette ${team.shortName}? Alle øktene og spillerne til laget slettes også, og dette kan ikke angres.`)) void run(() => deleteTeam(team.id)); }}><Trash2 size={17} /></Button></div></div>
 
     {team.members.length === 0 && team.invitations.length === 0
       ? <p className="flex items-center gap-2.5 p-5 text-sm text-[var(--ink-soft)] sm:px-6"><TriangleAlert size={17} className="text-[var(--orange)]" />Ingen trenere ennå. Inviter en lagadministrator som kan ta over laget.</p>
-      : <div className="divide-y divide-[var(--line)]">{team.members.map((member) => <div key={member.id} className="flex flex-wrap items-center gap-3 p-4 sm:px-6"><Avatar name={member.fullName} initials={member.initials} color={member.id === user?.id ? "#f0642e" : member.color} size="lg" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate font-black">{member.fullName}</p>{member.id === user?.id && <Tag>Deg</Tag>}</div><p className="truncate text-sm text-[var(--ink-soft)]">{member.email}</p></div><select className="min-h-9 rounded-xl border border-[var(--line)] bg-white px-2 text-xs font-bold disabled:opacity-50" value={member.teamRole} disabled={busy || (member.teamRole === "admin" && !canDemoteMember(team, member.id, isGlobalAdmin))} onChange={(event) => void run(() => adminSetMemberRole(team.id, member.id, event.target.value as TeamRole))} aria-label={`Rolle for ${member.fullName} i ${team.shortName}`}><option value="coach">Trener</option><option value="admin">Administrator</option></select><Button variant="ghost" size="sm" className="px-2" disabled={busy} aria-label={`Send innloggingslenke til ${member.fullName}`} title="Send innloggingslenke" onClick={() => void sendLogin(member)}>{loginSent === member.id ? <Check size={16} className="text-[var(--green)]" /> : <Mail size={16} />}</Button><Button variant="ghost" size="sm" className="px-2 text-[var(--danger)]" title="Fjern fra laget" aria-label={member.id === user?.id ? `Forlat ${team.shortName}` : `Fjern ${member.fullName} fra ${team.shortName}`} disabled={busy || !canDemoteMember(team, member.id, isGlobalAdmin)} onClick={() => { const question = member.id === user?.id ? `Vil du forlate ${team.shortName}? Grep-kontoen din og andre lag berøres ikke.` : `Vil du fjerne ${member.fullName} fra ${team.shortName}? Grep-kontoen og eventuelle andre lag beholdes.`; if (confirm(question)) void run(() => adminRemoveMember(team.id, member.id)); }}><Trash2 size={17} /></Button></div>)}</div>}
+      : <div className="divide-y divide-[var(--line)]">{team.members.map((member) => <div key={member.id} className="flex flex-wrap items-center gap-3 p-4 sm:px-6"><Avatar name={member.fullName} initials={member.initials} color={member.id === user?.id ? COACH_AVATAR_SELF : member.color} size="lg" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate font-black">{member.fullName}</p>{member.id === user?.id && <Tag>Deg</Tag>}</div><p className="truncate text-sm text-[var(--ink-soft)]">{member.email}</p></div><select className="min-h-9 rounded-xl border border-[var(--line)] bg-white px-2 text-xs font-bold disabled:opacity-50" value={member.teamRole} disabled={busy || (member.teamRole === "admin" && !canDemoteMember(team, member.id, isGlobalAdmin))} onChange={(event) => void run(() => adminSetMemberRole(team.id, member.id, event.target.value as TeamRole))} aria-label={`Rolle for ${member.fullName} i ${team.shortName}`}><option value="coach">Trener</option><option value="admin">Administrator</option></select><Button variant="ghost" size="sm" className="px-2" disabled={busy} aria-label={`Endre visningsnavn for ${member.fullName}`} title="Endre visningsnavn" onClick={() => { setMemberName(member.fullName); setRenameMember(member); setError(null); }}><Pencil size={16} /></Button><Button variant="ghost" size="sm" className="px-2" disabled={busy} aria-label={`Send innloggingslenke til ${member.fullName}`} title="Send innloggingslenke" onClick={() => void sendLogin(member)}>{loginSent === member.id ? <Check size={16} className="text-[var(--green)]" /> : <Mail size={16} />}</Button><Button variant="ghost" size="sm" className="px-2 text-[var(--danger)]" title="Fjern fra laget" aria-label={member.id === user?.id ? `Forlat ${team.shortName}` : `Fjern ${member.fullName} fra ${team.shortName}`} disabled={busy || !canDemoteMember(team, member.id, isGlobalAdmin)} onClick={() => { const question = member.id === user?.id ? `Vil du forlate ${team.shortName}? Grep-kontoen din og andre lag berøres ikke.` : `Vil du fjerne ${member.fullName} fra ${team.shortName}? Grep-kontoen og eventuelle andre lag beholdes.`; if (confirm(question)) void run(() => adminRemoveMember(team.id, member.id)); }}><Trash2 size={17} /></Button></div>)}</div>}
 
     {team.invitations.length > 0 && <div className="border-t border-[var(--line)] bg-[var(--paper)]/55 p-5 sm:p-6"><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--ink-soft)]">Ventende invitasjoner</p><div className="mt-3 grid gap-2">{team.invitations.map((invitation) => <div key={invitation.id} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2.5"><Mail size={16} className="text-[var(--ink-soft)]" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{invitation.email}</p><p className="text-xs text-[var(--ink-soft)]">{roleLabel[invitation.role].toLowerCase()} · blir med ved første innlogging</p></div><Button variant="ghost" size="sm" className="px-2" disabled={busy} aria-label={`Send invitasjonen til ${invitation.email} på nytt`} onClick={() => void resend(invitation)}>{resent === invitation.id ? <Check size={15} className="text-[var(--green)]" /> : <Send size={15} />}</Button><Button variant="ghost" size="sm" className="px-2" disabled={!invitation.token} aria-label={`Kopier invitasjonslenken for ${invitation.email}`} onClick={() => { const link = linkFor(invitation); if (link) void copy(invitation.id, link); }}>{copied === invitation.id ? <Check size={15} className="text-[var(--green)]" /> : <Copy size={15} />}</Button><Button variant="ghost" size="sm" className="px-2 text-[var(--danger)]" disabled={busy} aria-label={`Trekk tilbake invitasjonen til ${invitation.email}`} onClick={() => void run(() => adminRevokeInvitation(team.id, invitation.id))}><X size={16} /></Button></div>)}</div></div>}
 
@@ -99,6 +113,13 @@ function AdminTeamCard({ team }: { team: AdminTeam }) {
         <p className="text-sm leading-6 text-[var(--ink-soft)]">Lenken logger treneren inn uten passord. Den virker én gang, og bare for {handover.email} — send den direkte til treneren, ikke i en delt kanal.</p>
         <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => void copy("handover", handover.link)}>{copied === "handover" ? <><Check size={17} />Kopiert</> : <><Copy size={17} />Kopier lenken</>}</Button><Button type="button" onClick={() => setHandover(null)}>Ferdig</Button></div>
       </div>}
+    </Modal>
+
+    <Modal open={renameMember !== null} onClose={() => setRenameMember(null)} title="Endre visningsnavn" description={renameMember ? `Navnet ${renameMember.email} vises med på økter, aktiviteter og i e-postene. Innloggingen er fortsatt e-postadressen.` : ""}>
+      <form className="grid gap-5" onSubmit={renameCoach}>
+        <Field label="Visningsnavn"><input required minLength={DISPLAY_NAME_MIN_LENGTH} maxLength={DISPLAY_NAME_MAX_LENGTH} className={inputClass} value={memberName} onChange={(event) => setMemberName(event.target.value)} autoComplete="off" autoFocus /></Field>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setRenameMember(null)}>Avbryt</Button><Button disabled={busy}>{busy ? "Lagrer…" : "Lagre navn"}</Button></div>
+      </form>
     </Modal>
 
     <Modal open={renameOpen} onClose={() => setRenameOpen(false)} title="Endre lagnavn" description="Navnet vises i sidemenyen og på øktene til laget."><form className="grid gap-5" onSubmit={rename}><Field label="Lagnavn"><input required minLength={3} className={inputClass} value={name} onChange={(event) => setName(event.target.value)} autoFocus /></Field><div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setRenameOpen(false)}>Avbryt</Button><Button disabled={busy}>{busy ? "Lagrer…" : "Lagre"}</Button></div></form></Modal>

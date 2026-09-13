@@ -3,6 +3,23 @@ import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 export function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join(""); }
+/**
+ * Ink or paper for a label on a solid background, by WCAG relative luminance.
+ *
+ * Avatars are tinted per coach, and the palette holds both a deep purple and a
+ * pale lilac, so the initials cannot commit to white. Anything but a six-digit
+ * hex falls back to white, which is what the old fixed-colour avatars used.
+ */
+export function readableInk(background: string) {
+  const hex = /^#([0-9a-f]{6})$/i.exec(background.trim());
+  if (!hex) return "#ffffff";
+  const channel = (offset: number) => {
+    const value = parseInt(hex[1].slice(offset, offset + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+  return luminance > 0.36 ? "#2e1b3d" : "#ffffff";
+}
 export function makeUuid() { return crypto.randomUUID(); }
 export function minutesLabel(minutes: number) {
   if (minutes < 60) return `${minutes} min`;

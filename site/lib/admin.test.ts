@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { COACH_AVATAR_PEER } from "./team-palette";
 import { canDemoteMember, isTeamMemberOf, mapAdminAccount, mapAdminTeam, shortTeamName, sortAdminAccounts, sortAdminTeams, teamAdminCount, teamNeedsAdmin, type AdminAccountRow, type AdminTeamRow } from "./admin";
 
 function row(overrides: Partial<AdminTeamRow> = {}): AdminTeamRow {
@@ -16,7 +17,7 @@ describe("admin console teams", () => {
       invitations: [{ id: "inv-1", email: "ny@klubb.no", role: "coach", token: "token-1", expires_at: "2026-10-01T10:00:00Z" }],
     }));
     expect(team.shortName).toBe("Jenter 16");
-    expect(team.members).toEqual([{ id: "coach-1", email: "trener@klubb.no", fullName: "Kari Nordmann", initials: "KN", color: "#477b70", teamRole: "admin" }]);
+    expect(team.members).toEqual([{ id: "coach-1", email: "trener@klubb.no", fullName: "Kari Nordmann", initials: "KN", color: COACH_AVATAR_PEER, teamRole: "admin" }]);
     expect(team.invitations[0]).toMatchObject({ teamId: "team-1", email: "ny@klubb.no", token: "token-1", acceptedAt: null });
   });
 

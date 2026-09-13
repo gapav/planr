@@ -1,4 +1,5 @@
 import type { AdminAccount, AdminTeam, AdminTeamMember, TeamInvitation, TeamRole } from "./types";
+import { COACH_AVATAR_PEER } from "./team-palette";
 import { initials } from "./utils";
 
 /**
@@ -25,7 +26,7 @@ export function mapAdminTeam(row: AdminTeamRow): AdminTeam {
     logoUrl: row.logo_url,
     members: (row.members ?? []).map((member): AdminTeamMember => ({
       id: member.id, email: member.email, fullName: member.full_name,
-      initials: initials(member.full_name), color: "#477b70", teamRole: member.role,
+      initials: initials(member.full_name), color: COACH_AVATAR_PEER, teamRole: member.role,
     })),
     invitations: (row.invitations ?? []).map((invitation): TeamInvitation => ({
       id: invitation.id, teamId: row.id, email: invitation.email, role: invitation.role,

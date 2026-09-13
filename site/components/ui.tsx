@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { useEffect } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn, readableInk } from "@/lib/utils";
 
 export function Button({ className, variant = "primary", size = "md", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger"; size?: "sm" | "md" | "lg" }) {
   return <button className={cn("grep-button inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-45", size === "sm" && "min-h-9 px-3 text-sm", size === "md" && "min-h-11 px-4 text-sm", size === "lg" && "min-h-12 px-5", variant === "primary" && "bg-[var(--grep-apricot)] text-[var(--grep-ink)] enabled:hover:bg-[#ffa77c]", variant === "secondary" && "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] enabled:hover:border-[var(--ink)]", variant === "ghost" && "text-[var(--ink-soft)] enabled:hover:bg-black/5 enabled:hover:text-[var(--ink)]", variant === "danger" && "bg-red-50 text-[var(--danger)] enabled:hover:bg-red-100", className)} {...props} />;
@@ -73,7 +73,7 @@ export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?
 }
 
 export function Avatar({ name, initials, color, size = "md" }: { name: string; initials: string; color: string; size?: "sm" | "md" | "lg" }) {
-  return <span title={name} aria-label={name} className={cn("inline-grid shrink-0 place-items-center rounded-full border-2 border-[var(--surface)] font-black text-white shadow-sm", size === "sm" && "h-7 w-7 text-[10px]", size === "md" && "h-9 w-9 text-xs", size === "lg" && "h-11 w-11 text-sm")} style={{ backgroundColor: color }}>{initials}</span>;
+  return <span title={name} aria-label={name} className={cn("inline-grid shrink-0 place-items-center rounded-full border-2 border-[var(--surface)] font-black shadow-sm", size === "sm" && "h-7 w-7 text-[10px]", size === "md" && "h-9 w-9 text-xs", size === "lg" && "h-11 w-11 text-sm")} style={{ backgroundColor: color, color: readableInk(color) }}>{initials}</span>;
 }
 
 export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) {
