@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { fixturesForTeams, parseFixtureRows, teamColor, type FixtureParseResult } from "@/lib/fixtures";
 import { useGrep } from "./app-provider";
 import { Button, Modal, Tag, inputClass } from "./ui";
+import { TEAM_PALETTE, savedTeamColors, teamPalette } from "@/lib/team-palette";
 import { cn } from "@/lib/utils";
 
 const HANDBALL_SEARCH_URL = "https://www.handball.no/system/sok/?reg=all";
@@ -22,7 +23,10 @@ const HANDBALL_STEPS = [
  * the picked teams' matches are stored.
  */
 export function FixtureImport({ open, onClose }: { open: boolean; onClose(): void }) {
-  const { importFixtures } = useGrep();
+  const { importFixtures, fixtures, currentTeam } = useGrep();
+  const savedColors = useMemo(() => savedTeamColors((fixtures ?? []).filter((fixture) => fixture.teamId === currentTeam?.id)), [fixtures, currentTeam]);
+  const [step, setStep] = useState<"teams" | "colors">("teams");
+  const [colors, setColors] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
   const [parsed, setParsed] = useState<FixtureParseResult | null>(null);
@@ -37,11 +41,11 @@ export function FixtureImport({ open, onClose }: { open: boolean; onClose(): voi
     return (parsed?.teams ?? []).filter((team) => !needle || team.name.toLocaleLowerCase("nb-NO").includes(needle));
   }, [parsed, search]);
 
-  function reset() { setFileName(""); setParsed(null); setPicked([]); setSearch(""); setError(null); if (inputRef.current) inputRef.current.value = ""; }
-  function close() { onClose(); reset(); }
+  function reset() { setStep("teams"); setColors({}); setFileName(""); setParsed(null); setPicked([]); setSearch(""); setError(null); if (inputRef.current) inputRef.current.value = ""; }
+  function close() { if (!loading) { onClose(); reset(); } }
 
   async function readFile(file: File) {
-    setLoading(true); setError(null); setParsed(null); setPicked([]); setFileName(file.name);
+    setLoading(true); setStep("teams"); setColors({}); setError(null); setParsed(null); setPicked([]); setFileName(file.name);
     try {
       const rows = file.name.toLocaleLowerCase("en").endsWith(".xls")
         ? (await import("xls-reader")).readFirstSheet(await file.arrayBuffer())?.rows
@@ -56,7 +60,7 @@ export function FixtureImport({ open, onClose }: { open: boolean; onClose(): voi
   async function commitImport() {
     if (!selected.length) return;
     setLoading(true);
-    try { await importFixtures(selected); close(); }
+    try { await importFixtures(selected.map((fixture) => ({ ...fixture, ourTeamColors: Object.fromEntries(fixture.ourTeams.map((name) => [name, teamPalette(name, colors[name] ?? savedColors[name]).id])) }))); onClose(); reset(); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "Kampene kunne ikke importeres."); }
     finally { setLoading(false); }
   }
@@ -77,7 +81,7 @@ export function FixtureImport({ open, onClose }: { open: boolean; onClose(): voi
     {error && <div role="alert" className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-[var(--danger)]">{error}</div>}
     {parsed && <div>
       <div className="flex flex-wrap items-center gap-2"><Tag tone="green"><CheckCircle2 size={13} className="mr-1" />Terminlisten er lest</Tag><span className="text-sm font-bold">{fileName}</span><span className="text-sm text-[var(--ink-soft)]">· {parsed.fixtures.length} kamper · {parsed.teams.length} lag</span></div>
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+      {step === "teams" && <><div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <div><h3 className="font-black">Hvilke lag er deres?</h3><p className="mt-1 text-sm text-[var(--ink-soft)]">Velg alle lagene klubben stiller med i denne avdelingen.</p></div>
         <div className="relative"><Search className="absolute left-3 top-3 text-[var(--ink-soft)]" size={16} /><input className={cn(inputClass, "w-56 pl-9")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Søk etter lag" aria-label="Søk etter lag" /></div>
       </div>
@@ -89,11 +93,13 @@ export function FixtureImport({ open, onClose }: { open: boolean; onClose(): voi
           <span className="text-xs text-[var(--ink-soft)]">{team.matchCount} kamper</span>
         </label>; }) : <p className="px-4 py-6 text-center text-sm text-[var(--ink-soft)]">Ingen lag matcher søket.</p>}
       </div>
+      </>}
+      {step === "colors" && <section className="mt-5 space-y-4"><div><h3 className="font-bold">Gi hvert lag en farge</h3><p className="mt-1 text-sm text-[var(--ink-soft)]">Fargen følger laget i kalenderen. Lagnavnet vises alltid også.</p></div>{picked.map((name) => <fieldset key={name} className="rounded-2xl border border-[var(--line)] p-4"><legend className="px-1 font-bold">{name}</legend><div className="flex flex-wrap gap-2">{TEAM_PALETTE.map((color) => <label key={color.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--line)] px-3 py-2 text-sm" style={{ background: teamPalette(name, colors[name] ?? savedColors[name]).id === color.id ? color.tint : undefined }}><input type="radio" name={`color-${name}`} value={color.id} checked={teamPalette(name, colors[name] ?? savedColors[name]).id === color.id} onChange={() => setColors((current) => ({ ...current, [name]: color.id }))} /><span aria-hidden className="h-4 w-4 rounded-full" style={{ background: color.accent }} />{color.name}</label>)}</div></fieldset>)}</section>}
       {parsed.skippedRows > 0 && <p className="mt-2 text-xs text-[var(--ink-soft)]">{parsed.skippedRows} rader uten kamp hoppes over.</p>}
       <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
         <span className="mr-auto text-sm font-bold text-[var(--ink-soft)]">{selected.length ? `${selected.length} kamper velges` : "Ingen lag valgt ennå"}</span>
-        <Button variant="ghost" onClick={reset}>Velg en annen fil</Button>
-        <Button onClick={() => void commitImport()} disabled={loading || !selected.length}><Upload size={17} />{loading ? "Importerer…" : `Importer ${selected.length} kamper`}</Button>
+        <Button variant="ghost" disabled={loading} onClick={reset}>Velg en annen fil</Button>
+        {step === "teams" ? <Button onClick={() => setStep("colors")} disabled={loading || !selected.length}>Neste: lagfarger</Button> : <><Button variant="secondary" disabled={loading} onClick={() => setStep("teams")}>Tilbake</Button><Button onClick={() => void commitImport()} disabled={loading || !selected.length}><Upload size={17} />{loading ? "Importerer…" : `Importer ${selected.length} ${selected.length === 1 ? "kamp" : "kamper"}`}</Button></>}
       </div>
     </div>}
     {!parsed && !loading && <p className="mt-4 flex items-center gap-2 text-xs text-[var(--ink-soft)]"><CalendarPlus size={14} />Kamper med samme kampnummer oppdateres i stedet for å legges til på nytt.</p>}

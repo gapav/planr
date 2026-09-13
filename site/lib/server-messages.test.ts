@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { isInvitationAlreadyUsed, norwegianServerMessage } from "./server-messages";
 
 describe("norwegianServerMessage", () => {
+  it("explains the manual colour migration when the schema is older than the app", () => {
+    expect(norwegianServerMessage("Could not find the 'our_team_colors' column of 'team_fixtures' in the schema cache")).toContain("202609130001");
+  });
   it("translates an English database message", () => {
     expect(norwegianServerMessage("Invitation has expired")).toBe("Invitasjonen har utløpt");
   });

@@ -13,6 +13,7 @@ import { buildSessionCopy, nextPosition, UNTITLED_SESSION_TITLE } from "@/lib/se
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
+import { validTeamColors } from "@/lib/team-palette";
 import type { AdminAccount, AdminTeam, Exercise, ExerciseInput, MonthFocus, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
 import { initials, makeUuid } from "@/lib/utils";
 
@@ -206,7 +207,7 @@ interface DbSession {
 interface DbPlayer { id: string; team_id: string; full_name: string; jersey_number: string | null; created_at: string; updated_at: string; }
 interface DbFixture {
   id: string; team_id: string; match_number: string; starts_at: string; home_team: string; away_team: string;
-  our_teams: string[]; result: string; venue: string; organizer: string; tournament: string; created_at: string; updated_at: string;
+  our_team_colors?: Record<string, string>; our_teams: string[]; result: string; venue: string; organizer: string; tournament: string; created_at: string; updated_at: string;
 }
 interface DbWarmupItem {
   id: string; routine_id: string; kind: SessionItem["kind"]; exercise_id: string | null; title: string; description: string;
@@ -246,7 +247,7 @@ function profileFromUser(user: User): Profile {
 }
 function mapFixture(row: DbFixture): TeamFixture {
   return { id: row.id, teamId: row.team_id, matchNumber: row.match_number, startsAt: row.starts_at, homeTeam: row.home_team,
-    awayTeam: row.away_team, ourTeams: row.our_teams ?? [], result: row.result ?? "", venue: row.venue ?? "",
+    awayTeam: row.away_team, ourTeams: row.our_teams ?? [], ourTeamColors: validTeamColors(row.our_team_colors), result: row.result ?? "", venue: row.venue ?? "",
     organizer: row.organizer ?? "", tournament: row.tournament ?? "", createdAt: row.created_at, updatedAt: row.updated_at };
 }
 function mapWarmupRoutine(row: DbWarmupRoutine): WarmupRoutine {
@@ -350,7 +351,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
       supabase.from("profiles").select("id, email, full_name, is_global_admin, must_set_password, session_digest_email").eq("id", authUser.id).single(),
       supabase.from("team_players").select("id, team_id, full_name, jersey_number, created_at, updated_at").order("full_name"),
-      supabase.from("team_fixtures").select("id, team_id, match_number, starts_at, home_team, away_team, our_teams, result, venue, organizer, tournament, created_at, updated_at").order("starts_at"),
+      supabase.from("team_fixtures").select("*").order("starts_at"),
       supabase.from("team_month_focus").select("team_id, month, note, updated_at, updated_by"),
       supabase.from("warmup_routines").select("*, warmup_items(*)"),
       supabase.from("session_attendance").select("session_id, player_id, is_present, checked_in_at"),
@@ -943,14 +944,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const imported = input.map((entry) => {
       const existing = known.get(entry.matchNumber);
       if (existing) updated += 1; else added += 1;
-      return { ...entry, id: existing?.id ?? makeUuid(), teamId: currentTeam.id, createdAt: existing?.createdAt ?? now, updatedAt: now };
+      return { ...entry, ourTeamColors: validTeamColors(entry.ourTeamColors ?? existing?.ourTeamColors), id: existing?.id ?? makeUuid(), teamId: currentTeam.id, createdAt: existing?.createdAt ?? now, updatedAt: now };
     });
     const importedNumbers = new Set(imported.map((fixture) => fixture.matchNumber));
-    setFixtures((current) => [...current.filter((fixture) => fixture.teamId !== currentTeam.id || !importedNumbers.has(fixture.matchNumber)), ...imported].sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
     const rows = imported.map((fixture) => ({ id: fixture.id, team_id: fixture.teamId, match_number: fixture.matchNumber, starts_at: fixture.startsAt,
-      home_team: fixture.homeTeam, away_team: fixture.awayTeam, our_teams: fixture.ourTeams, result: fixture.result,
+      home_team: fixture.homeTeam, away_team: fixture.awayTeam, our_teams: fixture.ourTeams, our_team_colors: fixture.ourTeamColors, result: fixture.result,
       venue: fixture.venue, organizer: fixture.organizer, tournament: fixture.tournament }));
     await persist(supabase ? () => supabase.from("team_fixtures").upsert(rows, { onConflict: "team_id,match_number" }) : null);
+    // A failed import leaves the calendar intact.
+    setFixtures((current) => [...current.filter((fixture) => fixture.teamId !== currentTeam.id || !importedNumbers.has(fixture.matchNumber)), ...imported].sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
     setNotice(`${added} ${added === 1 ? "kamp" : "kamper"} lagt til${updated ? `, ${updated} oppdatert` : ""}.`);
     return { added, updated };
   }, [currentTeam, fixtures, persist, supabase]);

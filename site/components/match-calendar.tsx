@@ -2,7 +2,8 @@
 
 import { Building2, CalendarDays, Clock3, List, ChevronDown, ChevronLeft, ChevronRight, Hash, MapPin, Trash2, Trophy } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { buildCalendarMonth, dayKey, fixtureOpponent, fixtureTeamNames, groupFixturesByDay, monthKey, monthLabel, shiftMonth, teamColor, upcomingFixtures } from "@/lib/fixtures";
+import { buildCalendarMonth, dayKey, fixtureOpponent, fixtureTeamNames, groupFixturesByDay, monthKey, monthLabel, shiftMonth, upcomingFixtures } from "@/lib/fixtures";
+import { fixturePalette, savedTeamColors, teamPalette } from "@/lib/team-palette";
 import type { TeamFixture, WarmupRoutine } from "@/lib/types";
 import { useGrep } from "./app-provider";
 import { Button, EmptyState, Modal, Tag } from "./ui";
@@ -28,7 +29,9 @@ function longDate(startsAt: string) {
   return new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(startsAt));
 }
 
-export function MatchCalendar({ fixtures, canManage, canEditWarmup }: { fixtures: TeamFixture[]; canManage: boolean; canEditWarmup: boolean }) {
+export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup }: { fixtures: TeamFixture[]; canManage: boolean; canEditWarmup: boolean }) {
+  const colors = useMemo(() => savedTeamColors(rawFixtures), [rawFixtures]);
+  const fixtures = useMemo(() => rawFixtures.map((fixture) => ({ ...fixture, ourTeamColors: colors })), [rawFixtures, colors]);
   const { removeFixture, warmupRoutines } = useGrep();
   // Which day is "today" depends on the reader's clock and zone, so the server
   // renders no highlight at all rather than the server's own answer — the
@@ -67,15 +70,15 @@ export function MatchCalendar({ fixtures, canManage, canEditWarmup }: { fixtures
   if (!fixtures.length) return <EmptyState icon={<CalendarDays size={22} />} title="Ingen kamper i kalenderen" body="Importer terminlisten fra turneringssystemet, og velg hvilke av lagene i avdelingen som er deres." />;
 
   return <>
-    {next && <button type="button" onClick={() => setOpen(next)} className="grep-match-featured">
-      <span className="grep-match-date"><span>{new Intl.DateTimeFormat("nb-NO", { month: "short" }).format(new Date(next.startsAt))}</span><strong>{new Intl.DateTimeFormat("nb-NO", { day: "numeric" }).format(new Date(next.startsAt))}</strong></span>
-      <span className="grep-match-featured-copy"><span className="grep-eyebrow">Neste kamp</span><strong>{next.homeTeam}<span className="grep-match-versus"> mot </span>{next.awayTeam}</strong><span className="grep-match-meta"><span><Clock3 size={14} />{time(next.startsAt)}</span>{next.venue && <span><MapPin size={14} />{next.venue}</span>}</span></span>
+    {next && <button type="button" onClick={() => setOpen(next)} className="grep-match-featured" style={{ background: fixturePalette(next).tint, borderLeft: `4px solid ${fixturePalette(next).accent}` }}>
+      <span className="grep-match-date" style={{ background: "#ffffff99" }}><span>{new Intl.DateTimeFormat("nb-NO", { month: "short" }).format(new Date(next.startsAt))}</span><strong>{new Intl.DateTimeFormat("nb-NO", { day: "numeric" }).format(new Date(next.startsAt))}</strong></span>
+      <span className="grep-match-featured-copy"><span className="grep-eyebrow"><TeamDots fixture={next} />{" "}Neste kamp</span><strong>{next.homeTeam}<span className="grep-match-versus"> mot </span>{next.awayTeam}</strong><span className="grep-match-meta"><span><Clock3 size={14} />{time(next.startsAt)}</span>{next.venue && <span><MapPin size={14} />{next.venue}</span>}</span></span>
       <ChevronRight size={21} className="grep-match-chevron" />
     </button>}
 
     {teams.length > 1 && <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrer på lag">
       <FilterChip active={team === null} onClick={() => setPicked(null)}>Alle lag</FilterChip>
-      {teams.map((name) => <FilterChip key={name} active={team === name} color={teamColor(name)} onClick={() => setPicked(team === name ? null : name)}>{name}</FilterChip>)}
+      {teams.map((name) => <FilterChip key={name} active={team === name} color={teamPalette(name, colors[name]).accent} onClick={() => setPicked(team === name ? null : name)}>{name}</FilterChip>)}
     </div>}
 
     <div className="grep-match-toolbar">
@@ -122,15 +125,19 @@ function FilterChip({ active, color, onClick, children }: { active: boolean; col
   </button>;
 }
 
+function TeamDots({ fixture }: { fixture: TeamFixture }) {
+  return <span className="inline-flex items-center gap-1" aria-hidden>{fixture.ourTeams.map((name) => <span key={name} className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: teamPalette(name, fixture.ourTeamColors?.[name]).accent }} />)}</span>;
+}
+
 function chipLabel(fixture: TeamFixture) {
   const { opponent, isHome, isDerby } = fixtureOpponent(fixture);
   return isDerby ? `${fixture.homeTeam} — ${fixture.awayTeam}` : `${isHome ? "H" : "B"} ${opponent}`;
 }
 
 function MatchChip({ fixture, onOpen }: { fixture: TeamFixture; onOpen(): void }) {
-  return <button type="button" onClick={onOpen} title={`${fixture.homeTeam} — ${fixture.awayTeam}`} className="flex w-full items-center gap-1.5 rounded-md border-l-[3px] bg-[var(--paper)] py-0.5 pl-1.5 pr-1 text-left text-[11px] font-bold leading-5 transition hover:bg-[var(--paper-deep)]" style={{ borderLeftColor: teamColor(fixture.ourTeams[0] ?? fixture.homeTeam) }}>
+  return <button type="button" onClick={onOpen} title={`${fixture.homeTeam} — ${fixture.awayTeam}`} className="flex w-full items-center gap-1.5 rounded-md border-l-[3px] bg-[var(--paper)] py-0.5 pl-1.5 pr-1 text-left text-[11px] font-bold leading-5 transition hover:bg-[var(--paper-deep)]" style={{ borderLeftColor: fixturePalette(fixture).accent, background: fixturePalette(fixture).tint }}>
     <span className="shrink-0 tabular-nums text-[var(--ink-soft)]">{time(fixture.startsAt)}</span>
-    <span className="truncate">{chipLabel(fixture)}</span>
+    <TeamDots fixture={fixture} /><span className="truncate">{chipLabel(fixture)}</span>
     {fixture.result && <span className="ml-auto shrink-0 text-[10px] text-[var(--ink-soft)]">{fixture.result}</span>}
   </button>;
 }
@@ -144,10 +151,10 @@ function DayMatches({ dayKey, matches, onClose, onOpen }: { dayKey: string | nul
 
 function MatchRow({ fixture, onOpen, compact = false }: { fixture: TeamFixture; onOpen(): void; compact?: boolean }) {
   const { isHome, isDerby } = fixtureOpponent(fixture);
-  return <button type="button" onClick={onOpen} className="grep-match-row">
+  return <button type="button" onClick={onOpen} className="grep-match-row" style={{ borderLeft: `4px solid ${fixturePalette(fixture).accent}`, background: fixturePalette(fixture).tint }}>
     {compact ? <span className="grep-match-time">{time(fixture.startsAt)}</span>
-      : <span className="grep-match-date"><span>{new Intl.DateTimeFormat("nb-NO", { weekday: "short" }).format(new Date(fixture.startsAt))}</span><strong>{new Intl.DateTimeFormat("nb-NO", { day: "numeric" }).format(new Date(fixture.startsAt))}</strong></span>}
-    <span className="grep-match-row-copy"><span className="grep-match-location">{isDerby ? "Internkamp" : isHome ? "Hjemmekamp" : "Bortekamp"}</span><strong>{fixture.homeTeam} — {fixture.awayTeam}</strong><span className="grep-match-meta">{!compact && <span><Clock3 size={13} />{time(fixture.startsAt)}</span>}<span><MapPin size={13} />{fixture.venue || "Bane ikke satt"}</span></span></span>
+      : <span className="grep-match-date" style={{ background: "#ffffff99" }}><span>{new Intl.DateTimeFormat("nb-NO", { weekday: "short" }).format(new Date(fixture.startsAt))}</span><strong>{new Intl.DateTimeFormat("nb-NO", { day: "numeric" }).format(new Date(fixture.startsAt))}</strong></span>}
+    <span className="grep-match-row-copy"><span className="grep-match-location"><TeamDots fixture={fixture} />{" "}{isDerby ? "Internkamp" : isHome ? "Hjemmekamp" : "Bortekamp"}</span><strong>{fixture.homeTeam} — {fixture.awayTeam}</strong><span className="grep-match-meta">{!compact && <span><Clock3 size={13} />{time(fixture.startsAt)}</span>}<span><MapPin size={13} />{fixture.venue || "Bane ikke satt"}</span></span></span>
     {fixture.result && <Tag tone="green">{fixture.result}</Tag>}<ChevronRight size={18} className="grep-match-chevron" />
   </button>;
 }
@@ -164,7 +171,7 @@ function MatchDetails({ fixture, canManage, removing, routine, onClose, onRemove
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[var(--ink-soft)]">Borte</p><p className={cn("mt-1 break-words font-black", ours(fixture.awayTeam) && "text-[var(--orange)]")}>{fixture.awayTeam}</p></div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {fixture.ourTeams.map((name) => <span key={name} className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-[var(--line)] px-3 text-xs font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: teamColor(name) }} aria-hidden />{name}</span>)}
+        {fixture.ourTeams.map((name) => <span key={name} className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-[var(--line)] px-3 text-xs font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: teamPalette(name, fixture.ourTeamColors?.[name]).accent }} aria-hidden />{name}</span>)}
         <Tag tone={isDerby ? "orange" : "blue"}>{isDerby ? "Internkamp" : isHome ? "Hjemmekamp" : "Bortekamp"}</Tag>
         {!fixture.result && <Tag>Ikke spilt</Tag>}
       </div>

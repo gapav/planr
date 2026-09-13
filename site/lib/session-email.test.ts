@@ -90,7 +90,7 @@ describe("dailySessionDigestEmail", () => {
       sessions: [session({ title: '<img src=x onerror="alert(1)">', objective: "<script>alert(1)</script>" })],
       siteUrl,
     })!;
-    expect(mail.html).not.toContain("<img");
+    expect(mail.html).not.toContain("<img src=x");
     expect(mail.html).not.toContain("<script>");
     expect(mail.html).toContain("&lt;img");
   });

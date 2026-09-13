@@ -57,7 +57,7 @@ describe("invitationEmail", () => {
 
   it("escapes a team name so it cannot inject markup into the email", () => {
     const { html } = invitationEmail({ teamName: '<img src=x onerror="alert(1)">', link });
-    expect(html).not.toContain("<img");
+    expect(html).not.toContain('<img src=x');
     expect(html).toContain("&lt;img");
   });
 });

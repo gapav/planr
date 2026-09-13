@@ -1,3 +1,4 @@
+import { teamPalette } from "./team-palette";
 import { CLUB_TIME_ZONE } from "./time";
 import type { TeamFixture, TeamFixtureInput } from "./types";
 
@@ -156,30 +157,8 @@ export function fixturesForTeams(fixtures: readonly ParsedFixture[], selected: r
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 }
 
-// A club names its sub-teams after colours, and that is what a coach scans the
-// calendar for. Anything unnamed falls back to a stable pick from the palette
-// so two teams still read apart.
-const COLOR_WORDS: Array<[RegExp, string]> = [
-  [/\brød\b|\brod\b|\bred\b/, "#d7443e"],
-  [/\bblå\b|\bbla\b|\bblue\b/, "#2f6fb0"],
-  [/\bgrønn\b|\bgronn\b|\bgreen\b/, "#2f8a5b"],
-  [/\bgul\b|\byellow\b/, "#cf9a13"],
-  [/\bsvart\b|\bblack\b/, "#3a3f3d"],
-  [/\bhvit\b|\bwhite\b/, "#7b8a86"],
-  [/\brosa\b|\bpink\b/, "#c9528d"],
-  [/\blilla\b|\bpurple\b/, "#6d6bb5"],
-  [/\boransje\b|\borange\b/, "#f0642e"],
-  [/\bturkis\b|\bcyan\b/, "#2b9aa2"],
-];
-const FALLBACK_COLORS = ["#477b70", "#6d6bb5", "#b06a2f", "#315c73", "#8a5a8f", "#5f7a35"];
-
-export function teamColor(name: string) {
-  const lowered = name.toLocaleLowerCase("nb-NO");
-  for (const [pattern, color] of COLOR_WORDS) if (pattern.test(lowered)) return color;
-  let hash = 0;
-  for (const character of lowered) hash = (hash * 31 + character.codePointAt(0)!) % 100_000;
-  return FALLBACK_COLORS[hash % FALLBACK_COLORS.length];
-}
+// Compatibility helper for consumers of team colour dots.
+export function teamColor(name: string) { return teamPalette(name).accent.toLowerCase(); }
 
 /** `YYYY-MM-DD` in the viewer's zone; `timeZone` is only passed by tests. */
 export function dayKey(value: string | Date, timeZone?: string) {

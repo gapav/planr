@@ -29,6 +29,7 @@ const serverMessageTranslations: Record<string, string> = {
 const norwegianServerMessages = new Set(Object.values(serverMessageTranslations));
 
 export function norwegianServerMessage(message: string, fallback = "Handlingen kunne ikke fullføres.") {
+  if (/our_team_colors/.test(message) && /column|schema cache/i.test(message)) return "Lagfarger trenger en databaseoppdatering. Be systemadministratoren bruke migrasjonen 202609130001 før du importerer.";
   return serverMessageTranslations[message] ?? (norwegianServerMessages.has(message) || /[æøå]/i.test(message) ? message : fallback);
 }
 

@@ -79,6 +79,7 @@ export interface AdminAccount {
 export interface TeamFixture {
   id: string; teamId: string; matchNumber: string; startsAt: string; homeTeam: string; awayTeam: string;
   ourTeams: string[]; result: string; venue: string; organizer: string; tournament: string;
+  ourTeamColors?: Record<string, string>;
   createdAt: string; updatedAt: string;
 }
 export type TeamFixtureInput = Omit<TeamFixture, "id" | "teamId" | "createdAt" | "updatedAt">;

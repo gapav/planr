@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(175);
+select plan(179);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -289,6 +289,8 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok(format($$ insert into public.team_fixtures (id, team_id, match_number, starts_at, home_team, away_team, our_teams, venue, tournament) values ('60000000-0000-0000-0000-000000000001', '%s', '41041006001', now() + interval '3 days', 'Langhus Gul', 'Nesodden Gul', array['Langhus Gul'], 'Langhushallen', 'Kortbaneserie Jenter 10') $$, current_setting('plannr.test_team')), 'a team admin can import a match');
+select lives_ok($ update public.team_fixtures set our_team_colors = '{"Langhus Gul":"honey"}'::jsonb where id = '60000000-0000-0000-0000-000000000001' $, 'a team admin can assign a palette identity');
+select throws_ok($ update public.team_fixtures set our_team_colors = '[]'::jsonb where id = '60000000-0000-0000-0000-000000000001' $, '23514', null, 'team colours must be an object');
 select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006001', now(), 'Langhus Gul', 'Ski Rod', array['Langhus Gul']) $$, current_setting('plannr.test_team')), '23505', null, 're-importing the same match number updates one row rather than doubling the calendar');
 select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006099', now(), 'Langhus Gul', 'Ski Rod', array[]::text[]) $$, current_setting('plannr.test_team')), '23514', null, 'a match must record which of our teams plays it');
 reset role;
@@ -296,6 +298,8 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
 select is((select count(*)::integer from public.team_fixtures), 1, 'a coach on the team can read the match calendar');
+select lives_ok($ update public.team_fixtures set our_team_colors = '{"Langhus Gul":"rose"}'::jsonb where id = '60000000-0000-0000-0000-000000000001' $, 'a non-admin colour update is filtered');
+select is((select our_team_colors->>'Langhus Gul' from public.team_fixtures where id = '60000000-0000-0000-0000-000000000001'), 'honey', 'a coach can read but cannot change the saved colour');
 select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006002', now(), 'Langhus Gul', 'Ski Rod', array['Langhus Gul']) $$, current_setting('plannr.test_team')), '42501', null, 'a coach who is not an admin cannot import matches');
 select lives_ok($$ delete from public.team_fixtures where id = '60000000-0000-0000-0000-000000000001' $$, 'a delete by a non-admin coach is filtered rather than raised');
 select is((select count(*)::integer from public.team_fixtures), 1, 'the match survives a non-admin delete');

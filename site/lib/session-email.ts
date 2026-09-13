@@ -62,15 +62,15 @@ export function digestSubject(sessions: readonly DigestSession[], timeZone: stri
 function itemLine(item: DigestSession["blocks"][number]["items"][number], recipientId: string): string {
   const mine = item.assignedCoachId === recipientId;
   const badge = mine
-    ? `<div style="margin:8px 0 0"><span style="display:inline-block;padding:3px 9px;background:#fdece4;border-radius:999px;color:#c04a18;font-size:11px;font-weight:900;letter-spacing:.8px;text-transform:uppercase">Du har ansvar</span></div>`
+    ? `<div style="margin:8px 0 0"><span style="display:inline-block;padding:3px 9px;background:#FFF0E7;border-radius:999px;color:#684535;font-size:11px;font-weight:900;letter-spacing:.8px;text-transform:uppercase">Du har ansvar</span></div>`
     : "";
   const notes = item.coachingNotes.trim()
-    ? `<div style="margin:6px 0 0;color:#6b7975;font-size:13px;line-height:1.55">${escapeHtml(item.coachingNotes.trim())}</div>`
+    ? `<div style="margin:6px 0 0;color:#706479;font-size:13px;line-height:1.55">${escapeHtml(item.coachingNotes.trim())}</div>`
     : "";
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="margin-top:8px;background:#ffffff;border:1px solid #eae7de;border-radius:13px"><tr><td style="padding:13px 15px">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="margin-top:8px;background:#ffffff;border:1px solid #E8E1E9;border-radius:13px"><tr><td style="padding:13px 15px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="color:#10201d;font-size:15px;font-weight:700;line-height:1.4">${escapeHtml(item.title)}</td>
-<td align="right" valign="top" style="padding-left:12px;color:#77827f;font-size:13px;font-weight:700;white-space:nowrap">${escapeHtml(minutesLabel(item.durationMinutes))}</td>
+<td style="color:#2E1B3D;font-size:15px;font-weight:700;line-height:1.4">${escapeHtml(item.title)}</td>
+<td align="right" valign="top" style="padding-left:12px;color:#706479;font-size:13px;font-weight:700;white-space:nowrap">${escapeHtml(minutesLabel(item.durationMinutes))}</td>
 </tr></table>${notes}${badge}
 </td></tr></table>`;
 }
@@ -79,15 +79,15 @@ function itemLine(item: DigestSession["blocks"][number]["items"][number], recipi
 function blockSection(block: DigestSession["blocks"][number], recipientId: string): string {
   const minutes = block.items.reduce((total, item) => total + item.durationMinutes, 0);
   const notes = block.notes.trim()
-    ? `<p style="margin:8px 0 0;color:#6b7975;font-size:13px;line-height:1.55">${escapeHtml(block.notes.trim())}</p>`
+    ? `<p style="margin:8px 0 0;color:#706479;font-size:13px;line-height:1.55">${escapeHtml(block.notes.trim())}</p>`
     : "";
   const items = block.items.length
     ? block.items.map((item) => itemLine(item, recipientId)).join("")
-    : `<p style="margin:8px 0 0;color:#77827f;font-size:14px">Ingen aktiviteter lagt inn.</p>`;
+    : `<p style="margin:8px 0 0;color:#706479;font-size:14px">Ingen aktiviteter lagt inn.</p>`;
   return `<div style="margin-top:26px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-bottom:2px solid #dbea9c"><tr>
-<td style="padding:0 0 7px;color:#10201d;font-size:12px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase">${escapeHtml(block.title)}</td>
-<td align="right" style="padding:0 0 7px;color:#77827f;font-size:12px;font-weight:800;white-space:nowrap">${escapeHtml(minutesLabel(minutes))}</td>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-bottom:2px solid #E9DDF7"><tr>
+<td style="padding:0 0 7px;color:#2E1B3D;font-size:12px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase">${escapeHtml(block.title)}</td>
+<td align="right" style="padding:0 0 7px;color:#706479;font-size:12px;font-weight:800;white-space:nowrap">${escapeHtml(minutesLabel(minutes))}</td>
 </tr></table>${notes}${items}</div>`;
 }
 
@@ -110,18 +110,18 @@ function factLine(session: DigestSession, timeZone: string): string {
 
 function sessionCard(session: DigestSession, recipientId: string, timeZone: string): string {
   const objective = session.objective.trim()
-    ? `<p style="margin:10px 0 0;color:#40514d;font-size:15px;line-height:1.6"><strong style="color:#10201d">Mål:</strong> ${escapeHtml(session.objective.trim())}</p>`
+    ? `<p style="margin:10px 0 0;color:#706479;font-size:15px;line-height:1.6"><strong style="color:#2E1B3D">Mål:</strong> ${escapeHtml(session.objective.trim())}</p>`
     : "";
   const notes = session.notes.trim()
-    ? `<p style="margin:14px 0 0;color:#6b7975;font-size:13px;line-height:1.6">${escapeHtml(session.notes.trim())}</p>`
+    ? `<p style="margin:14px 0 0;color:#706479;font-size:13px;line-height:1.6">${escapeHtml(session.notes.trim())}</p>`
     : "";
   const started = session.status === "in_progress"
-    ? `<p style="margin:10px 0 0;color:#f0642e;font-size:13px;font-weight:800">Økta er allerede startet.</p>`
+    ? `<p style="margin:10px 0 0;color:#684535;font-size:13px;font-weight:800">Økta er allerede startet.</p>`
     : "";
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f2" style="margin-top:24px;background:#faf8f2;border:1px solid #e4e2da;border-radius:18px"><tr><td style="padding:20px 22px">
-<p style="margin:0;color:#77827f;font-size:12px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">${escapeHtml(session.teamName)}</p>
-<h2 style="margin:6px 0 0;color:#10201d;font-size:21px;line-height:1.25;font-weight:900;letter-spacing:-.5px">${escapeHtml(session.title)}</h2>
-<p style="margin:7px 0 0;color:#40514d;font-size:14px;font-weight:700">${factLine(session, timeZone)}</p>
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F2FA" style="margin-top:24px;background:#F7F2FA;border:1px solid #E8E1E9;border-radius:18px"><tr><td style="padding:20px 22px">
+<p style="margin:0;color:#706479;font-size:12px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">${escapeHtml(session.teamName)}</p>
+<h2 style="margin:6px 0 0;color:#2E1B3D;font-size:21px;line-height:1.25;font-weight:900;letter-spacing:-.5px">${escapeHtml(session.title)}</h2>
+<p style="margin:7px 0 0;color:#706479;font-size:14px;font-weight:700">${factLine(session, timeZone)}</p>
 ${started}${objective}${session.blocks.map((block) => blockSection(block, recipientId)).join("")}${notes}
 </td></tr></table>`;
 }
