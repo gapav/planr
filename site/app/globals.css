@@ -123,9 +123,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-cards { position: relative; display: grid; gap: 16px; }
 .overview-card { border: 1px solid var(--grep-line); background: #ffffffa8; border-radius: 17px; box-shadow: 0 3px 12px #2e1b3d02; }
 .overview-next { padding: 26px; display: flex; align-items: flex-start; flex-direction: column; }
+.overview-match { display: flex; align-items: center; gap: 18px; padding: 24px 22px 24px 26px; transition: border-color .15s, background .15s; }
+.overview-match:hover { border-color: #cdbbd9; background: white; }
+.overview-match-body { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.overview-match .overview-session-meta { display: flex; margin: 14px 0 0; }
+.overview-match .overview-empty-copy { margin: 8px 0 0; }
+.overview-match > svg { flex-shrink: 0; color: #897a94; }
 .overview-card-label { display: flex; align-items: center; justify-content: space-between; width: 100%; color: #63526e; font-size: 13px; font-weight: 500; }
 .overview-card-label svg { color: #998ca2; }
-.overview-next h2 { margin: 17px 0 9px; font-size: 25px; line-height: 1.2; letter-spacing: -.035em; font-weight: 600; }
+.overview-next h2, .overview-match-date { display: block; margin: 17px 0 9px; font-size: 25px; line-height: 1.2; letter-spacing: -.035em; font-weight: 600; }
 .overview-date::first-letter { text-transform: uppercase; }
 .overview-session-title { font-size: 14px; color: #62546d; overflow-wrap: anywhere; }
 .overview-session-meta { display: flex; flex-wrap: wrap; gap: 9px 18px; margin: 18px 0 27px; color: var(--grep-muted); font-size: 13px; }
@@ -148,6 +154,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-draft strong { display: block; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .overview-draft-action { display: flex; align-items: center; gap: 12px; margin-left: auto; font-size: 12px; white-space: nowrap; }
 .overview-draft:hover strong { text-decoration: underline; text-underline-offset: 4px; }
+.overview-focus strong { font-weight: 500; line-height: 1.6; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .overview-footnote { margin: 32px 0 0; font-size: 12px; color: #817389; }
 .overview-no-team { padding: 32px; }
 .overview-no-team h2 { margin: 18px 0 12px; font-size: 24px; font-weight: 600; }
@@ -157,7 +164,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-text-link { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
 @media (min-width: 640px) {
   .overview { padding: 0 40px 48px; }
-  .overview-shortcuts { grid-template-columns: 1fr 1fr; }
 }
 @media (min-width: 1024px) {
   .grep-shell { display: grid; grid-template-columns: 244px minmax(0,1fr); }
@@ -208,18 +214,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-mobile-nav [aria-current="page"] { background: #ffb28a30; }
 .grep-eyebrow { display: flex; align-items: center; gap: 9px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: #746d78; }
 .grep-eyebrow > .grep-logo-mark { width: 16px; height: 18px; color: var(--grep-ink); flex-shrink: 0; }
-.overview-next { position: relative; border-color: var(--grep-line); border-radius: 20px; }
+.overview-next, .overview-match { position: relative; border-color: var(--grep-line); border-radius: 20px; }
+.overview-match .overview-session-title { display: block; margin-top: -2px; }
 .overview-next::after { display: none; }
 .overview-card-label svg { margin-right: 12px; }
 .grep-page { width: 100%; max-width: 1264px; margin: 0 auto; padding: 36px 24px 64px; }
 .grep-match-featured { display: flex; align-items: center; gap: 22px; width: 100%; padding: 26px; text-align: left; background: white; border: 1px solid var(--line); border-radius: 20px; background: #f4edf9; }
-.grep-match-date { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 62px; min-height: 70px; border-radius: 14px; background: #eee5f6; }
+.grep-match-date { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 62px; min-height: 70px; border-radius: 14px; background: var(--paper-deep); }
 .grep-match-date > span { font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; }
 .grep-match-date strong { font-size: 27px; line-height: 1.2; letter-spacing: -.05em; }
-.grep-match-featured .grep-match-date { background: var(--grep-lilac); color: var(--ink); width: 74px; height: 84px; }
+.grep-match-featured .grep-match-date { background: #ffffffb8; color: var(--ink); width: 74px; height: 84px; }
 .grep-match-featured-copy, .grep-match-row-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 7px; }
 .grep-match-featured-copy > strong { font-size: 23px; font-weight: 650; line-height: 1.3; letter-spacing: -.035em; overflow-wrap: anywhere; }
-.grep-match-versus { color: var(--ink-soft); font-size: .7em; font-weight: 450; padding: 0 4px; }
+.grep-match-versus { color: var(--ink-soft); font-size: .7em; font-weight: 450; padding: 0 2px; }
+/* Our own squad keeps the title's weight and ink; the opponent steps back in
+   both. Hierarchy, not emphasis — which is why this is not italic. */
+.grep-match-them { font-weight: 450; color: var(--ink-soft); }
 .grep-match-meta { display: flex; flex-wrap: wrap; gap: 5px 16px; color: var(--ink-soft); font-size: 12px; }
 .grep-match-meta > span { display: inline-flex; align-items: center; gap: 5px; }
 .grep-match-meta svg, .grep-match-chevron { flex-shrink: 0; }
@@ -228,11 +238,36 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-match-controls { display: flex; align-items: center; gap: 20px; }
 .grep-match-view.grep-segments { gap: 2px; padding: 3px; border-radius: 12px; }
 .grep-match-view button { min-height: 36px; padding: 6px 12px; font-size: 12px; gap: 7px; }
-.grep-match-row { display: flex; align-items: center; gap: 20px; width: 100%; padding: 19px 22px; border: 1px solid var(--line); border-radius: 16px; text-align: left; background: white; }
-.grep-match-row:hover, .grep-match-featured:hover { border-color: #b3a5bd; }
+/* One card per day: the date is stated once on the left, and the day's matches
+   stack beside it, each keeping its own team tint and accent. */
+.grep-match-day { display: flex; align-items: flex-start; gap: 18px; width: 100%; padding: 16px 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.grep-match-day:hover { border-color: #d6cdda; }
+.grep-match-day-list { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+/* Team colour is a mark, never a surface: the dot in the title is the only
+   place it appears, and it is the same token the team filter uses. A tint
+   across the whole row spent the loudest signal on the least important fact,
+   and four pastels would be indistinguishable at eight teams. */
+.grep-match-entry { display: flex; align-items: center; gap: 16px; width: 100%; padding: 13px 14px; border-radius: 10px; text-align: left; transition: background .15s; }
+.grep-match-entry:hover { background: var(--paper); }
+.grep-match-day-list > li + li { border-top: 1px solid var(--line); }
+/* A squad's match day: everything the matches share, stated once above them. */
+.grep-match-day-body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+/* Squads need a firmer break than the rows inside one squad's day. */
+.grep-match-day-body > * + * { margin-top: 16px; padding-top: 18px; border-top: 1px solid var(--line); }
+.grep-match-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; padding: 0 14px; }
+.grep-match-group-team { font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
+.grep-match-group-count { flex-shrink: 0; font-size: 12px; color: var(--ink-soft); }
+.grep-match-group-meta { margin: 6px 0 2px; padding: 0 14px; }
+.grep-match-meetup { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 1px 9px; border-radius: 999px; background: var(--grep-lilac); color: #4f3a63; font-size: 12px; font-weight: 650; }
+.grep-match-meetup:hover { background: #ded0ef; }
+.grep-match-group .grep-match-day-list { margin-top: 2px; }
+.grep-match-opponents { font-size: 15px; color: var(--ink-soft); }
+/* The phone's replacement for the date badge, and the date every reader hears. */
+.grep-match-dayhead { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.grep-match-featured:hover { border-color: #b3a5bd; }
 .grep-match-row-copy > strong { font-weight: 600; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
-.grep-match-location { color: var(--ink-soft); font-size: 10px; font-weight: 600; }
-.grep-match-time { font-size: 14px; font-weight: 650; flex-shrink: 0; }
+.grep-match-home { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: 999px; background: var(--paper-deep); font-size: 11px; font-weight: 650; color: var(--ink); }
+.grep-match-time { font-size: 14px; font-weight: 650; flex-shrink: 0; min-width: 42px; }
 .grep-calendar-settings { margin-top: 32px; border-top: 1px solid var(--line); padding: 20px 2px; color: var(--ink-soft); font-size: 12px; }
 .grep-calendar-settings summary { cursor: pointer; width: fit-content; padding: 8px 0; }
 .grep-calendar-settings p { margin: 12px 0; max-width: 450px; line-height: 1.6; }
@@ -244,8 +279,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .grep-match-featured .grep-match-date { width: 56px; height: 70px; }
   .grep-match-featured .grep-match-chevron { display: none; }
   .grep-match-view.grep-segments { display: none; }
-  .grep-match-row { padding: 16px 12px; gap: 12px; }
+  .grep-match-day { flex-direction: column; gap: 0; padding: 14px 8px 8px; }
+  .grep-match-day .grep-match-date { display: none; }
+  .grep-match-dayhead { position: static; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: auto; height: auto; margin: 0 6px 8px; padding: 0 0 9px; overflow: visible; clip-path: none; border-bottom: 1px solid var(--line); }
+  .grep-match-dayhead strong { font-size: 13px; font-weight: 700; }
+  .grep-match-dayhead strong::first-letter { text-transform: uppercase; }
+  .grep-match-dayhead span { flex-shrink: 0; font-size: 11px; color: var(--ink-soft); }
+  .grep-match-day-list { width: 100%; }
+  .grep-match-entry { padding: 11px 6px; gap: 12px; }
+  .grep-match-group-head, .grep-match-group-meta { padding: 0 6px; }
+  .grep-match-group-team { font-size: 14px; }
+  .grep-match-opponents { font-size: 14px; }
   .grep-match-row-copy > strong { font-size: 14px; }
+  .grep-match-time { font-size: 13px; min-width: 38px; }
   .grep-match-date { width: 45px; min-height: 60px; }
   .grep-match-controls { gap: 6px; }
 }
@@ -261,8 +307,68 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-segments button span { display: grid; place-items: center; min-width: 21px; padding: 1px 5px; border-radius: 6px; font-size: 10px; background: #2e1b3d08; }
 .grep-segments button[aria-pressed="true"] span { background: #ffffff80; color: var(--ink-soft); }
 .grep-calendar-mobile-select { display: none; }
-.grep-session-featured { border-color: var(--grep-line); background: #fff; border-left: 4px solid var(--grep-ink); box-shadow: none; }
-.grep-calendar section > .rounded-3xl { border-radius: 18px; }
+/* Øktkalender wears Kampkalender's furniture: the same lilac hero with its
+   date badge, the same meta line, and one bordered card per month holding its
+   plans as hairline-separated rows. It used to carry a set of shadows, weights
+   and accents of its own, which read as a page from another product. */
+.grep-calendar-controls { margin-bottom: 28px; }
+.grep-session-sections { display: flex; flex-direction: column; gap: 30px; }
+.grep-session-featured { position: relative; display: flex; align-items: center; gap: 22px; width: 100%; padding: 24px 22px 24px 26px; border: 1px solid var(--grep-line); border-radius: 20px; background: #f4edf9; transition: border-color .15s; }
+.grep-session-featured:hover { border-color: #b3a5bd; }
+.grep-session-featured .grep-match-date { width: 74px; height: 84px; background: #ffffffb8; }
+.grep-session-featured .grep-session-headline h3 { font-size: 23px; font-weight: 650; line-height: 1.25; letter-spacing: -.035em; }
+.grep-session-featured .grep-match-meta { font-size: 13px; }
+.grep-session-hit { position: absolute; inset: 0; z-index: 0; border-radius: inherit; }
+.grep-session-row > :not(.grep-session-hit), .grep-session-featured > :not(.grep-session-hit) { position: relative; pointer-events: none; }
+.grep-session-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; pointer-events: auto; }
+.grep-session-open { z-index: 20; }
+.grep-match-date.grep-session-live { background: var(--grep-apricot); color: var(--grep-ink); }
+.grep-match-date > strong + span { font-weight: 600; color: var(--ink-soft); }
+.grep-session-featured .grep-match-date > span { color: #6a5c74; }
+
+.grep-session-month { display: flex; flex-direction: column; margin-top: 8px; border: 1px solid var(--grep-line); border-radius: 18px; background: var(--surface); }
+.grep-session-month > * + * { border-top: 1px solid var(--grep-line); }
+.grep-session-month-heading { padding: 0 2px; font-size: 19px; font-weight: 600; letter-spacing: -.03em; }
+.grep-session-month-heading::first-letter { text-transform: uppercase; }
+.grep-session-month-heading span { font-size: 13px; font-weight: 500; color: var(--ink-soft); letter-spacing: 0; }
+.grep-session-rows { display: flex; flex-direction: column; min-width: 0; }
+.grep-session-rows > li + li { border-top: 1px solid var(--grep-line); }
+.grep-session-row { position: relative; display: flex; align-items: center; gap: 16px; padding: 14px 10px 14px 18px; transition: background .15s; }
+.grep-session-month > :first-child, .grep-session-rows:first-child > li:first-child { border-top-left-radius: 17px; border-top-right-radius: 17px; }
+.grep-session-month > :last-child, .grep-session-rows:last-child > li:last-child { border-bottom-left-radius: 17px; border-bottom-right-radius: 17px; }
+.grep-session-row:hover { background: var(--paper); }
+.grep-session-compact { padding-top: 8px; padding-bottom: 8px; }
+.grep-session-day { flex-shrink: 0; width: 62px; white-space: nowrap; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+.grep-session-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 7px; }
+.grep-session-headline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.grep-session-headline h3 { font-size: 16px; font-weight: 600; line-height: 1.4; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.grep-session-venue { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grep-session-blocks { font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grep-session-progress { display: flex; align-items: center; gap: 12px; }
+.grep-session-bar { display: block; width: 100%; max-width: 220px; height: 5px; border-radius: 999px; background: var(--paper-deep); overflow: hidden; }
+.grep-session-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--grep-apricot); transition: width .2s; }
+.grep-session-progress small { flex-shrink: 0; font-size: 12px; color: var(--ink-soft); }
+
+.grep-session-focus { display: block; width: 100%; padding: 17px 20px; text-align: left; transition: background .15s; }
+button.grep-session-focus:hover { background: var(--paper); }
+.grep-session-focus small { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
+.grep-session-focus p { margin: 9px 0 0; font-size: 14px; font-weight: 500; line-height: 1.6; white-space: pre-line; }
+.grep-session-focus-by { display: flex; align-items: center; gap: 8px; margin-top: 11px; font-size: 12px; color: var(--ink-soft); }
+.grep-session-focus-empty { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 52px; padding: 0 20px; font-size: 13px; font-weight: 500; color: var(--ink-soft); transition: background .15s, color .15s, border-color .15s; }
+.grep-session-focus-empty:hover { color: var(--ink); background: var(--paper); }
+.grep-session-focus-offer { margin-top: 8px; border: 1px dashed #d3cdd7; border-radius: 14px; }
+.grep-session-focus-offer:hover { border-color: #b3a5bd; }
+@media (max-width: 639px) {
+  .grep-session-featured { gap: 14px; padding: 18px 16px; }
+  .grep-session-featured .grep-match-date { width: 56px; height: 70px; }
+  .grep-session-featured .grep-session-headline h3 { font-size: 19px; }
+  .grep-session-featured .grep-match-chevron { display: none; }
+  .grep-session-row { gap: 10px; padding: 12px 4px 12px 12px; }
+  .grep-session-day { width: 54px; font-size: 11px; }
+  .grep-session-headline h3 { font-size: 15px; }
+  .grep-session-month-heading { font-size: 17px; }
+  .grep-session-focus, .grep-session-focus-empty { padding-left: 14px; padding-right: 14px; }
+}
 .grep-library-filters { padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: #fffefd; }
 .grep-filter-chips button { min-height: 40px; font-size: 12px; font-weight: 550; border-radius: 10px; background: #fffefd; border-color: var(--line); color: #75667e; box-shadow: none; }
 .grep-filter-chips button:hover { border-color: #a68abb; }
@@ -326,12 +432,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-court-art { position: absolute; left: 0; bottom: 0; width: 100%; min-width: 442.667px; height: auto; aspect-ratio: 664 / 450; max-width: none; }
 .overview-shortcut small { display: none; }
 .overview-card { background: #fffefd; border-color: #ebe6e1; }
-.overview-next { border-radius: 18px; }
+.overview-next, .overview-match { border-radius: 18px; }
 @media (min-width: 1024px) {
   .overview-card-label { font-size: 17px; }
   .overview-session-title { font-size: 16px; }
   .overview-session-meta { font-size: 17px; margin: 16px 0 24px; }
   .overview-next .grep-action { min-height: 58px; padding: 14px 28px; font-size: 18px; }
+  /* The match card sits in the narrower column and reads as the second card. */
+  .overview-match-date { font-size: clamp(24px,1.7vw,30px); }
   .overview-shortcut { min-height: 132px; gap: 20px; }
   .overview-shortcut strong { font-size: 21px; font-weight: 650; }
   .overview-shortcut-icon { width: 64px; height: 64px; border-radius: 18px; }
@@ -344,6 +452,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .overview-welcome { min-height: 284px; padding-top: 22px; }
   .overview-court-crop { height: 270px; }
   .overview-next { padding: 32px; }
+  .overview-match { padding: 28px 24px 28px 32px; }
 }
 @media (min-width: 640px) and (max-width: 1023px) {
   .overview-welcome h1 { max-width: 72%; font-size: 38px; }
@@ -353,13 +462,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @media (max-width: 639px) {
   .overview-topbar { height: 48px; }
   .overview-welcome { min-height: 0; padding: 18px 0 24px; }
-  .overview-greeting { font-size: 15px; max-width: calc(100% - 86px); }
-  .overview-welcome h1 { max-width: calc(100% - 118px); margin: 10px 0 24px; font-size: 32px; min-height: 72px; }
+  .overview-greeting { font-size: 15px; max-width: calc(100% - 136px); }
+  .overview-welcome h1 { max-width: calc(100% - 136px); margin: 10px 0 28px; font-size: 32px; min-height: 72px; }
   .overview-welcome .grep-action { width: 100%; min-height: 52px; font-size: 16px; padding: 13px 22px; }
-  .overview-court-crop { width: 120px; height: 160px; top: 0; bottom: auto; right: 0; border-radius: 90px 0 0 0; }
-  .overview-court-art { width: 236px; min-width: 0; height: 160px; left: auto; right: 0; bottom: 0; }
+  /* The full-width CTA owns the bottom of the hero here, so the court cannot sit
+     at the bottom edge: its apricot would run straight into the apricot button.
+     It becomes a medallion tucked into the top-right corner instead — round on
+     every side but the corner it hugs, and short enough to clear the button. */
+  .overview-court-crop { width: 124px; height: 124px; top: 0; bottom: auto; right: 0; border-radius: 62px 0 62px 62px; }
+  .overview-court-art { width: 300px; min-width: 0; height: 203px; left: auto; right: -80px; bottom: -14px; }
   .overview-next { padding: 22px; }
-  .overview-next h2 { font-size: 23px; margin-top: 12px; }
+  .overview-match { padding: 20px 16px 20px 22px; gap: 12px; }
+  .overview-next h2, .overview-match-date { font-size: 23px; margin-top: 12px; }
   .overview-session-title { font-size: 12px; }
   .overview-session-meta { margin: 12px 0 20px; gap: 7px 12px; }
   .overview-next .grep-action { width: 100%; }

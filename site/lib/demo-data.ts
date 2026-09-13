@@ -23,12 +23,17 @@ export const demoPlayers: TeamPlayer[] = playerNames.map((fullName, index) => ({
 
 // The demo calendar carries the two sub-teams the age group is split into, so
 // the colour coding and the team filter have something to show without a file.
+// Fjordvik Rød plays twice on 12 September in the same hall, the way this age
+// group actually plays, so the match-day grouping has something to show; and
+// the club's own hall is Sofiemyrhallen — the one venue the calendar marks —
+// while the match it is *listed* as home for is played in a borrowed hall.
 const fixtureSeed = [
-  ["41041006001", "2026-09-12T09:00:00.000Z", "Fjordvik Rød", "Nesodden Gul", "Fjordvikhallen", "Fjordvik HK", ""],
-  ["41041006002", "2026-09-12T10:20:00.000Z", "Kolbotn Rød", "Fjordvik Blå", "Sofiemyrhallen A", "Oppegård Idrettslag", ""],
-  ["41041006003", "2026-09-26T11:40:00.000Z", "Fjordvik Blå", "Fjordvik Rød", "Fjordvikhallen", "Fjordvik HK", ""],
+  ["41041006001", "2026-09-12T09:00:00.000Z", "Fjordvik Rød", "Nesodden Gul", "Sofiemyrhallen A", "Fjordvik HK", ""],
+  ["41041006007", "2026-09-12T10:20:00.000Z", "Ski Rød", "Fjordvik Rød", "Sofiemyrhallen A", "Fjordvik HK", ""],
+  ["41041006002", "2026-09-12T11:40:00.000Z", "Kolbotn Rød", "Fjordvik Blå", "Kolbotnhallen", "Oppegård Idrettslag", ""],
+  ["41041006003", "2026-09-26T11:40:00.000Z", "Fjordvik Blå", "Fjordvik Rød", "Sofiemyrhallen B", "Fjordvik HK", ""],
   ["41041006004", "2026-10-10T08:00:00.000Z", "Ski Rød", "Fjordvik Rød", "Ski Alliansehall A", "Ski IL Håndball", ""],
-  ["41041006005", "2026-10-24T12:00:00.000Z", "Fjordvik Blå", "Nordstrand Rosa", "Fjordvikhallen", "Fjordvik HK", ""],
+  ["41041006005", "2026-10-24T12:00:00.000Z", "Fjordvik Blå", "Nordstrand Rosa", "Østre Greverud Idrettshall", "Fjordvik HK", ""],
   ["41041006006", "2026-08-29T09:00:00.000Z", "Bækkelaget Blå", "Fjordvik Rød", "Ekeberg skole", "Bækkelagets SK", "22-25"],
 ] as const;
 

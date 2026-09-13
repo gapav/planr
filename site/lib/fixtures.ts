@@ -217,11 +217,100 @@ export function groupFixturesByDay<T extends { startsAt: string }>(fixtures: rea
   return byDay;
 }
 
+/**
+ * The club's own hall. "Hjemmekamp" in the terminlisten only means we are
+ * listed first, which says nothing about where anyone has to drive — half of
+ * those are played in a borrowed hall, so the word tells a coach nothing. The
+ * calendar marks the one thing that does change the day: whether the match is
+ * on our own floor. Both floors count, and the export spells them "Sofiemyr-
+ * hallen A" / "Sofiemyrhallen B", so the hall name alone is matched. Change
+ * this line, and nothing else, if the club moves.
+ */
+const HOME_VENUE = /sofiemyr\s*hallen/i;
+
+export function isHomeVenue(venue: string) {
+  return HOME_VENUE.test(venue);
+}
+
 /** What the card has to say at a glance: who we play, and whether we are home. */
 export function fixtureOpponent(fixture: Pick<TeamFixture, "homeTeam" | "awayTeam" | "ourTeams">) {
   const isHome = fixture.ourTeams.some((team) => team === fixture.homeTeam);
   const isDerby = fixture.ourTeams.length > 1;
   return { isHome, isDerby, opponent: isDerby ? fixture.awayTeam : isHome ? fixture.awayTeam : fixture.homeTeam };
+}
+
+/**
+ * One squad's whole match day. At this age group a team plays two or three
+ * matches back to back in the same hall, so the day — not the fixture — is the
+ * thing a coach plans around: one trip, one meet-up, one warm-up.
+ */
+export interface MatchDayTeam {
+  key: string;
+  team: string;
+  fixtures: TeamFixture[];
+  /** The first throw-off: what the meet-up and the warm-up are counted back from. */
+  startsAt: string;
+  /** The shared hall, or null when the day's matches are not all in one place. */
+  venue: string | null;
+}
+
+export interface MatchDay {
+  day: string;
+  count: number;
+  teams: MatchDayTeam[];
+}
+
+/**
+ * Groups fixtures by day and then by which of our squads plays them.
+ *
+ * A derby gets its own group naming both squads rather than being listed under
+ * each of them: it is one match and one joint trip, so two identical blocks
+ * would say the same thing twice. A fixture naming none of our teams (only
+ * reachable by editing the row by hand) still gets a group, under the empty
+ * team name, so nothing silently disappears from the calendar.
+ */
+export function groupMatchDays(fixtures: readonly TeamFixture[], timeZone?: string): MatchDay[] {
+  const days = new Map<string, Map<string, TeamFixture[]>>();
+  for (const fixture of [...fixtures].sort((a, b) => a.startsAt.localeCompare(b.startsAt))) {
+    const day = dayKey(fixture.startsAt, timeZone);
+    if (!day) continue;
+    const teams = days.get(day) ?? new Map<string, TeamFixture[]>();
+    days.set(day, teams);
+    const team = joinNames(fixture.ourTeams);
+    const existing = teams.get(team);
+    if (existing) existing.push(fixture);
+    else teams.set(team, [fixture]);
+  }
+  return [...days].sort(([a], [b]) => a.localeCompare(b)).map(([day, teams]) => ({
+    day,
+    count: [...teams.values()].reduce((total, group) => total + group.length, 0),
+    teams: [...teams].map(([team, group]) => ({
+      key: `${day}:${team}`,
+      team,
+      fixtures: group,
+      startsAt: group[0].startsAt,
+      venue: group.every((fixture) => fixture.venue === group[0].venue) ? group[0].venue || null : null,
+    })).sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.team.localeCompare(b.team, "nb")),
+  }));
+}
+
+/**
+ * The day's first throw-off for whichever squad plays this fixture. The
+ * meet-up and the warm-up are counted back from it, so the second match of an
+ * afternoon must not answer with its own kick-off.
+ */
+export function matchDayStart(fixtures: readonly TeamFixture[], fixture: TeamFixture, timeZone?: string) {
+  const day = dayKey(fixture.startsAt, timeZone);
+  const ours = new Set(fixture.ourTeams);
+  const sameDay = fixtures.filter((candidate) => dayKey(candidate.startsAt, timeZone) === day
+    && (candidate.id === fixture.id || candidate.ourTeams.some((team) => ours.has(team))));
+  return sameDay.reduce((earliest, candidate) => candidate.startsAt < earliest ? candidate.startsAt : earliest, fixture.startsAt);
+}
+
+/** "A", "A og B", "A, B og C" — the way a Norwegian reads a list out loud. */
+export function joinNames(names: readonly string[]) {
+  if (names.length < 2) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} og ${names[names.length - 1]}`;
 }
 
 export function fixtureTeamNames(fixtures: readonly TeamFixture[]) {

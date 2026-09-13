@@ -45,25 +45,47 @@ describe("MatchCalendar", () => {
   it("opens full match details from the agenda", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
     const agenda = screen.getByLabelText("Månedens kamper");
-    fireEvent.click(within(agenda).getByRole("button", { name: /Fjordvik Rød — Nesodden Gul/ }));
+    fireEvent.click(within(agenda).getByRole("button", { name: /mot Nesodden Gul/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByText("41041006001")).toBeInTheDocument();
   });
 
   it("shows the month's matches and the next one up", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
-    expect(screen.getByText("Neste kamp")).toBeInTheDocument();
-    expect(within(grid()).getByText("H Nesodden Gul")).toBeInTheDocument();
-    expect(within(grid()).getByText("B Kolbotn Rød")).toBeInTheDocument();
+    // Fjordvik Rød plays twice on 12 September, so the hero names the day.
+    expect(screen.getByText("Neste kampdag")).toBeInTheDocument();
+    expect(within(grid()).getByText("Nesodden Gul")).toBeInTheDocument();
+    expect(within(grid()).getByText("Kolbotn Rød")).toBeInTheDocument();
     // A match played in August belongs to the previous month's grid.
-    expect(within(grid()).queryByText("B Bækkelaget Blå")).not.toBeInTheDocument();
+    expect(within(grid()).queryByText("Bækkelaget Blå")).not.toBeInTheDocument();
+  });
+
+  it("gathers a day's matches under one date card", () => {
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    const agenda = screen.getByLabelText("Månedens kamper");
+    // September holds four matches over two days; the 12th carries three.
+    const days = [...agenda.querySelectorAll<HTMLElement>(".grep-match-day")];
+    expect(days).toHaveLength(2);
+    expect(within(days[0]).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(days[0]).getAllByText("12.")).toHaveLength(1);
+    // Fjordvik Rød's two matches share a header; Fjordvik Blå's single one does not.
+    expect(within(days[0]).getAllByRole("region").map((group) => group.getAttribute("aria-label"))).toEqual(["Fjordvik Rød, 2 kamper"]);
+  });
+
+  it("marks the club's own hall instead of calling every listed match a hjemmekamp", () => {
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    const agenda = screen.getByLabelText("Månedens kamper");
+    // Fjordvik Rød's whole 12 September is in Sofiemyrhallen, so the group says
+    // so once rather than on each row; the derby on the 26th says it too.
+    expect(within(agenda).getAllByText("Hjemmebane")).toHaveLength(2);
+    expect(screen.queryByText(/Hjemmekamp|Bortekamp/)).not.toBeInTheDocument();
   });
 
   it("pages between months", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
     fireEvent.click(screen.getByLabelText("Forrige måned"));
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("august 2026");
-    expect(within(grid()).getByText("B Bækkelaget Blå")).toBeInTheDocument();
+    expect(within(grid()).getByText("Bækkelaget Blå")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "I dag" }));
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("september 2026");
   });
@@ -71,8 +93,8 @@ describe("MatchCalendar", () => {
   it("filters the calendar down to one of our teams", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
     fireEvent.click(screen.getByRole("button", { name: "Fjordvik Blå" }));
-    expect(within(grid()).getByText("B Kolbotn Rød")).toBeInTheDocument();
-    expect(within(grid()).queryByText("H Nesodden Gul")).not.toBeInTheDocument();
+    expect(within(grid()).getByText("Kolbotn Rød")).toBeInTheDocument();
+    expect(within(grid()).queryByText("Nesodden Gul")).not.toBeInTheDocument();
   });
 
   it("keeps a derby between two of our teams as one entry naming both", () => {
@@ -82,13 +104,13 @@ describe("MatchCalendar", () => {
 
   it("opens a match with everything the export carried", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
-    fireEvent.click(within(grid()).getByText("H Nesodden Gul"));
+    fireEvent.click(within(grid()).getByText("Nesodden Gul"));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: "Fjordvik Rød — Nesodden Gul" })).toBeInTheDocument();
-    expect(within(dialog).getByText("Fjordvikhallen")).toBeInTheDocument();
+    expect(within(dialog).getByText("Sofiemyrhallen A")).toBeInTheDocument();
     expect(within(dialog).getByText("41041006001")).toBeInTheDocument();
     expect(within(dialog).getByText("Kortbaneserie kvinner — Avdeling 3")).toBeInTheDocument();
-    expect(within(dialog).getByText("Hjemmekamp")).toBeInTheDocument();
+    expect(within(dialog).getByText("🏠 Hjemmebane")).toBeInTheDocument();
     expect(within(dialog).getByText("Ikke spilt")).toBeInTheDocument();
   });
 
@@ -102,7 +124,7 @@ describe("MatchCalendar", () => {
     }));
     render(<MatchCalendar fixtures={busy} canManage={false} canEditWarmup />);
 
-    expect(within(grid()).getAllByText(/^H Motstander/)).toHaveLength(2);
+    expect(within(grid()).getAllByText(/^Motstander/)).toHaveLength(2);
     const more = within(grid()).getByRole("button", { name: "+2 til" });
 
     fireEvent.click(more);
@@ -118,7 +140,7 @@ describe("MatchCalendar", () => {
 
   it("carries the warm-up into the match, and opens it from there", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
-    fireEvent.click(within(grid()).getByText("H Nesodden Gul"));
+    fireEvent.click(within(grid()).getByText("Nesodden Gul"));
     const strip = screen.getByRole("button", { name: /Kampoppvarming/ });
     expect(strip).toHaveTextContent("6 aktiviteter");
 
@@ -131,12 +153,12 @@ describe("MatchCalendar", () => {
 
   it("offers removal only to a team admin", () => {
     const { unmount } = render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
-    fireEvent.click(within(grid()).getByText("H Nesodden Gul"));
+    fireEvent.click(within(grid()).getByText("Nesodden Gul"));
     expect(screen.queryByRole("button", { name: /Fjern kampen/ })).not.toBeInTheDocument();
     unmount();
 
     render(<MatchCalendar fixtures={demoFixtures} canManage canEditWarmup />);
-    fireEvent.click(within(grid()).getByText("H Nesodden Gul"));
+    fireEvent.click(within(grid()).getByText("Nesodden Gul"));
     fireEvent.click(screen.getByRole("button", { name: /Fjern kampen/ }));
     expect(removeFixture).toHaveBeenCalledWith(demoFixtures[0].id);
   });

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCalendarMonth, dayKey, fixtureOpponent, fixtureTeamNames, fixturesForTeams, groupFixturesByDay,
-  matchStartToUtc, monthKey, monthLabel, parseFixtureRows, shiftMonth, teamColor, upcomingFixtures,
+  groupMatchDays, isHomeVenue, joinNames, matchDayStart, matchStartToUtc, monthKey, monthLabel, parseFixtureRows,
+  shiftMonth, teamColor, upcomingFixtures,
 } from "./fixtures";
 import type { TeamFixture } from "./types";
 
@@ -140,6 +141,68 @@ describe("fixture presentation", () => {
     expect(fixtureOpponent(fixture({}))).toMatchObject({ isHome: true, isDerby: false, opponent: "Nesodden Gul" });
     expect(fixtureOpponent(fixture({ ourTeams: ["Nesodden Gul"] }))).toMatchObject({ isHome: false, opponent: "Langhus Gul" });
     expect(fixtureOpponent(fixture({ ourTeams: ["Langhus Gul", "Nesodden Gul"] }))).toMatchObject({ isDerby: true });
+  });
+
+  // Being listed first in the terminlisten is not the same as playing at home:
+  // both of these are "hjemmekamper" on paper, only one is on our own floor.
+  it("counts only the club's own hall as home", () => {
+    expect(isHomeVenue("Sofiemyrhallen A")).toBe(true);
+    expect(isHomeVenue("Sofiemyrhallen B")).toBe(true);
+    expect(isHomeVenue("sofiemyr hallen b")).toBe(true);
+    expect(isHomeVenue("Østre Greverud Idrettshall")).toBe(false);
+    expect(isHomeVenue("")).toBe(false);
+  });
+
+  // At this age group a squad plays two or three matches back to back, so the
+  // day is the unit a coach plans: one trip, one meet-up, one warm-up.
+  it("gathers each squad's matches on a day into one group", () => {
+    const days = groupMatchDays([
+      fixture({ id: "a", startsAt: "2026-09-06T08:00:00.000Z", homeTeam: "Nordby Gul", awayTeam: "Kolbotn Gul", ourTeams: ["Kolbotn Gul"], venue: "Nordbyhallen" }),
+      fixture({ id: "b", startsAt: "2026-09-06T09:20:00.000Z", homeTeam: "Kolbotn Gul", awayTeam: "Vålerenga Gul", ourTeams: ["Kolbotn Gul"], venue: "Nordbyhallen" }),
+      fixture({ id: "c", startsAt: "2026-09-06T08:00:00.000Z", homeTeam: "Oppegård Rød", awayTeam: "Kolbotn Rød", ourTeams: ["Kolbotn Rød"], venue: "Østre Greverud Idrettshall" }),
+    ]);
+    expect(days).toHaveLength(1);
+    expect(days[0].count).toBe(3);
+    expect(days[0].teams.map((group) => group.team)).toEqual(["Kolbotn Gul", "Kolbotn Rød"]);
+    expect(days[0].teams[0].fixtures.map((entry) => entry.id)).toEqual(["a", "b"]);
+    // One hall all afternoon, so the group can state it once.
+    expect(days[0].teams[0].venue).toBe("Nordbyhallen");
+    expect(days[0].teams[0].startsAt).toBe("2026-09-06T08:00:00.000Z");
+  });
+
+  it("drops the shared venue when the day is split over two halls", () => {
+    const [day] = groupMatchDays([
+      fixture({ id: "a", startsAt: "2026-09-06T08:00:00.000Z", ourTeams: ["Langhus Gul"], venue: "Nordbyhallen" }),
+      fixture({ id: "b", startsAt: "2026-09-06T09:20:00.000Z", ourTeams: ["Langhus Gul"], venue: "Sofiemyrhallen A" }),
+    ]);
+    expect(day.teams[0].venue).toBeNull();
+  });
+
+  // A derby is one match and one joint trip, so it gets a single group naming
+  // both squads rather than an identical block under each of them.
+  it("gives a derby one group naming both squads", () => {
+    const [day] = groupMatchDays([
+      fixture({ id: "a", startsAt: "2026-09-06T08:00:00.000Z", homeTeam: "Kolbotn Gul", awayTeam: "Kolbotn Rød", ourTeams: ["Kolbotn Gul", "Kolbotn Rød"] }),
+      fixture({ id: "b", startsAt: "2026-09-06T09:20:00.000Z", homeTeam: "Ski Gul", awayTeam: "Kolbotn Gul", ourTeams: ["Kolbotn Gul"] }),
+    ]);
+    expect(day.count).toBe(2);
+    expect(day.teams.map((group) => group.team)).toEqual(["Kolbotn Gul og Kolbotn Rød", "Kolbotn Gul"]);
+  });
+
+  it("counts the meet-up back from the day's first throw-off, not from each match", () => {
+    const first = fixture({ id: "a", startsAt: "2026-09-06T08:00:00.000Z", ourTeams: ["Langhus Gul"] });
+    const second = fixture({ id: "b", startsAt: "2026-09-06T09:20:00.000Z", ourTeams: ["Langhus Gul"] });
+    const other = fixture({ id: "c", startsAt: "2026-09-06T07:00:00.000Z", ourTeams: ["Langhus Rød"] });
+    expect(matchDayStart([first, second, other], second)).toBe("2026-09-06T08:00:00.000Z");
+    // Another squad playing earlier that morning is not this squad's day.
+    expect(matchDayStart([first, second, other], first)).toBe("2026-09-06T08:00:00.000Z");
+  });
+
+  it("reads a list of opponents the way it is spoken", () => {
+    expect(joinNames([])).toBe("");
+    expect(joinNames(["Ski Gul"])).toBe("Ski Gul");
+    expect(joinNames(["Ski Gul", "Nordby Gul"])).toBe("Ski Gul og Nordby Gul");
+    expect(joinNames(["A", "B", "C"])).toBe("A, B og C");
   });
 
   it("gives each club colour its own hue and repeats it for the same name", () => {
