@@ -12,10 +12,9 @@ export interface FilterChip {
   /** How many exercises the chip is worth right now — see `countExerciseFacets`. */
   count: number;
   pressed: boolean;
-  /** Palette for the pressed and unpressed states. */
-  tone: { pressed: string; idle: string };
 }
 
+/** Colour is `.grep-filter-chips` in `globals.css`; this is only the geometry. */
 const chipClass = "inline-flex select-none items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)] sm:px-3.5 sm:py-2";
 
 /**
@@ -61,7 +60,7 @@ export function FilterChipGroup({ label, chips, onToggle }: { label: string; chi
         onFocus={() => setFocusKey(chip.key)}
         onClick={() => onToggle(chip.key)}
         aria-label={`${chip.label} — ${chip.count} ${chip.count === 1 ? "øvelse" : "øvelser"}`}
-        className={cn(chipClass, chip.pressed ? chip.tone.pressed : chip.tone.idle, !chip.pressed && chip.count === 0 && "opacity-50")}
+        className={cn(chipClass, !chip.pressed && chip.count === 0 && "opacity-50")}
       >
         {Icon && <Icon size={15} strokeWidth={2.25} aria-hidden="true" />}
         {chip.label}

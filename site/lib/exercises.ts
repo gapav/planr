@@ -6,15 +6,21 @@ export function formatAgeGroup(group: ExerciseAgeGroup): string {
 }
 
 /**
- * Picking a band shows only the exercises that list it. An exercise with no
- * stated age group therefore appears under "Alle aldre" alone — it was tempting
- * to let an empty array match everything so that exercises written before the
- * column existed never disappear, but that makes the filter useless: pick
- * "10-12" and the whole untagged library comes along with the one exercise a
- * coach actually tagged.
+ * An exercise with no stated age group suits every band.
+ *
+ * This reverses the rule that shipped with the column, which showed an untagged
+ * exercise under "Alle aldre" alone so that picking "10-12" could not drag the
+ * whole untagged library along with the one exercise a coach had tagged. That
+ * reasoning assumed age filtering was something a coach opts into from a neutral
+ * default. The library now opens on the band the team's own name implies
+ * (`teamAgeGroup`), so the old rule would hide most of the library from a coach
+ * who asked for nothing — punishing an exercise for its author's omission at the
+ * one moment nobody made a choice. "Not stated" is not "not suitable", and as
+ * tagging becomes normal the two rules converge anyway.
  */
 export function matchesAgeGroup(ageGroups: readonly ExerciseAgeGroup[], filter: ExerciseAgeGroup | null): boolean {
   if (filter === null) return true;
+  if (ageGroups.length === 0) return true;
   return ageGroups.includes(filter);
 }
 
@@ -22,6 +28,37 @@ export function matchesAgeGroup(ageGroups: readonly ExerciseAgeGroup[], filter: 
 export function matchesAgeGroups(ageGroups: readonly ExerciseAgeGroup[], filter: readonly ExerciseAgeGroup[]): boolean {
   if (filter.length === 0) return true;
   return filter.some((group) => matchesAgeGroup(ageGroups, group));
+}
+
+/**
+ * The age band a team's own name implies, so the library opens on the exercises
+ * that team can actually use instead of asking a coach to state something the
+ * app already knows. Norwegian club teams are named either by birth year
+ * ("KIL - J2016") or by the age itself ("Jenter 16"), so both are read. The year
+ * wins where a name carries both, because "J2016" contains a stated-age match
+ * too. Anything a name does not settle - "Senior kvinner" - gives null, which
+ * leaves the library at every age rather than guessing.
+ */
+export function teamAgeGroup(team: { name?: string; shortName?: string } | null | undefined, now = new Date()): ExerciseAgeGroup | null {
+  if (!team) return null;
+  const text = `${team.shortName ?? ""} ${team.name ?? ""}`;
+  const bornIn = text.match(/(?<!\d)(?:19|20)\d{2}(?!\d)/);
+  // "J14", "G 14", "Jenter 16" - the letter is required, so a hall number or a
+  // squad number ("Fjordvik 2") is not read as an age.
+  const stated = text.match(/\b(?:jenter|gutter|[jg])\s*(\d{1,2})\b/i);
+  const age = bornIn ? now.getFullYear() - Number(bornIn[0]) : stated ? Number(stated[1]) : null;
+  return age === null ? null : ageGroupForAge(age);
+}
+
+/**
+ * Derived from the bands themselves rather than a second list of boundaries, so
+ * adding "16-20" to `EXERCISE_AGE_GROUPS` is the whole change.
+ */
+function ageGroupForAge(age: number): ExerciseAgeGroup | null {
+  return EXERCISE_AGE_GROUPS.find((group) => {
+    const [from, to] = group.split("-").map(Number);
+    return age >= from && age <= to;
+  }) ?? null;
 }
 
 /**

@@ -8,14 +8,16 @@ const counts = countExerciseFacets(demoExercises);
 const chip = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name} —`) });
 
 describe("ExerciseCategoryFilter", () => {
-  it("gives every category a visual cue and its own palette", () => {
+  // Each category used to carry its own palette here, which the rebrand's
+  // `.grep-filter-chips` rules had been overriding for months. The icon is the
+  // cue the markup still owns; being on or off is painted in CSS.
+  it("gives every category its own visual cue", () => {
     render(<ExerciseCategoryFilter value={["Angrep"]} onChange={vi.fn()} counts={counts} />);
 
-    expect(chip("Forsvar")).toHaveClass("bg-[#eaf5fb]");
     expect(chip("Forsvar").querySelector(".lucide-shield")).toBeInTheDocument();
-    expect(chip("Angrep")).toHaveClass("bg-[#c44d24]", "text-white");
     expect(chip("Skuddferdigheter").querySelector(".lucide-target")).toBeInTheDocument();
-    expect(chip("Målvakt")).toHaveClass("bg-[#f5effb]");
+    expect(chip("Angrep")).toHaveAttribute("aria-pressed", "true");
+    expect(chip("Forsvar")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("shows what each chip is worth before it is clicked", () => {
@@ -60,10 +62,9 @@ describe("ExerciseCategoryFilter", () => {
     expect(onChange).toHaveBeenCalledWith([]);
   });
 
-  it("marks Alle as current only while nothing is chosen, and keeps it quieter than a real choice", () => {
+  it("marks Alle as current only while nothing is chosen", () => {
     const { rerender } = render(<ExerciseCategoryFilter value={[]} onChange={vi.fn()} counts={counts} />);
     expect(chip("Alle")).toHaveAttribute("aria-pressed", "true");
-    expect(chip("Alle")).toHaveClass("bg-white");
 
     rerender(<ExerciseCategoryFilter value={["Angrep"]} onChange={vi.fn()} counts={counts} />);
     expect(chip("Alle")).toHaveAttribute("aria-pressed", "false");

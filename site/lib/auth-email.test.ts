@@ -77,7 +77,7 @@ describe("passwordResetEmail", () => {
   const link = "https://grep.team/auth/confirm?token_hash=abc&type=recovery";
 
   it("says an administrator sent it, since the coach did not ask for it themselves", () => {
-    expect(passwordResetEmail({ link }).text).toContain("Lagadministratoren");
+    expect(passwordResetEmail({ link }).text).toContain("Systemadministratoren");
   });
 
   it("carries the link in both the button and the plain text fallback", () => {

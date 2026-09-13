@@ -162,8 +162,8 @@ export function dailySessionDigestEmail({ recipient, sessions, siteUrl, timeZone
     ? `${first.title}, kl. ${clockTime(first.startsAt, timeZone)}`
     : `${sessions.length} økter i dag`;
   const lead = sessions.length === 1
-    ? `Hei ${escapeHtml(firstName(recipient.fullName))} — her er økta du kjører i dag med <strong>${escapeHtml(first.teamName)}</strong>. Hele planen står under, så du har den i lomma.`
-    : `Hei ${escapeHtml(firstName(recipient.fullName))} — du står på ${sessions.length} økter i dag. Begge planene står under.`;
+    ? `Hei ${escapeHtml(firstName(recipient.fullName))} — her er økta <strong>${escapeHtml(first.teamName)}</strong> kjører i dag. Hele planen står under, så du har den i lomma.`
+    : `Hei ${escapeHtml(firstName(recipient.fullName))} — det er ${sessions.length} økter på lagene dine i dag. Alle planene står under.`;
   const body = sessions.map((session) => sessionCard(session, recipient.profileId, timeZone)).join("");
   const action = sessions.length === 1
     ? { label: "Åpne økta i Grep", link: sessionLink(siteUrl, first) }
@@ -172,7 +172,7 @@ export function dailySessionDigestEmail({ recipient, sessions, siteUrl, timeZone
   return {
     subject: digestSubject(sessions, timeZone),
     html: emailShell({
-      preheader: `${clockTime(first.startsAt, timeZone)} · ${first.title}`,
+      preheader: [first.teamName, first.venue.trim()].filter(Boolean).join(" · ") || first.title,
       eyebrow: "Dagens økt",
       heading,
       lead,
@@ -182,9 +182,10 @@ export function dailySessionDigestEmail({ recipient, sessions, siteUrl, timeZone
         title: "Vil du ikke ha denne?",
         text: "Skru av «Dagens økt på e-post» under Lag og spillere i Grep, så slutter den å komme.",
       },
+      footer: "Du får denne e-posten fordi du er trener på et lag som trener i dag.<br>Grep · laget for trenerrommet",
     }),
     text: [
-      `Hei ${firstName(recipient.fullName)} — her er det du kjører i dag.`,
+      `Hei ${firstName(recipient.fullName)} — her er det som står på planen i dag.`,
       "",
       sessions.map((session) => sessionText(session, recipient.profileId, siteUrl, timeZone)).join("\n\n---\n\n"),
       "",

@@ -46,6 +46,7 @@ export function invitationEmail({ teamName, link }: { teamName: string; link: st
   return {
     subject: `Du er invitert til ${teamName} i Grep`,
     html: shell({
+      eyebrow: "Invitasjon",
       heading: "Velkommen til trenerrommet",
       lead: `Du er invitert som trener for <strong>${escapeHtml(teamName)}</strong> i Grep. Åpne den sikre engangslenken for å logge inn og bli med på laget.`,
       action: "Logg inn og bli med",
@@ -60,6 +61,7 @@ export function loginEmail({ link }: { link: string }): AuthEmail {
   return {
     subject: "Logg inn på Grep",
     html: shell({
+      eyebrow: "Innlogging",
       heading: "Logg inn på Grep",
       lead: "Åpne den sikre engangslenken for å logge inn. Nettleseren husker deg, så du trenger vanligvis ikke en ny e-post neste gang.",
       action: "Logg inn på Grep",
@@ -81,26 +83,27 @@ export function passwordResetEmail({ link }: { link: string }): AuthEmail {
   return {
     subject: "Velg et nytt passord i Grep",
     html: shell({
+      eyebrow: "Nytt passord",
       heading: "Velg et nytt passord",
-      lead: "Lagadministratoren har sendt deg en lenke for å velge et nytt passord i Grep. Trykk på knappen under, så velger du det selv.",
+      lead: "Systemadministratoren har sendt deg en lenke for å velge et nytt passord i Grep. Trykk på knappen under, så velger du det selv.",
       action: "Velg nytt passord",
       link,
     }),
-    text: `Lagadministratoren har sendt deg en lenke for å velge et nytt passord i Grep.\n\n${link}\n\n${plainFooter}`,
+    text: `Systemadministratoren har sendt deg en lenke for å velge et nytt passord i Grep.\n\n${link}\n\n${plainFooter}`,
   };
 }
 
 const plainFooter = "Lenken virker én gang og utløper etter en stund. Virker den ikke lenger, be om en ny.";
 
 /** The shared envelope, with the one-time-link furniture every auth mail wants. */
-function shell({ heading, lead, action, link }: { heading: string; lead: string; action: string; link: string }): string {
+function shell({ eyebrow, heading, lead, action, link }: { eyebrow: string; heading: string; lead: string; action: string; link: string }): string {
   return emailShell({
     preheader: "En sikker engangslenke fra Grep er klar.",
-    eyebrow: "Laget samlet",
+    eyebrow,
     heading,
     lead,
     action: { label: action, link },
-    note: { title: "Trygt og enkelt.", text: plainFooter },
+    note: { title: "Om lenken.", text: plainFooter },
     // A single-use credential has to survive a client that strips the button.
     showPlainLink: true,
   });

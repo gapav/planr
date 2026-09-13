@@ -1,6 +1,6 @@
 "use client";
 
-import { ALL_CHIP_KEY, allChipTone } from "@/components/exercise-category-filter";
+import { ALL_CHIP_KEY } from "@/components/exercise-category-filter";
 import { FilterChipGroup } from "@/components/filter-chips";
 import type { ExerciseFacetCounts } from "@/lib/exercises";
 import { formatAgeGroup, toggleFilterValue } from "@/lib/exercises";
@@ -8,11 +8,11 @@ import { EXERCISE_AGE_GROUPS, type ExerciseAgeGroup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Age bands read as one scale rather than six unrelated topics, so unlike
- * `ExerciseCategoryFilter` they share a palette and grow darker with age instead
- * of each getting a colour of their own. That shared ramp plus the explicit
- * "6-9 år" label is the whole cue — no icon, because a glyph per band would
- * invent three unrelated metaphors for what is really one axis.
+ * Age bands read as one scale rather than three unrelated topics, so they share
+ * a palette and grow darker with age instead of each getting a colour of its
+ * own. Only `ExerciseAgeGroupPicker` wears it: a chip inside `.grep-filter-chips`
+ * is painted by the rebrand's own rules, and the picker tags an exercise in a
+ * form, where nothing else states which bands are set.
  */
 const agePresentation: Record<ExerciseAgeGroup, { pressed: string; idle: string }> = {
   "6-9": { pressed: "border-[#3f8f6b] bg-[#3f8f6b] text-white", idle: "border-[#c3e3d1] bg-[#eef8f2] text-[#2f6a4f] hover:border-[#8ac2a4]" },
@@ -22,13 +22,12 @@ const agePresentation: Record<ExerciseAgeGroup, { pressed: string; idle: string 
 
 export function ExerciseAgeGroupFilter({ value, onChange, counts }: { value: readonly ExerciseAgeGroup[]; onChange(ageGroups: ExerciseAgeGroup[]): void; counts: ExerciseFacetCounts }) {
   const chips = [
-    { key: ALL_CHIP_KEY, label: "Alle aldre", count: counts.allAgeGroups, pressed: value.length === 0, tone: allChipTone },
+    { key: ALL_CHIP_KEY, label: "Alle aldre", count: counts.allAgeGroups, pressed: value.length === 0 },
     ...EXERCISE_AGE_GROUPS.map((group) => ({
       key: group,
       label: formatAgeGroup(group),
       count: counts.ageGroups[group],
       pressed: value.includes(group),
-      tone: agePresentation[group],
     })),
   ];
 

@@ -94,7 +94,9 @@ export async function POST(request: Request) {
     if (!invitation) return bad("Opprett invitasjonen før innloggingslenken sendes.", 409);
     invitationToken = invitation.token;
     const { data: team } = await admin.from("teams").select("name").eq("id", teamId).single();
-    teamName = team?.name?.split("—").at(-1)?.trim() || team?.name || "laget";
+    // The full name, not `shortTeamName`: that abbreviation is for dense admin
+    // lists, and "Du er invitert til G16" drops the club the coach would recognize.
+    teamName = team?.name?.trim() || "laget";
   } else if (!isGlobalAdmin) {
     return bad("Bare en systemadministrator kan sende en ny innloggingslenke til en eksisterende trener.", 403);
   }

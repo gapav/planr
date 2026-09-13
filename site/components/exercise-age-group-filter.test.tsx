@@ -17,10 +17,13 @@ describe("ExerciseAgeGroupFilter", () => {
     expect(chip("13-15 år")).toBeInTheDocument();
   });
 
-  it("counts each band against the untagged exercises it excludes", () => {
+  // An exercise with no stated band suits every one of them, so a band counts
+  // the exercises written for it plus everything nobody tagged.
+  it("counts each band including the exercises with no stated age", () => {
     render(<ExerciseAgeGroupFilter value={[]} onChange={vi.fn()} counts={counts} />);
 
-    expect(chip("6-9 år")).toHaveAccessibleName("6-9 år — 1 øvelse");
+    const expected = demoExercises.filter((exercise) => exercise.ageGroups.length === 0 || exercise.ageGroups.includes("6-9")).length;
+    expect(chip("6-9 år")).toHaveAccessibleName(`6-9 år — ${expected} ${expected === 1 ? "øvelse" : "øvelser"}`);
     expect(chip("Alle aldre")).toHaveAccessibleName(`Alle aldre — ${demoExercises.length} øvelser`);
   });
 

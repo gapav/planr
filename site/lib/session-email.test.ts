@@ -100,4 +100,12 @@ describe("dailySessionDigestEmail", () => {
     expect(mail.html).toContain("Dagens økt på e-post");
     expect(mail.text).toContain("Dagens økt på e-post");
   });
+
+  // The plural branch runs for any count, so it may not say "begge".
+  it("counts the sessions instead of assuming there are two of them", () => {
+    const three = [session(), session({ id: "session-2" }), session({ id: "session-3" })];
+    const mail = dailySessionDigestEmail({ recipient, sessions: three, siteUrl })!;
+    expect(mail.html).toContain("3 økter");
+    expect(mail.html).not.toContain("Begge");
+  });
 });

@@ -30,7 +30,7 @@ export interface EmailShellOptions {
   note?: { title: string; text: string };
   /** Repeats the link as selectable text — for a one-time credential a button alone can lose. */
   showPlainLink?: boolean;
-  /** The small print under the card. */
+  /** Already-escaped HTML: the small print under the card. */
   footer?: string;
 }
 
@@ -57,10 +57,7 @@ export function emailShell({ preheader, eyebrow, heading, lead, body, action, no
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FAF8F4" style="width:100%;background:#FAF8F4"><tr><td align="center" style="padding:38px 16px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px">
-<tr><td bgcolor="#F1EAF8" style="background:#F1EAF8;border-radius:26px 26px 0 0;padding:26px 30px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-<td valign="middle">${logo}</td>
-<td align="right" valign="middle" style="color:#706479;font-size:11px;font-weight:800;letter-spacing:1.7px;text-transform:uppercase">Trenerrommet</td>
-</tr></table></td></tr>
+<tr><td bgcolor="#F1EAF8" style="background:#F1EAF8;border-radius:26px 26px 0 0;padding:26px 30px">${logo}</td></tr>
 <tr><td bgcolor="#FFFEFC" style="background:#FFFEFC;border:1px solid #E8E1E9;border-top:0;padding:30px 24px">
 <p style="margin:0;color:#706479;font-size:12px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase">${escapeHtml(eyebrow)}</p>
 <h1 style="margin:13px 0 0;color:#2E1B3D;font-size:32px;line-height:1.12;font-weight:900;letter-spacing:-1.2px">${escapeHtml(heading)}</h1>
