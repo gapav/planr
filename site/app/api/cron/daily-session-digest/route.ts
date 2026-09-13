@@ -2,15 +2,18 @@ import { timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { authLinkSiteUrl } from "@/lib/auth-email";
 import {
+  attachMonthFocus,
   clubDay,
   DIGEST_KIND,
   digestMailings,
+  digestMonthKeys,
   digestSessionsForDay,
   mapDigestCoach,
   mapDigestSession,
   plannedDigestSends,
   type CoachDigestRow,
   type DigestSend,
+  type MonthFocusRow,
   type SessionDigestRow,
 } from "@/lib/session-digest";
 import { dailySessionDigestEmail } from "@/lib/session-email";
@@ -55,9 +58,11 @@ const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
 const SESSION_SELECT =
   "id, team_id, title, starts_at, venue, planned_duration_minutes, objective, notes, status, teams(name), " +
-  "session_blocks(title, notes, position, session_items(title, description, duration_minutes, coaching_notes, assigned_coach_id, position, kind, exercise_id, exercises(name)))";
+  "session_blocks(title, notes, kind, position, session_items(title, description, duration_minutes, coaching_notes, assigned_coach_id, position, kind, exercise_id, exercises(name)))";
 
 const COACH_SELECT = "team_id, profile_id, profiles(id, email, full_name, session_digest_email, deleted_at)";
+
+const MONTH_FOCUS_SELECT = "team_id, month, note";
 
 function bad(message: string, status: number) {
   return Response.json({ error: message }, { status });
@@ -89,17 +94,26 @@ export async function GET(request: Request) {
     .in("status", ["published", "in_progress"]);
   if (sessionError) return bad(sessionError.message, 502);
 
-  const sessions = digestSessionsForDay(
+  const dated = digestSessionsForDay(
     ((sessionRows ?? []) as unknown as SessionDigestRow[]).map(mapDigestSession).filter((session) => session !== null),
     day,
   );
   // The common morning: nothing is on. Say so and send nobody anything — a
   // daily "ingenting i dag" is how a digest earns a filter rule.
-  if (sessions.length === 0) return Response.json({ day: day.key, sessions: 0, recipients: 0, sent: 0, failed: 0 });
+  if (dated.length === 0) return Response.json({ day: day.key, sessions: 0, recipients: 0, sent: 0, failed: 0 });
 
-  const teamIds = [...new Set(sessions.map((session) => session.teamId))];
-  const { data: coachRows, error: coachError } = await admin.from("team_memberships").select(COACH_SELECT).in("team_id", teamIds);
+  const teamIds = [...new Set(dated.map((session) => session.teamId))];
+  // The coaches and the month's focus are two independent reads over the same
+  // team ids; neither depends on the other, so they go out together.
+  const [{ data: coachRows, error: coachError }, { data: focusRows, error: focusError }] = await Promise.all([
+    admin.from("team_memberships").select(COACH_SELECT).in("team_id", teamIds),
+    admin.from("team_month_focus").select(MONTH_FOCUS_SELECT).in("team_id", teamIds).in("month", digestMonthKeys(dated)),
+  ]);
   if (coachError) return bad(coachError.message, 502);
+  // A missing focus is the normal state, so a failed read is not worth losing
+  // the whole letter over — the band simply drops out of it.
+  if (focusError) console.warn("Månedens fokus kunne ikke leses:", focusError.message);
+  const sessions = attachMonthFocus(dated, ((focusRows ?? []) as unknown as MonthFocusRow[]));
 
   const coaches = ((coachRows ?? []) as unknown as CoachDigestRow[]).map(mapDigestCoach).filter((coach) => coach !== null);
   const planned = plannedDigestSends(sessions, coaches);

@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowUp, ChevronRight, Clock3, Eye, Library, Plus, Search, Timer, Trash2, TriangleAlert, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { countExerciseFacets, filterExercises } from "@/lib/exercises";
-import { scheduleWarmupItems, warmupSchedule } from "@/lib/warmup";
+import { scheduleWarmupItems, warmupDuration, warmupSchedule } from "@/lib/warmup";
 import type { Exercise, ExerciseAgeGroup, ExerciseCategory, TeamFixture, WarmupItem, WarmupRoutine } from "@/lib/types";
 import { useGrep } from "./app-provider";
 import { ExerciseAgeGroupFilter } from "./exercise-age-group-filter";
@@ -37,6 +37,7 @@ export function WarmupDialog({ open, fixture, routine, canEdit, onClose }: { ope
 
   const startsAt = fixture?.startsAt ?? null;
   const schedule = routine ? warmupSchedule(startsAt, routine) : null;
+  const duration = routine ? warmupDuration(routine.items) : 0;
   const scheduled = useMemo(() => routine ? scheduleWarmupItems(startsAt, routine) : [], [routine, startsAt]);
 
   function close() { setPane("view"); setPreview(null); onClose(); }
@@ -57,7 +58,7 @@ export function WarmupDialog({ open, fixture, routine, canEdit, onClose }: { ope
 
   return <>
     <Modal open={open} onClose={close} size="lg" title={title} description={description}>
-      {pane === "view" && <ViewPane routine={routine} scheduled={scheduled} schedule={schedule} canEdit={canEdit} busy={busy} onEdit={() => setPane("edit")} onStart={() => void startRoutine()} onPreview={setPreview} />}
+      {pane === "view" && <ViewPane routine={routine} scheduled={scheduled} schedule={schedule} duration={duration} canEdit={canEdit} busy={busy} onEdit={() => setPane("edit")} onStart={() => void startRoutine()} onPreview={setPreview} />}
       {pane === "edit" && routine && <EditPane routine={routine} onPick={() => setPane("pick")} onDone={() => setPane("view")} />}
       {pane === "pick" && routine && <PickPane routine={routine} onDone={() => setPane("edit")} onPreview={setPreview} />}
     </Modal>
@@ -65,9 +66,9 @@ export function WarmupDialog({ open, fixture, routine, canEdit, onClose }: { ope
   </>;
 }
 
-function ViewPane({ routine, scheduled, schedule, canEdit, busy, onEdit, onStart, onPreview }: {
+function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdit, onStart, onPreview }: {
   routine: WarmupRoutine | null; scheduled: ReturnType<typeof scheduleWarmupItems>; schedule: ReturnType<typeof warmupSchedule>;
-  canEdit: boolean; busy: boolean; onEdit(): void; onStart(): void; onPreview(subject: ExerciseDetailSubject): void;
+  duration: number; canEdit: boolean; busy: boolean; onEdit(): void; onStart(): void; onPreview(subject: ExerciseDetailSubject): void;
 }) {
   if (!routine || !routine.items.length) return <div className="grid gap-5 text-center">
     <div className="rounded-[22px] border border-dashed border-[#c8c3b7] bg-[var(--paper)] px-6 py-10">
@@ -79,14 +80,20 @@ function ViewPane({ routine, scheduled, schedule, canEdit, busy, onEdit, onStart
   </div>;
 
   return <div className="grid gap-5">
-    {schedule && <div>
-      <div className="grid grid-cols-3 gap-px overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--line)] text-center">
-        <TimeCell icon={<Users size={14} />} label="Oppmøte" value={clock(schedule.meetAt)} />
-        <TimeCell icon={<Timer size={14} />} label="Oppvarming" value={clock(schedule.warmupAt)} />
-        <TimeCell icon={<Clock3 size={14} />} label="Avkast" value={clock(schedule.kickOffAt)} accent />
+    <div>
+      <div className={cn("grid gap-px overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--line)] text-center", schedule ? "grid-cols-3" : "grid-cols-2")}>
+        {schedule ? <>
+          <TimeCell icon={<Users size={14} />} label="Oppmøte" value={clock(schedule.meetAt)} />
+          <TimeCell icon={<Timer size={14} />} label="Oppvarming" value={clock(schedule.warmupAt)} />
+          <TimeCell icon={<Clock3 size={14} />} label="Avkast" value={clock(schedule.kickOffAt)} accent />
+        </> : <>
+          <TimeCell icon={<Users size={14} />} label="Oppmøte før avkast" value={minutesLabel(routine.meetMinutesBefore)} />
+          <TimeCell icon={<Timer size={14} />} label="Oppvarmingen varer" value={minutesLabel(duration)} accent />
+        </>}
       </div>
-      {schedule.startsBeforeMeetUp && <p className="mt-2 flex items-start gap-2 rounded-xl bg-[#fdf1e6] px-3 py-2 text-xs font-semibold leading-5 text-[#9c3913]"><TriangleAlert size={14} className="mt-0.5 shrink-0" />Oppvarmingen er {minutesLabel(schedule.durationMinutes)} lang, men laget møtes bare {minutesLabel(routine.meetMinutesBefore)} før avkast. Kort ned rutinen eller flytt oppmøtet.</p>}
-    </div>}
+      {!schedule && <p className="mt-2 text-xs leading-5 text-[var(--ink-soft)]">Klokkeslettene regnes ut fra avkast. Åpne en kamp i kalenderen for å se oppmøte og avkast for den kampen.</p>}
+      {duration > routine.meetMinutesBefore && <p className="mt-2 flex items-start gap-2 rounded-xl bg-[#fdf1e6] px-3 py-2 text-xs font-semibold leading-5 text-[#9c3913]"><TriangleAlert size={14} className="mt-0.5 shrink-0" />Oppvarmingen er {minutesLabel(duration)} lang, men laget møtes bare {minutesLabel(routine.meetMinutesBefore)} før avkast. Kort ned rutinen eller flytt oppmøtet.</p>}
+    </div>
 
     <ol className="grid gap-2">{scheduled.map(({ item, startsAt }, index) => {
       // The activity carries its own copy of the media, so the thumbnail and
@@ -104,7 +111,7 @@ function ViewPane({ routine, scheduled, schedule, canEdit, busy, onEdit, onStart
     {routine.notes && <section className="rounded-2xl bg-[var(--paper)] p-4"><p className="text-[10px] font-black uppercase tracking-[.12em] text-[var(--ink-soft)]">Notat</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{routine.notes}</p></section>}
 
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <span className="text-sm font-bold text-[var(--ink-soft)]">{activityLabel(routine.items.length)} · {minutesLabel(schedule?.durationMinutes ?? 0)}</span>
+      <span className="text-sm font-bold text-[var(--ink-soft)]">{activityLabel(routine.items.length)} · {minutesLabel(duration)}</span>
       {canEdit && <Button variant="secondary" onClick={onEdit}>Rediger oppvarmingen</Button>}
     </div>
   </div>;

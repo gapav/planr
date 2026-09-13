@@ -86,7 +86,7 @@ function ExerciseLibrary() {
   const railProps = { filters: active, counts, suggested: suggestedAge, canFavorite: Boolean(user), favoriteCount: favoriteExerciseIds.length, resultCount: filtered.length, onChange: patch };
 
   return <div className="grep-page grep-library">
-    <PageHeading eyebrow="Små ideer. Gode økter." title="Øvelsesbank" description="Finn noe som får laget i gang." actions={<><Button size="lg" onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={19} />Opprett øvelse</Button><HelpTip topic="exercises-library" /></>} />
+    <PageHeading eyebrow="Små ideer. Gode økter." title="Øvelsesbank" description="Finn øvelser som gjør dere bedre." actions={<><Button size="lg" onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={19} />Opprett øvelse</Button><HelpTip topic="exercises-library" /></>} />
 
     <div className="grep-library-layout">
       <ExerciseFilterRail {...railProps} />

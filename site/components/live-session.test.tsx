@@ -41,9 +41,19 @@ describe("live session runner", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Neste bolk" }));
 
-    expect(screen.getByRole("heading", { name: "Hoveddel" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Stasjoner" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Tre rekker i kontring" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sirkel for skulderaktivering" })).not.toBeInTheDocument();
+  });
+
+  it("says that a stations block runs its activities at once, on one shared rotation", () => {
+    render(<WorkoutSession sessionId={liveSession.id} />);
+    fireEvent.click(screen.getByRole("button", { name: "Neste bolk" }));
+
+    expect(screen.getByText("4 × 10 min")).toBeInTheDocument();
+    expect(screen.getByText(/Stasjonene går samtidig\. 4 grupper, rotasjon hvert 10\. minutt\./)).toBeInTheDocument();
+    // The minutes are the block's, so no station repeats them on its own card.
+    expect(screen.queryByText("10 min", { selector: "span.shrink-0" })).not.toBeInTheDocument();
   });
 
   it("opens the full timeline and jumps to a selected block", () => {

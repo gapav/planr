@@ -5,6 +5,7 @@ import { ArrowLeft, BookOpen, Calendar, CirclePlay, Clock3, Eye, LayoutList, Map
 import Link from "next/link";
 import { useState } from "react";
 import { AppShell } from "./app-shell";
+import { blockGlyph } from "./block-presets";
 import { useGrep } from "./app-provider";
 import { ExerciseDetail, sessionItemDetailSubject } from "./exercise-detail";
 import { HelpTip } from "./help-tip";
@@ -13,9 +14,9 @@ import { CopySessionDialog, SessionMenu } from "./session-actions";
 import { TeamCrest } from "./team-crest";
 import { Avatar, Button, EmptyState, Tag } from "./ui";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
-import { assignedCoach, blockDuration, sessionDuration } from "@/lib/session";
+import { assignedCoach, blockClock, blockDuration, isStationBlock, sessionDuration, sessionSchedule, stationRotation } from "@/lib/session";
 import type { Profile, SessionItem } from "@/lib/types";
-import { cn, formatSessionDate, minutesLabel } from "@/lib/utils";
+import { clockTime, cn, formatSessionDate, minutesLabel } from "@/lib/utils";
 
 /**
  * `/sessions/<id>` is where the calendar sends a coach, so it reads the plan
@@ -43,6 +44,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
   if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<Calendar size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." action={<Link href="/sessions" className="font-bold underline">Tilbake til øktkalenderen</Link>} /></div></AppShell>;
 
   const sessionTeam = store.teams.find((team) => team.id === session.teamId);
+  const schedule = sessionSchedule(session);
   const builtMinutes = sessionDuration(session);
   const difference = builtMinutes - session.plannedDurationMinutes;
 
@@ -75,14 +77,15 @@ export function SessionView({ sessionId }: { sessionId: string }) {
 
       <section className="mt-8">
         <div className="flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.15em] text-[var(--orange)]">Øktplan</p><h2 className="mt-2 text-3xl font-black tracking-[-.045em]">{session.blocks.length} {session.blocks.length === 1 ? "bolk" : "bolker"}</h2></div><span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--ink-soft)]"><LayoutList size={16} />{minutesLabel(builtMinutes)}</span></div>
-        {session.blocks.length ? <div className="mt-6 grid gap-5">{session.blocks.map((block, index) => <article key={block.id} className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_7px_24px_rgba(16,32,29,.04)]">
-          <header className="flex items-center gap-3 border-b border-[var(--line)] p-4 sm:px-5"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[var(--paper-deep)] text-xs font-black">{index + 1}</span><h3 className="min-w-0 flex-1 truncate text-lg font-black">{block.title}</h3><span className="shrink-0 rounded-full bg-black/5 px-2.5 py-1 text-xs font-black">{blockDuration(block)} min</span></header>
+        {session.blocks.length ? <div className="mt-6 grid gap-5">{session.blocks.map((block, index) => { const stations = isStationBlock(block); const clock = blockClock(schedule, block.id); return <article key={block.id} className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_7px_24px_rgba(16,32,29,.04)]">
+          <header className="flex items-center gap-3 border-b border-[var(--line)] p-4 sm:px-5">{clock ? <span className="shrink-0 rounded-xl bg-[var(--paper-deep)] px-2 py-1.5 text-xs font-black tabular-nums">{clockTime(clock.startsAt)}</span> : <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[var(--paper-deep)] text-xs font-black">{index + 1}</span>}{blockGlyph(block)}<h3 className="min-w-0 flex-1 truncate text-lg font-black">{block.title}</h3>{stations && <span className="hidden shrink-0 rounded-full bg-[var(--paper-deep)] px-2.5 py-1 text-[11px] font-black sm:inline-block">{block.items.length} × {stationRotation(block)} min</span>}<span className="shrink-0 rounded-full bg-black/5 px-2.5 py-1 text-xs font-black">{blockDuration(block)} min</span></header>
+          {stations && <p className="border-b border-[var(--line)] px-4 py-2.5 text-xs font-bold text-[var(--ink-soft)] sm:px-5">Øvelsene går samtidig — laget deles i {block.items.length} grupper og roterer hvert {stationRotation(block)}. minutt.</p>}
           {block.notes && <p className="border-b border-[var(--line)] bg-[#f8f5ed] px-4 py-3 text-sm leading-6 text-[var(--ink-soft)] sm:px-5"><span className="mr-2 text-[10px] font-black uppercase tracking-[.11em] text-[var(--orange)]">Notat for bolken</span>{block.notes}</p>}
-          <div className="grid gap-2.5 p-3 sm:p-4">{block.items.length ? block.items.map((item) => <button key={item.id} type="button" onClick={() => setPreviewItem(item)} aria-label={`Vis ${item.title}`} className="group flex items-start gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]">
-            <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center bg-[var(--paper-deep)]">{item.kind === "exercise" ? <BookOpen size={17} /> : <Sparkles size={17} />}</span>}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/90"><Eye size={14} /></span></span></span>
-            <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-3"><strong className="text-[15px] tracking-[-.015em]">{item.title}</strong><span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span></span>{item.description && <span className="clamp-2 mt-1 block text-sm leading-6 text-[var(--ink-soft)]">{item.description}</span>}{item.coachingNotes && <span className="mt-2 block rounded-xl bg-[#fff0e8] px-3 py-2"><span className="text-[10px] font-black uppercase tracking-[.11em] text-[#9c3913]">Stikkord</span><span className="mt-0.5 block text-sm font-semibold leading-6">{item.coachingNotes}</span></span>}<ItemCoach item={item} members={sessionTeam?.members ?? []} /></span>
-          </button>) : <p className="py-6 text-center text-sm text-[var(--ink-soft)]">Ingen aktiviteter i denne bolken.</p>}</div>
-        </article>)}</div> : <div className="mt-6"><EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Økten har ingen bolker ennå. Åpne den i redigering for å bygge den opp." action={<Link href={`/sessions/${sessionId}/edit`}><Button><Pencil size={16} />Rediger økten</Button></Link>} /></div>}
+          <div className="grid gap-2.5 p-3 sm:p-4">{block.items.length ? block.items.map((item, itemIndex) => <button key={item.id} type="button" onClick={() => setPreviewItem(item)} aria-label={`Vis ${item.title}`} className="group flex items-start gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]">
+            <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center bg-[var(--paper-deep)]">{item.kind === "exercise" ? <BookOpen size={17} /> : <Sparkles size={17} />}</span>}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/90"><Eye size={14} /></span></span>{stations && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-white">{itemIndex + 1}</span>}</span>
+            <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-3"><strong className="text-[15px] tracking-[-.015em]">{item.title}</strong>{!stations && <span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span>}</span>{item.description && <span className="clamp-2 mt-1 block text-sm leading-6 text-[var(--ink-soft)]">{item.description}</span>}{item.coachingNotes && <span className="mt-2 block rounded-xl bg-[#fff0e8] px-3 py-2"><span className="text-[10px] font-black uppercase tracking-[.11em] text-[#9c3913]">Stikkord</span><span className="mt-0.5 block text-sm font-semibold leading-6">{item.coachingNotes}</span></span>}<ItemCoach item={item} members={sessionTeam?.members ?? []} /></span>
+          </button>) : <p className="py-6 text-center text-sm text-[var(--ink-soft)]">{stations ? "Ingen stasjoner i denne bolken." : "Ingen aktiviteter i denne bolken."}</p>}</div>
+        </article>; })}</div> : <div className="mt-6"><EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Økten har ingen bolker ennå. Åpne den i redigering for å bygge den opp." action={<Link href={`/sessions/${sessionId}/edit`}><Button><Pencil size={16} />Rediger økten</Button></Link>} /></div>}
       </section>
 
       {session.notes && <section className="mt-8 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5"><h2 className="font-black">Generelle notater</h2><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{session.notes}</p></section>}

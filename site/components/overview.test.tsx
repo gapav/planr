@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoFixtures, demoMonthFocus, demoSessions, demoTeams, demoUser, demoWarmupRoutines } from "@/lib/demo-data";
@@ -58,15 +58,21 @@ describe("Oversikt", () => {
     expect(screen.getByRole("link", { name: "Se kampkalenderen" })).toHaveAttribute("href", "/matches");
     expect(screen.queryByRole("link", { name: /Importer kamper/ })).not.toBeInTheDocument();
   });
-  it("shows this month's focus and links it to the session calendar", () => {
+  it("leads with this month's focus, and only reads it out", () => {
     render(<Overview />);
-    const focus = screen.getByRole("link", { name: /Månedens fokus/ });
+    const focus = screen.getByRole("region", { name: /Månedens fokus/ });
+    expect(focus).toHaveTextContent("september 2026");
     expect(focus).toHaveTextContent("Forsvar 6-0 med aktiv midtblokk");
-    expect(focus).toHaveAttribute("href", "/sessions");
+    // The note is written in the session calendar, and by-lines belong there too.
+    expect(focus).not.toHaveTextContent("Satt av");
+    expect(within(focus).queryByRole("button")).not.toBeInTheDocument();
   });
-  it("does not carry the focus into a month it was not written for", () => {
+  it("does not carry the focus into a month it was not written for, and says where it is set", () => {
     vi.setSystemTime(new Date("2026-10-05T10:00:00Z")); render(<Overview />);
-    expect(screen.queryByText(/Månedens fokus/)).not.toBeInTheDocument();
+    const focus = screen.getByRole("region", { name: /Månedens fokus/ });
+    expect(focus).toHaveTextContent("oktober 2026");
+    expect(focus).not.toHaveTextContent("Forsvar 6-0");
+    expect(within(focus).getByRole("link", { name: "øktkalenderen" })).toHaveAttribute("href", "/sessions");
   });
   it("prevents planning without a team", () => {
     mocks.useGrep.mockReturnValue({ ...state(), currentTeam: null }); render(<Overview />);

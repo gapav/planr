@@ -107,7 +107,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-auth-gate section { max-width: 440px; padding: 36px; }
 .grep-auth-gate h1 { margin-top: 28px; font-size: 30px; font-weight: 650; letter-spacing: -.04em; line-height: 1.15; }
 .grep-auth-gate p { margin: 16px 0 24px; color: var(--grep-muted); line-height: 1.65; }
-.overview { max-width: 1800px; margin: 0 auto; padding: 0 24px 40px; }
+/* One step sets every gap on this page: hero to cards, column to column, card
+   to card, and cards to the focus band. Change it here, not in six places. */
+.overview { --overview-gap: 16px; max-width: 1800px; margin: 0 auto; padding: 0 24px 40px; }
 .overview-topbar { display: flex; align-items: center; gap: 16px; height: 70px; }
 .overview-team { margin-right: auto; font-size: 12px; color: var(--grep-muted); }
 .overview-search { display: none; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; color: var(--grep-muted); }
@@ -120,7 +122,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-action:disabled { opacity: .55; cursor: not-allowed; }
 .grep-action-secondary { background: var(--grep-lilac); gap: 14px; }
 .grep-action-secondary:hover { background: #ded0ef; }
-.overview-cards { position: relative; display: grid; gap: 16px; }
+.overview-cards { position: relative; display: grid; gap: var(--overview-gap); }
 .overview-card { border: 1px solid var(--grep-line); background: #ffffffa8; border-radius: 17px; box-shadow: 0 3px 12px #2e1b3d02; }
 .overview-next { padding: 26px; display: flex; align-items: flex-start; flex-direction: column; }
 .overview-match { display: flex; align-items: center; gap: 18px; padding: 24px 22px 24px 26px; transition: border-color .15s, background .15s; }
@@ -139,7 +141,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-session-meta svg { flex-shrink: 0; }
 .overview-next .grep-action { margin-top: auto; }
 .overview-empty-copy { margin: 6px 0 24px; max-width: 320px; font-size: 14px; line-height: 1.7; color: var(--grep-muted); }
-.overview-shortcuts { display: grid; gap: 16px; }
+.overview-shortcuts { display: grid; gap: var(--overview-gap); }
 .overview-shortcut { display: flex; align-items: center; gap: 18px; min-height: 112px; padding: 22px; transition: border-color .15s, background .15s; }
 .overview-shortcut:hover { border-color: #cdbbd9; background: white; }
 .overview-shortcut-icon { display: grid; place-items: center; height: 52px; width: 52px; flex-shrink: 0; border-radius: 15px; background: var(--grep-lilac); }
@@ -147,23 +149,36 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-shortcut strong { display: block; font-size: 15px; font-weight: 600; }
 .overview-shortcut small { display: block; margin-top: 5px; font-size: 12px; color: var(--grep-muted); }
 .overview-shortcut > svg { margin-left: auto; flex-shrink: 0; color: #897a94; }
-.overview-draft { display: flex; align-items: center; gap: 16px; margin: 28px 0 0; padding: 22px 4px; border-top: 1px solid var(--grep-line); border-bottom: 1px solid var(--grep-line); }
-.overview-draft-icon { display: grid; place-items: center; color: #93819f; width: 40px; flex-shrink: 0; }
-.overview-draft > span:nth-child(2) { min-width: 0; }
-.overview-draft small { display: block; color: var(--grep-muted); font-size: 12px; margin-bottom: 4px; }
-.overview-draft strong { display: block; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
-.overview-draft-action { display: flex; align-items: center; gap: 12px; margin-left: auto; font-size: 12px; white-space: nowrap; }
-.overview-draft:hover strong { text-decoration: underline; text-underline-offset: 4px; }
-.overview-focus strong { font-weight: 500; line-height: 1.6; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+/* Månedens fokus closes the page under the cards, so it is the one surface that
+   is neither a card nor a rule: a peach wash that fades into paper, no border
+   to draw a second box under two real ones. The warmth is the brand's, the
+   weight is not — the note is read after the cards, not instead of them, and
+   there is nothing to press here. It is written in the session calendar, under
+   the month it belongs to. A month with nothing written turns the band to paper
+   and a dashed edge, the same grammar the calendar's empty focus row uses. */
+.overview-focus { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: start; gap: 14px 16px; margin: var(--overview-gap) 0 0; padding: 20px; border: 0; border-radius: 18px; background: linear-gradient(180deg,#fff7f1,#fffefd); }
+.overview-focus-unset { border: 1px dashed #e3d9d1; background: #fffefd; }
+/* Type, weight and colour are the cards' own: the label is the card label, the
+   note is set like a card's session title, and the peach tile is the one the
+   shortcut wears. Only the wash behind it is new. */
+.overview-focus-mark { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; border-radius: 15px; background: #ffb28a38; color: var(--grep-ink); }
+.overview-focus-copy { min-width: 0; }
+/* Small, but set like the date that leads a card: same weight, same tightness,
+   same ink at full strength — the month included. */
+.overview-focus-eyebrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; color: var(--grep-ink); font-size: 13px; font-weight: 600; line-height: 1.2; letter-spacing: -.035em; }
+.overview-focus-note { max-width: 62ch; margin: 8px 0 0; font-size: 14px; font-weight: 400; line-height: 1.65; color: #62546d; white-space: pre-line; overflow-wrap: anywhere; }
+.overview-focus-invite { max-width: 46ch; font-size: 14px; font-weight: 400; line-height: 1.7; letter-spacing: 0; color: var(--grep-muted); }
+.overview-focus-invite a { text-decoration: underline; text-underline-offset: 3px; color: var(--grep-ink); }
 .overview-footnote { margin: 32px 0 0; font-size: 12px; color: #817389; }
 .overview-no-team { padding: 32px; }
 .overview-no-team h2 { margin: 18px 0 12px; font-size: 24px; font-weight: 600; }
 .overview-no-team p { margin-bottom: 24px; max-width: 400px; line-height: 1.65; color: var(--grep-muted); }
-.overview-error { padding: 14px 18px; margin-bottom: 16px; border: 1px solid #e5b4b4; border-radius: 12px; color: #9d2525; background: #fff4f4; }
+.overview-error { padding: 14px 18px; margin-bottom: var(--overview-gap); border: 1px solid #e5b4b4; border-radius: 12px; color: #9d2525; background: #fff4f4; }
 .overview-loading { min-height: 260px; padding: 32px; border: 1px solid var(--grep-line); border-radius: 17px; color: var(--grep-muted); }
 .grep-text-link { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
 @media (min-width: 640px) {
   .overview { padding: 0 40px 48px; }
+  .overview-focus { gap: 18px; padding: 24px 24px 24px 26px; }
 }
 @media (min-width: 1024px) {
   .grep-shell { display: grid; grid-template-columns: 244px minmax(0,1fr); }
@@ -179,8 +194,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .overview { padding: 0 40px 40px; }
   .overview-topbar { height: 66px; }
   .overview-topbar .overview-avatar, .overview-search { display: inline-flex; }
-  .overview-cards { grid-template-columns: minmax(0,1.16fr) minmax(0,1fr); gap: 18px; }
-  .overview-shortcuts { grid-template-columns: 1fr; gap: 20px; }
+  .overview { --overview-gap: 20px; }
+  .overview-cards { grid-template-columns: minmax(0,1.16fr) minmax(0,1fr); }
+  .overview-shortcuts { grid-template-columns: 1fr; }
   .overview-next { padding: 30px; }
   .overview-next h2 { font-size: clamp(30px,2.3vw,40px); }
   .overview-shortcut { padding: 24px; }
@@ -191,7 +207,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .overview-next { padding: 22px; }
   .overview-shortcut { padding: 18px; gap: 12px; }
   .overview-shortcut small { font-size: 11px; }
-  .overview-draft-action { font-size: 0; gap: 0; }
+  .overview-focus { padding: 17px; }
 }
 
 /* Brand rollout: colour and the turned-paper detail are repeated deliberately,
@@ -271,6 +287,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-calendar-settings { margin-top: 32px; border-top: 1px solid var(--line); padding: 20px 2px; color: var(--ink-soft); font-size: 12px; }
 .grep-calendar-settings summary { cursor: pointer; width: fit-content; padding: 8px 0; }
 .grep-calendar-settings p { margin: 12px 0; max-width: 450px; line-height: 1.6; }
+.grep-calendar-settings-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 @media (min-width: 640px) and (max-width: 1199px) {
 }
 @media (max-width: 639px) {
@@ -479,12 +496,12 @@ button.grep-session-focus:hover { background: var(--paper); }
 }
 /* Approved Oversikt: open welcome area, proportional court geometry,
    cropped independently from text and controls at each breakpoint. */
-.overview-welcome { position: relative; isolation: isolate; overflow: hidden; min-height: 264px; margin: 0; padding: 22px 0 34px; }
+.overview-welcome { position: relative; isolation: isolate; overflow: hidden; min-height: 264px; margin: 0 0 var(--overview-gap); padding: 22px 0 0; }
 .overview-welcome-copy { position: relative; z-index: 1; }
 .overview-greeting { font-size: 22px; }
 .overview-welcome h1 { max-width: 70%; margin: 12px 0 28px; font-size: clamp(48px,4.3vw,72px); line-height: 1.12; letter-spacing: -.045em; font-weight: 700; }
 .overview-welcome .grep-action { min-height: 60px; padding: 16px 30px; font-size: 18px; }
-.overview-court-crop { position: absolute; z-index: 0; pointer-events: none; right: 0; bottom: 0; width: 39%; height: 248px; overflow: hidden; border-radius: 160px 0 0 0; }
+.overview-court-crop { position: absolute; z-index: 0; pointer-events: none; right: 0; bottom: 0; width: 39%; height: 248px; overflow: hidden; border-radius: 160px 20px 20px 20px; }
 .overview-court-art { position: absolute; left: 0; bottom: 0; width: 100%; min-width: 442.667px; height: auto; aspect-ratio: 664 / 450; max-width: none; }
 .overview-shortcut small { display: none; }
 .overview-card { background: #fffefd; border-color: #ebe6e1; }
@@ -500,7 +517,11 @@ button.grep-session-focus:hover { background: var(--paper); }
   .overview-shortcut strong { font-size: 21px; font-weight: 650; }
   .overview-shortcut-icon { width: 64px; height: 64px; border-radius: 18px; }
   .overview-shortcut-icon svg { width: 29px; height: 29px; }
-  .overview-draft { margin-top: 18px; padding: 17px 4px; }
+  .overview-focus { padding: 26px 28px; }
+  .overview-focus-eyebrow { font-size: 17px; }
+  .overview-focus-note { font-size: 16px; }
+  .overview-focus-mark { width: 64px; height: 64px; border-radius: 18px; }
+  .overview-focus-mark svg { width: 29px; height: 29px; }
   .grep-nav a { font-size: 15px; min-height: 50px; }
   .grep-sidebar .grep-logo-lockup { width: 148px; height: 46px; }
 }
@@ -517,7 +538,7 @@ button.grep-session-focus:hover { background: var(--paper); }
 }
 @media (max-width: 639px) {
   .overview-topbar { height: 48px; }
-  .overview-welcome { min-height: 0; padding: 18px 0 24px; }
+  .overview-welcome { min-height: 0; padding: 18px 0 0; }
   .overview-greeting { font-size: 15px; max-width: calc(100% - 136px); }
   .overview-welcome h1 { max-width: calc(100% - 136px); margin: 10px 0 28px; font-size: 32px; min-height: 72px; }
   .overview-welcome .grep-action { width: 100%; min-height: 52px; font-size: 16px; padding: 13px 22px; }

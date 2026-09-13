@@ -1,10 +1,11 @@
 "use client";
 
-import { Building2, CalendarDays, Clock3, List, ChevronDown, ChevronLeft, ChevronRight, Hash, MapPin, Trash2, Trophy } from "lucide-react";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { Building2, CalendarDays, Clock3, List, ChevronDown, ChevronLeft, ChevronRight, Hash, MapPin, Trash2, Trophy, Upload } from "lucide-react";
+import { useImperativeHandle, useMemo, useState, useSyncExternalStore } from "react";
 import { buildCalendarMonth, dayKey, fixtureOpponent, fixtureTeamNames, groupFixturesByDay, groupMatchDays, isHomeVenue, joinNames, matchDayStart, monthKey, monthLabel, shiftMonth, upcomingFixtures } from "@/lib/fixtures";
 import type { MatchDay as MatchDayGroup, MatchDayTeam } from "@/lib/fixtures";
 import { fixturePalette, savedTeamColors, teamPalette } from "@/lib/team-palette";
+import type { Ref } from "react";
 import type { TeamFixture, WarmupRoutine } from "@/lib/types";
 import { useGrep } from "./app-provider";
 import { Button, EmptyState, Modal, Tag } from "./ui";
@@ -34,7 +35,13 @@ const weekdayFormat = new Intl.DateTimeFormat("nb-NO", { weekday: "short" });
 const dayOfMonthFormat = new Intl.DateTimeFormat("nb-NO", { day: "numeric" });
 const dayHeadFormat = new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long" });
 
-export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup }: { fixtures: TeamFixture[]; canManage: boolean; canEditWarmup: boolean }) {
+/**
+ * What the page header can reach into the calendar and open. The calendar owns
+ * the warm-up dialog, so the header asks rather than rendering a second copy.
+ */
+export interface MatchCalendarHandle { openWarmup(): void }
+
+export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup, onImport, ref }: { fixtures: TeamFixture[]; canManage: boolean; canEditWarmup: boolean; onImport?: () => void; ref?: Ref<MatchCalendarHandle> }) {
   const colors = useMemo(() => savedTeamColors(rawFixtures), [rawFixtures]);
   const fixtures = useMemo(() => rawFixtures.map((fixture) => ({ ...fixture, ourTeamColors: colors })), [rawFixtures, colors]);
   const { removeFixture, warmupRoutines } = useGrep();
@@ -47,7 +54,7 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup 
   const [picked, setPicked] = useState<string | null>(null);
   const [open, setOpen] = useState<TeamFixture | null>(null);
   const [removing, setRemoving] = useState(false);
-  const [warmupFor, setWarmupFor] = useState<TeamFixture | null>(null);
+  const [warmup, setWarmup] = useState<{ fixture: TeamFixture | null } | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null);
 
   // One routine per team, shown against every match rather than copied onto
@@ -73,6 +80,11 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup 
   const monthFixtures = useMemo(() => shown.filter((fixture) => monthKey(fixture.startsAt) === month).sort((a, b) => a.startsAt.localeCompare(b.startsAt)), [shown, month]);
   const monthDays = useMemo(() => groupMatchDays(monthFixtures), [monthFixtures]);
 
+  // The page header opens the routine itself, with no match bound to it: there
+  // is one warm-up for the whole team, and which match it is read against is
+  // the calendar's question, not the header's.
+  useImperativeHandle(ref, () => ({ openWarmup: () => setWarmup({ fixture: null }) }), []);
+
   async function confirmRemove(fixture: TeamFixture) {
     setRemoving(true);
     try { await removeFixture(fixture.id); setOpen(null); }
@@ -80,7 +92,10 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup 
     finally { setRemoving(false); }
   }
 
-  if (!fixtures.length) return <EmptyState icon={<CalendarDays size={22} />} title="Ingen kamper i kalenderen" body="Importer terminlisten fra turneringssystemet, og velg hvilke av lagene i avdelingen som er deres." />;
+  // Importing is a once-a-season job, so it lives in the settings drawer on the
+  // matches page rather than the header — except here, where an empty calendar
+  // makes it the only thing worth doing.
+  if (!fixtures.length) return <EmptyState icon={<CalendarDays size={22} />} title="Ingen kamper i kalenderen" body="Importer terminlisten fra turneringssystemet, og velg hvilke av lagene i avdelingen som er deres." action={onImport && <Button onClick={onImport}><Upload size={18} />Importer kamper</Button>} />;
 
   return <>
     {/* The hero wears the brand, not the team: which squad plays next changes
@@ -125,13 +140,13 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup 
     {/* On a phone the grid cells are too small to read a match in, so the month
         becomes the list it would have to collapse to anyway. */}
     <div className={cn("grep-match-agenda mt-4", view === "calendar" && "sm:hidden")} aria-label="Månedens kamper">
-      {monthDays.length ? <ul className="flex flex-col gap-2">{monthDays.map((day) => <li key={day.day}><MatchDay day={day} routine={routine} onOpen={setOpen} onWarmup={setWarmupFor} /></li>)}</ul>
+      {monthDays.length ? <ul className="flex flex-col gap-2">{monthDays.map((day) => <li key={day.day}><MatchDay day={day} routine={routine} onOpen={setOpen} onWarmup={(fixture) => setWarmup({ fixture })} /></li>)}</ul>
         : <p className="rounded-2xl border border-dashed border-[#c8c3b7] px-4 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen kamper denne måneden.</p>}
     </div>
 
-    <DayMatches dayKey={dayOpen} matches={dayOpen ? byDay.get(dayOpen) ?? [] : []} routine={routine} onClose={() => setDayOpen(null)} onOpen={(fixture) => { setDayOpen(null); setOpen(fixture); }} onWarmup={(fixture) => { setDayOpen(null); setWarmupFor(fixture); }} />
-    <MatchDetails fixture={open} dayStartsAt={open ? matchDayStart(shown, open) : null} canManage={canManage} removing={removing} routine={routine} onClose={() => { if (!removing) setOpen(null); }} onRemove={confirmRemove} onWarmup={(fixture) => { setOpen(null); setWarmupFor(fixture); }} />
-    <WarmupDialog open={Boolean(warmupFor)} fixture={warmupFor} routine={routine} canEdit={canEditWarmup} onClose={() => setWarmupFor(null)} />
+    <DayMatches dayKey={dayOpen} matches={dayOpen ? byDay.get(dayOpen) ?? [] : []} routine={routine} onClose={() => setDayOpen(null)} onOpen={(fixture) => { setDayOpen(null); setOpen(fixture); }} onWarmup={(fixture) => { setDayOpen(null); setWarmup({ fixture }); }} />
+    <MatchDetails fixture={open} dayStartsAt={open ? matchDayStart(shown, open) : null} canManage={canManage} removing={removing} routine={routine} onClose={() => { if (!removing) setOpen(null); }} onRemove={confirmRemove} onWarmup={(fixture) => { setOpen(null); setWarmup({ fixture }); }} />
+    <WarmupDialog open={Boolean(warmup)} fixture={warmup?.fixture ?? null} routine={routine} canEdit={canEditWarmup} onClose={() => setWarmup(null)} />
   </>;
 }
 

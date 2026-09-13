@@ -9,18 +9,20 @@ import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, res
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { isInvitationAlreadyUsed, norwegianServerMessage } from "@/lib/server-messages";
 import { minimizePlayerName } from "@/lib/roster";
-import { buildSessionCopy, nextPosition, UNTITLED_SESSION_TITLE } from "@/lib/session";
+import { buildSessionCopy, nextPosition, stationRotation, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
+import { DEFAULT_ROTATION_MINUTES, MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
 import { validTeamColors } from "@/lib/team-palette";
-import type { AdminAccount, AdminTeam, Exercise, ExerciseInput, MonthFocus, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
+import type { AdminAccount, AdminTeam, Exercise, ExerciseInput, MonthFocus, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionBlockKind, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
 import { initials, makeUuid } from "@/lib/utils";
 
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
 /** The two things a copy does not inherit: the name it is given, and its date. */
 export interface SessionCopyInput { title: string; startsAt: string | null }
-type BlockPatch = Partial<Pick<SessionBlock, "title" | "notes">>;
+/** How long a newly added activity is proposed to last. */
+const DEFAULT_ITEM_MINUTES = 10;
+type BlockPatch = Partial<Pick<SessionBlock, "title" | "notes" | "rotationMinutes">>;
 type ItemPatch = Partial<Pick<SessionItem, "title" | "description" | "durationMinutes" | "coachingNotes" | "assignedCoachId">>;
 
 const TEAM_LOGO_BUCKET = "team-logos";
@@ -170,7 +172,7 @@ interface GrepContextValue {
   reopenSession(id: string): Promise<void>;
   /** Copies a plan into a new draft and hands back its id. */
   copySession(sourceId: string, input: SessionCopyInput): Promise<string>;
-  addBlock(sessionId: string, title: string): Promise<string>;
+  addBlock(sessionId: string, title: string, kind?: SessionBlockKind): Promise<string>;
   updateBlock(sessionId: string, blockId: string, patch: BlockPatch): Promise<void>;
   deleteBlock(sessionId: string, blockId: string): Promise<void>;
   reorderBlocks(sessionId: string, orderedIds: string[]): Promise<void>;
@@ -197,7 +199,7 @@ interface DbItem {
   media_url: string | null; thumbnail_url: string | null; duration_minutes: number; coaching_notes: string;
   assigned_coach_id: string | null; position: number; updated_by: string;
 }
-interface DbBlock { id: string; session_id: string; title: string; notes?: string; position: number; updated_by: string; session_items?: DbItem[]; }
+interface DbBlock { id: string; session_id: string; title: string; notes?: string; kind?: SessionBlockKind; rotation_minutes?: number | null; position: number; updated_by: string; session_items?: DbItem[]; }
 interface DbSession {
   id: string; team_id: string; title: string; starts_at: string | null; venue: string; planned_duration_minutes: number;
   objective: string; notes: string; status: PlannedSession["status"]; created_by: string; updated_by: string;
@@ -232,7 +234,7 @@ function mapSession(row: DbSession): PlannedSession {
     startedAt: row.started_at ?? null, completedAt: row.completed_at ?? null, groupingKind: row.grouping_kind ?? null,
     createdBy: row.created_by, updatedBy: row.updated_by, createdAt: row.created_at, updatedAt: row.updated_at,
     blocks: (row.session_blocks ?? []).sort((a, b) => a.position - b.position).map((block) => ({
-      id: block.id, sessionId: block.session_id, title: block.title, notes: block.notes ?? "", position: block.position, updatedBy: block.updated_by,
+      id: block.id, sessionId: block.session_id, title: block.title, notes: block.notes ?? "", kind: block.kind ?? "sequence", rotationMinutes: block.rotation_minutes ?? null, position: block.position, updatedBy: block.updated_by,
       items: (block.session_items ?? []).sort((a, b) => a.position - b.position).map((item) => ({
         id: item.id, blockId: item.block_id, kind: item.kind, exerciseId: item.exercise_id, title: item.title,
         description: item.description, mediaUrl: item.media_url, thumbnailUrl: item.thumbnail_url,
@@ -1219,12 +1221,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dropBlock = useCallback((sessionId: string, blockId: string) => setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.filter((block) => block.id !== blockId) } : session)), []);
   const dropItem = useCallback((sessionId: string, blockId: string, itemId: string) => setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.filter((item) => item.id !== itemId) } : block) } : session)), []);
 
-  const addBlock = useCallback(async (sessionId: string, title: string) => {
+  const addBlock = useCallback(async (sessionId: string, title: string, kind: SessionBlockKind = "sequence") => {
     const id = makeUuid(); const session = sessions.find((entry) => entry.id === sessionId); const position = nextPosition(session?.blocks ?? []);
-    const block: SessionBlock = { id, sessionId, title, notes: "", position, items: [], updatedBy: user?.id ?? demoUser.id };
+    // A rotation only exists on a stations block, and the database refuses the
+    // row unless the two agree — see `session_blocks_rotation_requires_stations`.
+    const rotationMinutes = kind === "stations" ? DEFAULT_ROTATION_MINUTES : null;
+    const block: SessionBlock = { id, sessionId, title, notes: "", kind, rotationMinutes, position, items: [], updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((entry) => entry.id === sessionId ? { ...entry, blocks: [...entry.blocks, block] } : entry));
     try {
-      await persist(supabase ? () => supabase.from("session_blocks").insert({ id, session_id: sessionId, title, position, updated_by: user?.id }) : null);
+      await persist(supabase ? () => supabase.from("session_blocks").insert({ id, session_id: sessionId, title, kind, rotation_minutes: rotationMinutes, position, updated_by: user?.id }) : null);
     } catch (error) {
       dropBlock(sessionId, id);
       throw error;
@@ -1233,8 +1238,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [dropBlock, persist, sessions, supabase, user]);
 
   const updateBlock = useCallback(async (sessionId: string, blockId: string, patch: BlockPatch) => {
-    setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, ...patch, updatedBy: user?.id ?? block.updatedBy } : block) } : session));
-    const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.notes !== undefined && { notes: patch.notes }), updated_by: user?.id };
+    // `blocks_sync_station_durations` writes the new rotation onto every station
+    // in the block; mirroring it here keeps the optimistic state — and demo
+    // mode, where no trigger runs — saying the same thing the database will.
+    setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, ...patch, updatedBy: user?.id ?? block.updatedBy, items: block.kind === "stations" && patch.rotationMinutes != null ? block.items.map((item) => ({ ...item, durationMinutes: patch.rotationMinutes! })) : block.items } : block) } : session));
+    const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.notes !== undefined && { notes: patch.notes }), ...(patch.rotationMinutes !== undefined && { rotation_minutes: patch.rotationMinutes }), updated_by: user?.id };
     await persist(supabase ? () => supabase.from("session_blocks").update(row).eq("id", blockId) : null);
   }, [persist, supabase, user]);
   const deleteBlock = useCallback(async (sessionId: string, blockId: string) => { dropBlock(sessionId, blockId); await persist(supabase ? () => supabase.from("session_blocks").delete().eq("id", blockId) : null); }, [dropBlock, persist, supabase]);
@@ -1242,10 +1250,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addExerciseItem = useCallback(async (sessionId: string, blockId: string, exercise: Exercise) => {
     const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = nextPosition(block?.items ?? []);
-    const item: SessionItem = { id, blockId, kind: "exercise", exerciseId: exercise.id, title: exercise.name, description: exercise.description, mediaUrl: exercise.mediaUrl, thumbnailUrl: exercise.thumbnailUrl, durationMinutes: 10, coachingNotes: "", assignedCoachId: null, position, updatedBy: user?.id ?? demoUser.id };
+    // A station lasts one rotation, whatever the default activity length is —
+    // `items_sync_station_duration` would overwrite anything else anyway.
+    const durationMinutes = block && block.kind === "stations" ? stationRotation(block) : DEFAULT_ITEM_MINUTES;
+    const item: SessionItem = { id, blockId, kind: "exercise", exerciseId: exercise.id, title: exercise.name, description: exercise.description, mediaUrl: exercise.mediaUrl, thumbnailUrl: exercise.thumbnailUrl, durationMinutes, coachingNotes: "", assignedCoachId: null, position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
     try {
-      await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: item.kind, exercise_id: exercise.id, title: item.title, description: item.description, media_url: item.mediaUrl, thumbnail_url: item.thumbnailUrl, duration_minutes: 10, position, updated_by: user?.id }) : null);
+      await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: item.kind, exercise_id: exercise.id, title: item.title, description: item.description, media_url: item.mediaUrl, thumbnail_url: item.thumbnailUrl, duration_minutes: durationMinutes, position, updated_by: user?.id }) : null);
     } catch (error) {
       dropItem(sessionId, blockId, id);
       throw error;
@@ -1254,10 +1265,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addCustomItem = useCallback(async (sessionId: string, blockId: string) => {
     const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = nextPosition(block?.items ?? []);
-    const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "Ny aktivitet", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes: 10, coachingNotes: "", assignedCoachId: null, position, updatedBy: user?.id ?? demoUser.id };
+    const durationMinutes = block && block.kind === "stations" ? stationRotation(block) : DEFAULT_ITEM_MINUTES;
+    const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "Ny aktivitet", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes, coachingNotes: "", assignedCoachId: null, position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
     try {
-      await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: "custom", title: item.title, duration_minutes: 10, position, updated_by: user?.id }) : null);
+      await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: "custom", title: item.title, duration_minutes: durationMinutes, position, updated_by: user?.id }) : null);
     } catch (error) {
       dropItem(sessionId, blockId, id);
       throw error;

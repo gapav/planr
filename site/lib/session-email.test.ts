@@ -9,9 +9,9 @@ function session(overrides: Partial<DigestSession> = {}): DigestSession {
   return {
     id: "session-1", teamId: "team-1", teamName: "Fjordvik G14", title: "Teknikkøkt",
     startsAt: "2026-09-12T16:00:00.000Z", venue: "Fjordvik hall", plannedDurationMinutes: 90,
-    objective: "Pasningskvalitet", notes: "", status: "published",
+    objective: "Pasningskvalitet", notes: "", status: "published", monthFocus: "",
     blocks: [{
-      title: "Hoveddel", notes: "",
+      title: "Hoveddel", notes: "", kind: "sequence",
       items: [
         { title: "Firkant 4v2", durationMinutes: 20, coachingNotes: "Høyt tempo", assignedCoachId: "coach-2" },
         { title: "Avslutninger", durationMinutes: 15, coachingNotes: "", assignedCoachId: "coach-1" },
@@ -45,6 +45,45 @@ describe("dailySessionDigestEmail", () => {
     expect(mail?.html).toContain("Høyt tempo");
     expect(mail?.html).toContain("Pasningskvalitet");
     expect(mail?.text).toContain("- Firkant 4v2 (20 min)");
+  });
+
+  it("carries the month's focus beside the session's own objective", () => {
+    const mail = dailySessionDigestEmail({ recipient, sessions: [session({ monthFocus: "Forsvar 6-0 med aktiv midtblokk." })], siteUrl });
+    expect(mail?.html).toContain("Månedens fokus · september");
+    expect(mail?.html).toContain("Forsvar 6-0 med aktiv midtblokk.");
+    expect(mail?.text).toContain("Månedens fokus (september): Forsvar 6-0 med aktiv midtblokk.");
+  });
+
+  it("drops the band entirely when the team has not written one", () => {
+    const mail = dailySessionDigestEmail({ recipient, sessions: [session()], siteUrl });
+    expect(mail?.html).not.toContain("Månedens fokus");
+    expect(mail?.text).not.toContain("Månedens fokus");
+  });
+
+  it("names a stations block's activities as stations, sharing one rotation", () => {
+    const stations = session({
+      blocks: [{
+        title: "Stasjoner", notes: "", kind: "stations",
+        items: [
+          { title: "Skudd fra kant", durationMinutes: 10, coachingNotes: "", assignedCoachId: "coach-1" },
+          { title: "Finter", durationMinutes: 10, coachingNotes: "", assignedCoachId: null },
+          { title: "Keeper", durationMinutes: 10, coachingNotes: "", assignedCoachId: null },
+        ],
+      }],
+    });
+    const { html, text } = dailySessionDigestEmail({ recipient, sessions: [stations], siteUrl })!;
+    expect(html).toContain("3 stasjoner × 10 min");
+    expect(text).toContain("3 stasjoner × 10 min — laget roterer.");
+    // The rotation is stated once for the block, not once per station.
+    expect(text).toContain("  - 1. Skudd fra kant — du har ansvar");
+    expect(text).not.toContain("Skudd fra kant (10 min)");
+  });
+
+  it("times every block, because the letter is read away from the app", () => {
+    // 16:00Z is 18:00 in Oslo, and the block runs 20 + 15 minutes.
+    const { html, text } = dailySessionDigestEmail({ recipient, sessions: [session()], siteUrl })!;
+    expect(html).toContain("18:00–18:35 · 35 min");
+    expect(text).toContain("Hoveddel (18:00–18:35, 35 min)");
   });
 
   it("marks only the activities this coach is responsible for", () => {

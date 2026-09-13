@@ -1,7 +1,54 @@
 import { monthKey, monthLabel, shiftMonth } from "./fixtures";
+import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile, SessionBlock, SessionItem, SessionTab } from "./types";
+
+/**
+ * A stations block's activities run at once rather than in turn, so its minutes
+ * are one rotation rather than a sum of activities. Nothing here has to know
+ * that: a database trigger mirrors `rotationMinutes` onto every station's own
+ * `durationMinutes`, so the sum below is `stations × rotation` already.
+ */
 export function blockDuration(block: SessionBlock) { return block.items.reduce((total, item) => total + item.durationMinutes, 0); }
+export function isStationBlock(block: Pick<SessionBlock, "kind">) { return block.kind === "stations"; }
+/** The rotation to show and to step from, standing in for a row written before the column existed. */
+export function stationRotation(block: Pick<SessionBlock, "rotationMinutes">) { return block.rotationMinutes ?? DEFAULT_ROTATION_MINUTES; }
+
+/**
+ * How many groups the draw should propose: the biggest stations block in the
+ * plan, since a team split four ways can still run a three-station block with
+ * one group waiting, and the other way round leaves a station unmanned. Null
+ * when the session has no stations at all and the coach's own choice stands.
+ */
+export function suggestedGroupCount(session: Pick<PlannedSession, "blocks">) {
+  const counts = session.blocks.filter(isStationBlock).map((block) => block.items.length).filter((count) => count >= MIN_STATIONS);
+  return counts.length ? Math.max(...counts) : null;
+}
 export function sessionDuration(session: PlannedSession) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
+
+/**
+ * When each block falls on the clock: the session's own start, plus the blocks
+ * before it. Derived on every render rather than stored, so moving the session
+ * or lengthening one activity re-times the rest of the plan by itself.
+ *
+ * Null when the plan has no date — a draft has nothing to count from, and a
+ * made-up clock would be worse than none.
+ */
+export function sessionSchedule(session: Pick<PlannedSession, "startsAt" | "blocks">) {
+  if (!session.startsAt) return null;
+  const start = new Date(session.startsAt);
+  if (Number.isNaN(start.getTime())) return null;
+  let minutes = 0;
+  return session.blocks.map((block) => {
+    const startsAt = new Date(start.getTime() + minutes * 60_000);
+    minutes += blockDuration(block);
+    return { id: block.id, startsAt, endsAt: new Date(start.getTime() + minutes * 60_000) };
+  });
+}
+
+/** One block's place on the clock, or null when the plan is undated. */
+export function blockClock(schedule: ReturnType<typeof sessionSchedule>, blockId: string) {
+  return schedule?.find((entry) => entry.id === blockId) ?? null;
+}
 export function deriveSessionTab(session: PlannedSession, now = new Date()): SessionTab {
   if (session.status === "draft") return "drafts";
   if (session.status === "in_progress") return "upcoming";
@@ -41,6 +88,11 @@ export function validatePublish(session: PlannedSession) {
   if (!session.startsAt) issues.push("Velg dato og klokkeslett");
   if (session.plannedDurationMinutes <= 0) issues.push("Angi planlagt varighet");
   if (!session.blocks.length) issues.push("Legg til minst én bolk");
+  // One station is not a station block, it is an activity — and the draw it
+  // implies (the whole team in one group) is not one anybody wants in the hall.
+  for (const block of session.blocks) {
+    if (isStationBlock(block) && block.items.length < MIN_STATIONS) issues.push(`«${block.title}» trenger minst ${MIN_STATIONS} stasjoner`);
+  }
   return issues;
 }
 

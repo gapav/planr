@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  attachMonthFocus,
   clubDay,
   digestMailings,
+  digestMonthKeys,
   digestSessionsForDay,
   mapDigestCoach,
   mapDigestSession,
@@ -14,7 +16,7 @@ function session(overrides: Partial<DigestSession> = {}): DigestSession {
   return {
     id: "session-1", teamId: "team-1", teamName: "Fjordvik G14", title: "Teknikkøkt",
     startsAt: "2026-09-12T16:00:00.000Z", venue: "Fjordvik hall", plannedDurationMinutes: 90,
-    objective: "", notes: "", status: "published", blocks: [],
+    objective: "", notes: "", status: "published", monthFocus: "", blocks: [],
     ...overrides,
   };
 }
@@ -178,5 +180,37 @@ describe("mapDigestCoach", () => {
 
   it("never mails the tombstone of a deleted account", () => {
     expect(mapDigestCoach({ team_id: "team-1", profile_id: "coach-1", profiles: { ...profile, deleted_at: "2026-09-01T00:00:00.000Z" } })).toBeNull();
+  });
+});
+
+describe("digestMonthKeys", () => {
+  it("keys the month in the club's zone, not in UTC", () => {
+    // 22:30Z on 30 September is 00:30 on 1 October in Oslo.
+    expect(digestMonthKeys([session({ startsAt: "2026-09-30T22:30:00.000Z" })])).toEqual(["2026-10"]);
+  });
+
+  it("asks once per month, however many sessions share it", () => {
+    expect(digestMonthKeys([session(), session({ id: "session-2", startsAt: "2026-09-12T18:00:00.000Z" })])).toEqual(["2026-09"]);
+  });
+});
+
+describe("attachMonthFocus", () => {
+  const rows = [{ team_id: "team-1", month: "2026-09", note: "Forsvar 6-0 med aktiv midtblokk." }];
+
+  it("joins the note onto the team and month it was written for", () => {
+    expect(attachMonthFocus([session()], rows)[0].monthFocus).toBe("Forsvar 6-0 med aktiv midtblokk.");
+  });
+
+  it("leaves another team's session without one", () => {
+    expect(attachMonthFocus([session({ teamId: "team-2" })], rows)[0].monthFocus).toBe("");
+  });
+
+  it("leaves another month's session without one", () => {
+    expect(attachMonthFocus([session({ startsAt: "2026-10-12T16:00:00.000Z" })], rows)[0].monthFocus).toBe("");
+  });
+
+  it("treats a blank note as nothing written", () => {
+    expect(attachMonthFocus([session()], [{ team_id: "team-1", month: "2026-09", note: "   " }])[0].monthFocus).toBe("");
+    expect(attachMonthFocus([session()], [{ team_id: "team-1", month: "2026-09", note: null }])[0].monthFocus).toBe("");
   });
 });

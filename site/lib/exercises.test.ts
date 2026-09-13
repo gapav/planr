@@ -258,7 +258,7 @@ describe("library resolution", () => {
   });
 
   it("resolves every linked item in a session's blocks", () => {
-    const session = { ...demoSessions[0], blocks: [{ id: "block-1", sessionId: "session-1", title: "Bolk", notes: "", position: 0, updatedBy: "user-gard", items: [item, { ...item, id: "item-2", kind: "custom" as const, exerciseId: null }] }] };
+    const session = { ...demoSessions[0], blocks: [{ id: "block-1", sessionId: "session-1", title: "Bolk", notes: "", kind: "sequence" as const, rotationMinutes: null, position: 0, updatedBy: "user-gard", items: [item, { ...item, id: "item-2", kind: "custom" as const, exerciseId: null }] }] };
     const [linked, custom] = resolveSessionDisplay(session, library).blocks[0].items;
     expect(linked.title).toBe("Ny tittel");
     expect(custom.title).toBe("Gammel tittel");

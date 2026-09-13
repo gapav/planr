@@ -19,8 +19,9 @@
  *     sessions the same day gets a single letter listing both.
  */
 
+import { monthKey } from "./fixtures";
 import { CLUB_TIME_ZONE } from "./time";
-import type { SessionStatus } from "./types";
+import type { SessionBlockKind, SessionStatus } from "./types";
 
 /** The statuses a digest may announce: planned, or already under way. */
 const MAILABLE_STATUSES: readonly SessionStatus[] = ["published", "in_progress"];
@@ -38,6 +39,8 @@ export interface DigestItem {
 export interface DigestBlock {
   title: string;
   notes: string;
+  /** `"stations"` runs its items in parallel, so the letter names them stations. */
+  kind: SessionBlockKind;
   items: DigestItem[];
 }
 
@@ -52,6 +55,8 @@ export interface DigestSession {
   objective: string;
   notes: string;
   status: SessionStatus;
+  /** The team's «månedens fokus» for the month the session falls in; `""` when none is written. */
+  monthFocus: string;
   blocks: DigestBlock[];
 }
 
@@ -224,6 +229,7 @@ export interface SessionDigestRow {
   session_blocks: Array<{
     title: string;
     notes: string | null;
+    kind?: SessionBlockKind | null;
     position: number;
     session_items: Array<{
       title: string;
@@ -237,6 +243,13 @@ export interface SessionDigestRow {
       exercises: { name: string } | { name: string }[] | null;
     }> | null;
   }> | null;
+}
+
+/** One row of `team_month_focus`, as the route selects it. */
+export interface MonthFocusRow {
+  team_id: string;
+  month: string;
+  note: string | null;
 }
 
 export interface CoachDigestRow {
@@ -270,6 +283,7 @@ export function mapDigestSession(row: SessionDigestRow): DigestSession | null {
     .map((block) => ({
       title: block.title,
       notes: block.notes ?? "",
+      kind: block.kind ?? "sequence",
       items: (block.session_items ?? [])
         .slice()
         .sort((a, b) => a.position - b.position)
@@ -294,8 +308,45 @@ export function mapDigestSession(row: SessionDigestRow): DigestSession | null {
     objective: row.objective ?? "",
     notes: row.notes ?? "",
     status: row.status,
+    // Filled in by `attachMonthFocus`: the note lives on the team and the
+    // month, not on the session, so it is read separately and joined here.
+    monthFocus: "",
     blocks,
   };
+}
+
+/**
+ * The `YYYY-MM` keys the day's sessions fall in, for the route's `in(...)`
+ * filter. Derived in the club's zone for the same reason the day is: an 18:00
+ * session on the last of the month is stored on the first of the next one.
+ *
+ * Normally one key. A session at 23:00 on 30 September and one the next morning
+ * cannot both be "today", but a run near midnight in a zone the club does not
+ * keep could still produce two, and asking for both costs nothing.
+ */
+export function digestMonthKeys(sessions: readonly DigestSession[], timeZone: string = CLUB_TIME_ZONE): string[] {
+  return [...new Set(sessions.map((session) => monthKey(session.startsAt, timeZone)).filter(Boolean))];
+}
+
+/**
+ * Joins «månedens fokus» onto the sessions it belongs to.
+ *
+ * The focus is the standing answer to "towards what?" — the letter is the one
+ * place a coach reads the day's plan without the app around it, so it carries
+ * the month's aim beside the session's own. A team with nothing written keeps
+ * `""` and the letter simply drops the line; an empty band would only announce
+ * that nobody has written one, which is a job for the screen, not the inbox.
+ */
+export function attachMonthFocus(
+  sessions: readonly DigestSession[],
+  rows: readonly MonthFocusRow[],
+  timeZone: string = CLUB_TIME_ZONE,
+): DigestSession[] {
+  const notes = new Map(rows.map((row) => [`${row.team_id}:${row.month}`, (row.note ?? "").trim()]));
+  return sessions.map((session) => ({
+    ...session,
+    monthFocus: notes.get(`${session.teamId}:${monthKey(session.startsAt, timeZone)}`) ?? "",
+  }));
 }
 
 /** A membership row to a coach. A deleted profile is a tombstone, never a recipient. */

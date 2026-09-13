@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(179);
+select plan(192);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -370,6 +370,25 @@ select throws_ok($$ update public.session_items set assigned_coach_id = '1000000
 select throws_ok($$ insert into public.session_items (block_id, kind, title, duration_minutes, position, assigned_coach_id, updated_by) values ('31000000-0000-0000-0000-000000000001', 'custom', 'Skudd', 10, 1, '10000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001') $$, 'P0001', 'Ansvarlig trener må være trener på laget', 'the platform owner is not a coach on the team either');
 select lives_ok($$ update public.session_items set coaching_notes = 'Tre runder.', updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'an untouched assignment does not have to be re-validated on every edit');
 select is((select assigned_coach_id::text from public.session_items where id = '32000000-0000-0000-0000-000000000001'), '10000000-0000-0000-0000-000000000002', 'the assignment survives an edit of the rest of the activity');
+-- 202609130002 added stations blocks. The rotation belongs to the block, and
+-- the trigger pair mirrors it onto every station, so the sum of a block's
+-- activity minutes is `stations × rotation` for anything that reads the rows —
+-- the app's time budget, the session view and the morning digest all rely on it.
+select throws_ok($$ insert into public.session_blocks (id, session_id, title, kind, position, updated_by) values ('31000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000003', 'Stasjoner', 'stations', 1, '10000000-0000-0000-0000-000000000001') $$, '23514', null, 'a stations block cannot be written without a rotation');
+select throws_ok($$ insert into public.session_blocks (id, session_id, title, kind, rotation_minutes, position, updated_by) values ('31000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000003', 'Hoveddel', 'sequence', 8, 1, '10000000-0000-0000-0000-000000000001') $$, '23514', null, 'a rotation means nothing on a block run in sequence');
+select lives_ok($$ insert into public.session_blocks (id, session_id, title, kind, rotation_minutes, position, updated_by) values ('31000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000003', 'Stasjoner', 'stations', 8, 1, '10000000-0000-0000-0000-000000000001') $$, 'a coach can add a stations block with a rotation');
+select lives_ok($$ insert into public.session_items (id, block_id, kind, title, duration_minutes, position, updated_by) values ('32000000-0000-0000-0000-000000000002', '31000000-0000-0000-0000-000000000002', 'custom', 'Skuddstasjon', 25, 0, '10000000-0000-0000-0000-000000000001') $$, 'a station is added like any other activity');
+select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000002'), 8, 'a station lasts the block rotation, whatever duration was sent');
+select lives_ok($$ update public.session_blocks set rotation_minutes = 12, updated_by = '10000000-0000-0000-0000-000000000001' where id = '31000000-0000-0000-0000-000000000002' $$, 'a coach can change the rotation of a stations block');
+select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000002'), 12, 'changing the rotation carries down to every station in the block');
+select lives_ok($$ update public.session_items set duration_minutes = 45, updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000002' $$, 'a write of a station duration is accepted rather than refused');
+select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000002'), 12, 'but a station cannot be given minutes of its own');
+select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000001'), 10, 'an activity in a sequence block keeps the minutes it was given');
+-- A copy that quietly ran its stations in sequence would look right in the
+-- list and be wrong in the hall, so `copy_session` carries both columns.
+select lives_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000003', 'Kopi med stasjoner', null) $$, 'a session holding a stations block can be copied');
+select is((select rotation_minutes from public.session_blocks block join public.sessions copy on copy.id = block.session_id where copy.title = 'Kopi med stasjoner' and block.kind = 'stations'), 12, 'the copied block is still a stations block, with the rotation it was given');
+select lives_ok($$ delete from public.sessions where title = 'Kopi med stasjoner' $$, 'the copied session is removed again');
 select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000003' $$, 'the assignment test session is removed with its blocks and activities');
 reset role;
 

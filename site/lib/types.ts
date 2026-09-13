@@ -10,6 +10,16 @@ export const EXERCISE_AGE_GROUPS = ["6-9", "10-12", "13-15"] as const;
 export type ExerciseAgeGroup = (typeof EXERCISE_AGE_GROUPS)[number];
 export type SaveState = "saved" | "saving" | "offline" | "error";
 export type SessionGroupingKind = "teams" | "pairs";
+/**
+ * How a bolk is run. A `sequence` block is the activities one after the other;
+ * a `stations` block runs them all at once, the team split into as many groups
+ * as there are stations, rotating between them.
+ */
+export type SessionBlockKind = "sequence" | "stations";
+/** The rotation a new stations block proposes, and the grid its stepper moves on. */
+export const DEFAULT_ROTATION_MINUTES = 6;
+/** Fewer than two stations is not a station block; it is one activity. */
+export const MIN_STATIONS = 2;
 
 /**
  * `sessionDigestEmail` is the coach's own opt-out for the morning "dagens økt"
@@ -49,7 +59,17 @@ export interface SessionItem {
   description: string; mediaUrl: string | null; thumbnailUrl: string | null; durationMinutes: number;
   coachingNotes: string; assignedCoachId: string | null; position: number; updatedBy: string;
 }
-export interface SessionBlock { id: string; sessionId: string; title: string; notes: string; position: number; items: SessionItem[]; updatedBy: string; }
+/**
+ * One part of the plan. `items` are activities run in order — unless `kind` is
+ * `"stations"`, in which case they are stations run in parallel and
+ * `rotationMinutes` is how long the team spends at each one. A database trigger
+ * mirrors that rotation onto every station's `durationMinutes`, so summing the
+ * items is the block's duration either way.
+ */
+export interface SessionBlock {
+  id: string; sessionId: string; title: string; notes: string; kind: SessionBlockKind;
+  rotationMinutes: number | null; position: number; items: SessionItem[]; updatedBy: string;
+}
 export interface PlannedSession {
   id: string; teamId: string; title: string; startsAt: string | null; venue: string;
   plannedDurationMinutes: number; objective: string; notes: string; status: SessionStatus;

@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { demoFixtures, demoWarmupRoutines } from "@/lib/demo-data";
-import { MatchCalendar } from "./match-calendar";
+import { MatchCalendar, type MatchCalendarHandle } from "./match-calendar";
 
 const mocks = vi.hoisted(() => ({ useGrep: vi.fn() }));
 const removeFixture = vi.fn();
@@ -29,6 +29,24 @@ describe("MatchCalendar", () => {
   it("asks for an import when the calendar is empty", () => {
     render(<MatchCalendar fixtures={[]} canManage canEditWarmup />);
     expect(screen.getByText("Ingen kamper i kalenderen")).toBeInTheDocument();
+  });
+
+  it("opens the team warm-up from the header", () => {
+    const handle = { current: null as MatchCalendarHandle | null };
+    render(<MatchCalendar ref={handle} fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    act(() => handle.current?.openWarmup());
+    expect(within(screen.getByRole("dialog")).getByText(/Kampoppvarming/)).toBeInTheDocument();
+  });
+
+  it("offers the import as the empty calendar's only action, and nothing when the coach cannot import", () => {
+    const onImport = vi.fn();
+    const { unmount } = render(<MatchCalendar fixtures={[]} canManage canEditWarmup onImport={onImport} />);
+    fireEvent.click(screen.getByRole("button", { name: "Importer kamper" }));
+    expect(onImport).toHaveBeenCalledTimes(1);
+    unmount();
+    render(<MatchCalendar fixtures={[]} canManage={false} canEditWarmup />);
+    expect(screen.queryByRole("button", { name: "Importer kamper" })).not.toBeInTheDocument();
   });
 
   it("starts with a scannable list and lets the coach switch to the month grid", () => {

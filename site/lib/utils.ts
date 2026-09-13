@@ -9,6 +9,10 @@ export function minutesLabel(minutes: number) {
   const hours = Math.floor(minutes / 60); const rest = minutes % 60;
   return rest ? `${hours} t ${rest} min` : `${hours} t`;
 }
+/** `16:05` — the clock as a Norwegian coach reads it. `timeZone` is only passed by tests. */
+export function clockTime(date: Date, timeZone?: string) {
+  return new Intl.DateTimeFormat("nb-NO", { hour: "2-digit", minute: "2-digit", ...(timeZone ? { timeZone } : {}) }).format(date);
+}
 export function formatSessionDate(startsAt: string | null) {
   if (!startsAt) return "Dato ikke satt";
   return new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(startsAt));

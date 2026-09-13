@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { demoSessions } from "./demo-data";
+import { clockTime } from "./utils";
+import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile } from "./types";
-import { assignedCoach, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, nextPosition, pickTodaySession, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, splitSessionStart, splitSessionTime, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
+import { assignedCoach, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, splitSessionStart, splitSessionTime, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -23,6 +25,33 @@ describe("session calculations", () => {
   it("moves a finished workout to Past whatever its planned time was", () => {
     const session = { ...demoSessions[1], status: "completed" as const, startsAt: "2027-01-01T10:00:00.000Z" };
     expect(deriveSessionTab(session, new Date("2026-09-02T12:00:00.000Z"))).toBe("past");
+  });
+  it("counts a stations block as its rotations, because every station carries the rotation", () => {
+    const stations = demoSessions[0].blocks[1];
+    expect(isStationBlock(stations)).toBe(true);
+    expect(stationRotation(stations)).toBe(10);
+    expect(blockDuration(stations)).toBe(40);
+  });
+  it("falls back to the default rotation for a block written before the column existed", () => {
+    expect(stationRotation({ rotationMinutes: null })).toBe(DEFAULT_ROTATION_MINUTES);
+  });
+  it("proposes one group per station, from the largest stations block", () => {
+    expect(suggestedGroupCount(demoSessions[0])).toBe(4);
+    expect(suggestedGroupCount(demoSessions[1])).toBeNull();
+  });
+  it("refuses to publish a stations block that holds fewer than two stations", () => {
+    const [warmup, stations, game] = demoSessions[0].blocks;
+    const session = { ...demoSessions[0], blocks: [warmup, { ...stations, items: stations.items.slice(0, 1) }, game] };
+    expect(validatePublish(session)).toEqual([`«${stations.title}» trenger minst ${MIN_STATIONS} stasjoner`]);
+  });
+  it("places every block on the clock from the session's own start", () => {
+    // 16:30Z is 18:30 in Oslo; the demo plan is 20 + 40 + 30 minutes.
+    const schedule = sessionSchedule(demoSessions[0])!;
+    expect(schedule.map((block) => clockTime(block.startsAt, "Europe/Oslo"))).toEqual(["18:30", "18:50", "19:30"]);
+    expect(clockTime(schedule[2].endsAt, "Europe/Oslo")).toBe("20:00");
+  });
+  it("has no clock to offer an undated plan", () => {
+    expect(sessionSchedule({ ...demoSessions[0], startsAt: null })).toBeNull();
   });
   it("requires the core publishing details", () => {
     const empty = { ...demoSessions[0], title: "", startsAt: null, plannedDurationMinutes: 0, blocks: [] };
