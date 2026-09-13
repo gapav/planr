@@ -70,7 +70,7 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
   routine: WarmupRoutine | null; scheduled: ReturnType<typeof scheduleWarmupItems>; schedule: ReturnType<typeof warmupSchedule>;
   duration: number; canEdit: boolean; busy: boolean; onEdit(): void; onStart(): void; onPreview(subject: ExerciseDetailSubject): void;
 }) {
-  if (!routine || !routine.items.length) return <div className="grid gap-5 text-center">
+  if (!routine || !routine.items.length) return <div className="grid grid-cols-1 gap-5 text-center">
     <div className="rounded-[22px] border border-dashed border-[#c8c3b7] bg-[var(--paper)] px-6 py-10">
       <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white text-[var(--orange)] shadow-sm"><Timer size={23} /></span>
       <p className="mt-4 font-black">Ingen kampoppvarming ennå</p>
@@ -79,7 +79,7 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
     </div>
   </div>;
 
-  return <div className="grid gap-5">
+  return <div className="grid grid-cols-1 gap-5">
     <div>
       <div className={cn("grid gap-px overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--line)] text-center", schedule ? "grid-cols-3" : "grid-cols-2")}>
         {schedule ? <>
@@ -95,7 +95,7 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
       {duration > routine.meetMinutesBefore && <p className="mt-2 flex items-start gap-2 rounded-xl bg-[#fdf1e6] px-3 py-2 text-xs font-semibold leading-5 text-[#9c3913]"><TriangleAlert size={14} className="mt-0.5 shrink-0" />Oppvarmingen er {minutesLabel(duration)} lang, men laget møtes bare {minutesLabel(routine.meetMinutesBefore)} før avkast. Kort ned rutinen eller flytt oppmøtet.</p>}
     </div>
 
-    <ol className="grid gap-2">{scheduled.map(({ item, startsAt }, index) => {
+    <ol className="grid grid-cols-1 gap-2">{scheduled.map(({ item, startsAt }, index) => {
       // The activity carries its own copy of the media, so the thumbnail and
       // the detail popup are built from the same subject the library would use.
       const subject = sessionItemDetailSubject(item);
@@ -103,7 +103,7 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
       <button type="button" onClick={() => onPreview(subject)} className="group flex w-full items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2.5 text-left transition hover:border-[var(--ink)]">
         <span className="grid w-12 shrink-0 text-center"><span className="text-sm font-black leading-4">{startsAt ? clock(startsAt) : index + 1}</span><span className="mt-0.5 text-[10px] font-bold text-[var(--ink-soft)]">{item.durationMinutes} min</span></span>
         <ExerciseThumbnail exercise={subject} className="h-12 w-16 shrink-0 rounded-xl [&>span]:text-2xl" />
-        <span className="min-w-0 flex-1"><span className="block truncate font-bold">{item.title}</span>{(item.coachingNotes || item.description) && <span className="clamp-2 mt-0.5 block text-xs leading-5 text-[var(--ink-soft)]">{item.coachingNotes || item.description}</span>}</span>
+        <span className="min-w-0 flex-1"><span className="clamp-2 block font-bold leading-6">{item.title}</span>{(item.coachingNotes || item.description) && <span className="clamp-2 mt-0.5 block text-xs leading-5 text-[var(--ink-soft)]">{item.coachingNotes || item.description}</span>}</span>
         <Eye size={16} className="shrink-0 text-[var(--ink-soft)] opacity-0 transition group-hover:opacity-100" />
       </button>
     </li>; })}</ol>
@@ -138,8 +138,8 @@ function EditPane({ routine, onPick, onDone }: { routine: WarmupRoutine; onPick(
     void reorderWarmupItems(routine.id, ordered);
   }
 
-  return <div className="grid gap-5">
-    <div className="grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
+  return <div className="grid grid-cols-1 gap-5">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
       <Field label="Oppmøte før avkast" hint="minutter">
         <input type="number" min={0} max={300} step={5} className={inputClass} defaultValue={routine.meetMinutesBefore} onBlur={(event) => { const value = Math.min(300, Math.max(0, Number(event.target.value) || 0)); event.target.value = String(value); if (value !== routine.meetMinutesBefore) void updateWarmupRoutine(routine.id, { meetMinutesBefore: value }); }} />
       </Field>
@@ -148,7 +148,7 @@ function EditPane({ routine, onPick, onDone }: { routine: WarmupRoutine; onPick(
       </Field>
     </div>
 
-    {items.length ? <ol className="grid gap-2.5">{items.map((item, index) => <li key={item.id}><EditRow item={item} index={index} routineId={routine.id} first={index === 0} last={index === items.length - 1} onMove={move} /></li>)}</ol>
+    {items.length ? <ol className="grid grid-cols-1 gap-2.5">{items.map((item, index) => <li key={item.id}><EditRow item={item} index={index} routineId={routine.id} first={index === 0} last={index === items.length - 1} onMove={move} /></li>)}</ol>
       : <p className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen aktiviteter ennå. Legg til den første under.</p>}
 
     <div className="grid grid-cols-2 gap-2">
@@ -194,12 +194,12 @@ function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDo
     onDone();
   }
 
-  return <div className="grid gap-3">
+  return <div className="grid grid-cols-1 gap-3">
     <div className="relative"><Search className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={18} /><input className={`${inputClass} pl-10`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Søk etter øvelser …" aria-label="Søk etter øvelser" autoFocus /></div>
     <ExerciseCategoryFilter value={categories} onChange={setCategories} counts={counts} />
     <ExerciseAgeGroupFilter value={ageGroups} onChange={setAgeGroups} counts={counts} />
     <p className="text-xs font-semibold text-[var(--ink-soft)]">{filtered.length} øvelser</p>
-    {filtered.length ? <div className="grid max-h-[50vh] gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]">
+    {filtered.length ? <div className="grid max-h-[50vh] grid-cols-1 gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]">
       <button type="button" className="group/media relative h-20 w-24 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]" aria-label={`Vis detaljer for ${exercise.name}`} onClick={() => onPreview(exercise)}><ExerciseThumbnail exercise={exercise} className="h-full w-full" /><span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-8 w-8 place-items-center rounded-full bg-white/90"><Eye size={15} /></span></span></button>
       <button type="button" className="min-w-0 flex-1 text-left" aria-label={`Legg ${exercise.name} til i oppvarmingen`} onClick={() => void add(exercise)}><span className="text-[10px] font-black uppercase tracking-[.08em] text-[var(--orange)]">{exercise.category}</span><strong className="mt-1 block text-sm">{exercise.name}</strong><span className="clamp-2 mt-1 text-xs leading-5 text-[var(--ink-soft)]">{exercise.description}</span></button>
     </div>)}</div> : <div className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv en annen kategori eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Nullstill filtre</Button></div>}
