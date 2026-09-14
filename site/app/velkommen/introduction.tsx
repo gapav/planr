@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { ArrowDown, ArrowRight, Laptop, Smartphone } from "lucide-react";
+import { ArrowDown, ArrowRight, Laptop, MailCheck, Smartphone } from "lucide-react";
 import { CourtArtwork } from "@/components/court-artwork";
 import { LogoArtwork } from "@/components/logo";
 import styles from "./introduction.module.css";
 import { InterestForm } from "./interest-form";
+import { MailPreview } from "./mail-preview";
 
 export function GrepIntroduction() {
   const page = useRef<HTMLElement>(null);
@@ -15,6 +16,9 @@ export function GrepIntroduction() {
     if (!page.current || typeof IntersectionObserver === "undefined" || typeof window.matchMedia !== "function") return;
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (preference.matches) return;
+    // Browsers with scroll timelines run the reveal from CSS, together with the hero
+    // dissolve and the phone parallax; this observer is the fallback for the rest.
+    if (typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("animation-timeline: view()")) return;
     const animations: Animation[] = [];
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
@@ -71,7 +75,7 @@ export function GrepIntroduction() {
       </div>
       <figure className={styles.exerciseFrame} data-reveal>
         <Image src="/intro/exercises-illustrative-v2.png" alt="Eksempelvisning av Greps øvelsesbank med aldersfiltre, temaer og illustrerte øvelseskort, blant annet to genererte videominiatyrer." width={1419} height={1109} sizes="(max-width: 760px) 94vw, 90vw" />
-        <figcaption>Øvelsesbanken · Eksempelvisning med illustrative øvelser og antall, samt fiktive trenernavn.</figcaption>
+        <figcaption> </figcaption>
       </figure>
     </section>
     <section className={styles.planSection} aria-labelledby="plan-heading">
@@ -86,20 +90,41 @@ export function GrepIntroduction() {
         <figcaption>En felles plan. Et samkjørt trenerteam.</figcaption>
       </figure>
     </section>
+    <section className={styles.mailSection} aria-labelledby="mail-heading">
+      <div className={styles.mailCopy} data-reveal>
+        <p className={styles.eyebrow}>03 / FÅ PLANEN PÅ E-POST</p>
+        <h2 id="mail-heading">Treningsdag?<br /><span>Planen ligger klar.</span></h2>
+        <div className={styles.toggleShot} role="img" aria-label="Innstillingen «Dagens økt på e-post» i Grep, med en bryter som slås av og på.">
+          <div className={styles.digestHead}>
+            <span className={styles.digestIcon}><MailCheck size={20} aria-hidden /></span>
+            <div>
+              <strong>Dagens økt på e-post</strong>
+              <p>Hele planen i innboksen om morgenen på dager du har økt. Ingen økt, ingen e-post.</p>
+            </div>
+          </div>
+          <div className={styles.digestRow}>
+            <span className={styles.digestState}><span>På</span><span>Av</span></span>
+            <span className={styles.digestSwitch}><span /></span>
+          </div>
+        </div>
+        <p>Morgenen på treningsdagen får hele trenerteamet en oppsummering av dagens økt på mail. Du ser hvem som har ansvar for hva, og hvor lenge hver bolk varer.</p>
+      </div>
+      <MailPreview />
+    </section>
     <section className={styles.mobileSection} aria-labelledby="mobile-heading">
       <div className={styles.mobileCopy} data-reveal>
-        <p className={styles.eyebrow}>03 / TA PLANEN MED</p>
+        <p className={styles.eyebrow}>04 / TA PLANEN MED</p>
         <h2 id="mobile-heading">Planen i lomma.<br /><span>Blikket på laget.</span></h2>
         <p>Når dere møtes på banen, ligger økten klar. Registrer oppmøte, generer laginndeling og følg planen, én bolk om gangen.</p>
         <div className={styles.deviceNote}><Smartphone size={23} aria-hidden /><span>Enklere når treningen er i gang.<br /><strong>Laget for mobilen på banen.</strong></span></div>
       </div>
       <div className={styles.phonePair}>
         <figure className={styles.preparePhone} data-reveal>
-          <Image src="/intro/groups.png" alt="Grep på mobil: klargjør økten ved å velge lag eller par og generere grupper." width={1018} height={1392} sizes="(max-width: 760px) 43vw, 24vw" />
+          <span className={styles.phoneShot}><Image src="/intro/groups-v2.png" alt="Grep på mobil: klargjør økten ved å velge lag eller par og generere grupper." width={1000} height={1374} sizes="(max-width: 760px) 45vw, 25vw" /></span>
           <figcaption>Før fløyta går.</figcaption>
         </figure>
         <figure className={styles.livePhone} data-reveal>
-          <Image src="/intro/live-demo.png" alt="En pågående økt i Grep på mobil, med oppvarming, øvelser, treneransvar og Neste-knapp." width={1044} height={1388} sizes="(max-width: 760px) 47vw, 27vw" />
+          <span className={styles.phoneShot}><Image src="/intro/live-demo-v2.png" alt="En pågående økt i Grep på mobil, med oppvarming, øvelser, treneransvar og Neste-knapp." width={1000} height={1374} sizes="(max-width: 760px) 45vw, 25vw" /></span>
           <figcaption>Og mens økten pågår.</figcaption>
         </figure>
       </div>
@@ -107,7 +132,7 @@ export function GrepIntroduction() {
     <section className={styles.interestSection} id="interesse" aria-labelledby="interest-heading">
       <div className={styles.interestCopy}>
         <p className={styles.eyebrow}> TA GREP FOR LAGET DITT</p>
-        <h2 id="interest-heading">Nysgjerrig?<br />La oss ta en prat.</h2>
+        <h2 id="interest-heading">Nysgjerrig?<br />Send oss en melding!</h2>
         <p>Du trenger ikke en invitasjon for å melde interesse. Send oss bare en melding, så tar vi kontakt om å prøve Grep.</p>
         <span className={styles.interestTag}>Mer tid til laget. Sammen.</span>
       </div>

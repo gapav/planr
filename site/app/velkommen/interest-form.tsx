@@ -51,7 +51,7 @@ export function InterestForm() {
       <div className={styles.honeypot} aria-hidden="true"><label htmlFor="interest-website">La dette feltet stå tomt<input id="interest-website" name="website" tabIndex={-1} autoComplete="off" /></label></div>
       <p id="interest-privacy" className={styles.formPrivacy}>Opplysningene sendes til Grep på e-post og brukes til å følge opp forespørselen din. Ikke ta med navn eller andre opplysninger om spillere.</p>
       {error && <p role="alert" className={styles.formError}>{error}</p>}
-      <button type="submit" disabled={state === "sending"} className={styles.primary}>{state === "sending" ? "Sender …" : "Send interesse"}<ArrowRight size={18} aria-hidden /></button>
+      <button type="submit" disabled={state === "sending"} className={styles.primary}>{state === "sending" ? "Sender …" : "Meld interesse"}<ArrowRight size={18} aria-hidden /></button>
     </form>}
   </div>;
 }
