@@ -45,6 +45,15 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", onKeyDown); window.removeEventListener("resize", onResize); previousFocus?.focus(); };
   }, [mobileOpen]);
 
+  // The front door is the only signed-out route with nothing to come back to,
+  // so an unknown visitor gets the public introduction instead of a bare
+  // sign-in card. Deep links keep the gate below, which carries `next` so the
+  // coach lands back on the page they actually asked for.
+  const signedOutHome = !authLoading && !user && pathname === "/";
+  useEffect(() => {
+    if (signedOutHome) router.replace("/velkommen");
+  }, [signedOutHome, router]);
+
   function switchTeam(id: string) {
     setCurrentTeamId(id); setMobileOpen(false);
     // Leave session-specific views so no previous-team plan remains on screen.
@@ -69,7 +78,9 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
     </>;
   }
 
-  if (authLoading) return <div className="grep-auth-gate" role="status">Henter trenerrommet …</div>;
+  // `signedOutHome` holds this placeholder for the frame before the effect
+  // above navigates, so the sign-in card never flashes on the way out.
+  if (authLoading || signedOutHome) return <div className="grep-auth-gate" role="status">Henter trenerrommet …</div>;
   if (!user) return <div className="grep-auth-gate"><section className="overview-card"><Logo /><h1>Lagets øktplaner finner du her</h1><p>Logg inn for å planlegge økter sammen med trenerteamet.</p><Link href={"/sign-in?next=" + encodeURIComponent(pathname)} className="grep-action">Logg inn</Link></section></div>;
 
   return <div className={cn("grep-shell", sidebarCollapsed && "grep-shell-collapsed")}>

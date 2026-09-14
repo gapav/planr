@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { demoTeams, demoUser } from "@/lib/demo-data";
 import { AppShell } from "./app-shell";
 
-const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), replace: vi.fn(), push: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), replace: vi.fn(), push: vi.fn(), pathname: vi.fn(() => "/exercises") }));
 
 vi.mock("./app-provider", () => ({ useGrep: mocks.useGrep }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/exercises", useRouter: () => ({ replace: mocks.replace, push: mocks.push }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => mocks.pathname(), useRouter: () => ({ replace: mocks.replace, push: mocks.push }) }));
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children: ReactNode; href: string }) => <a href={href} {...props}>{children}</a>,
 }));
@@ -29,7 +29,7 @@ function grepState(user: typeof demoUser | null, sidebarCollapsed = false) {
 }
 
 describe("AppShell navigation", () => {
-  beforeEach(() => { mocks.useGrep.mockReset(); mocks.replace.mockReset(); mocks.push.mockReset(); });
+  beforeEach(() => { mocks.useGrep.mockReset(); mocks.replace.mockReset(); mocks.push.mockReset(); mocks.pathname.mockReturnValue("/exercises"); });
 
   // Whatever the coach was looking at belonged to the old team, so the switch
   // lands on the one page that is about the new one.
@@ -64,6 +64,27 @@ describe("AppShell navigation", () => {
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
     expect(screen.queryByText("Exercise library")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Logg inn" })).toHaveAttribute("href", "/sign-in?next=%2Fexercises");
+  });
+
+  // A deep link is worth signing in for; the bare front door is not, so an
+  // unknown visitor meets the public introduction instead of an empty gate.
+  it("sends a signed-out visitor from the front door to the introduction", () => {
+    mocks.pathname.mockReturnValue("/");
+    mocks.useGrep.mockReturnValue(grepState(null));
+
+    render(<AppShell><div>Oversikt</div></AppShell>);
+
+    expect(mocks.replace).toHaveBeenCalledWith("/velkommen");
+    expect(screen.queryByRole("link", { name: "Logg inn" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Oversikt")).not.toBeInTheDocument();
+  });
+
+  it("leaves a signed-out deep link on the sign-in gate", () => {
+    mocks.useGrep.mockReturnValue(grepState(null));
+
+    render(<AppShell><div>Exercise library</div></AppShell>);
+
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it("ignores the retired temporary-password flag for passwordless accounts", () => {

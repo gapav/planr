@@ -1,0 +1,86 @@
+<!doctype html>
+<!--
+  Source for every raster app icon: app/icon.png, app/apple-icon.png and the three
+  PWA icons in public/icons/. app/icon.svg is the master artwork — this page is the
+  same mark and the same geometry, rendered at a fixed pixel size so a browser that
+  will not take an SVG favicon still gets the current brand.
+
+  Pick the variant and size from the query string, then screenshot the viewport:
+
+      cd site && python3 -m http.server 4321
+      CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      shot() { "$CHROME" --headless --disable-gpu --hide-scrollbars \
+        --force-device-scale-factor=1 --default-background-color=00000000 \
+        --window-size=$2,$2 --screenshot="$3" --virtual-time-budget=4000 \
+        "http://127.0.0.1:4321/scripts/app-icons.html?variant=$1&size=$2"; }
+
+      shot rounded  192 icon.png            # -> app/icon.png
+      shot rounded  192 icon-192.png        # -> public/icons/icon-192.png
+      shot rounded  512 icon-512.png        # -> public/icons/icon-512.png
+      shot square   180 apple-icon.png      # -> app/apple-icon.png
+      shot maskable 512 maskable-512.png    # -> public/icons/maskable-512.png
+
+  The three variants differ only in the frame and how far the mark is inset:
+
+  - rounded   the icon.svg composition exactly (25% corner radius, transparent
+              outside it) — browser tabs and the Android "any" purpose.
+  - square    full bleed, no radius: iOS applies its own squircle to a touch icon,
+              so rounding it here would show a halo inside the mask.
+  - maskable  full bleed with the mark at 56% of the canvas, inside the safe zone
+              Android can crop to a circle without clipping the mark.
+-->
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<title>Grep — app icons</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: transparent; }
+  body { display: grid; place-items: start; }
+  .icon {
+    position: relative;
+    overflow: hidden;
+    background: #ffb28a;
+    /* icon.svg is a 64-unit square with rx 16. */
+    border-radius: 25%;
+  }
+  .icon[data-variant="square"],
+  .icon[data-variant="maskable"] { border-radius: 0; }
+  .mark {
+    position: absolute;
+    /* icon.svg places the 254x274 mark at x 8 y 6, 48x52, inside its 64 square. */
+    left: 12.5%;
+    top: 9.375%;
+    width: 75%;
+    height: 81.25%;
+  }
+  /* Android crops a maskable icon to as little as the middle 80%, and to a circle.
+     Pulling the mark in to 56% keeps every corner of it inside that circle; the
+     vertical centre matches the other variants, where the mark sits at 35.375%. */
+  .icon[data-variant="maskable"] .mark {
+    left: 22%;
+    top: 19.6%;
+    width: 56%;
+    height: 60.7%;
+  }
+  .mark svg { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div class="icon" id="icon">
+  <div class="mark">
+    <!-- components/logo.tsx, LogoArtwork compact -->
+    <svg viewBox="318 156 254 274" fill="#2e1b3d" preserveAspectRatio="xMidYMid meet">
+      <path d="M322 239 Q322 214 349 202 L445 162 Q473 152 495 173 L547 226 Q539 234 526 223 L488 187 Q475 174 467 185 L370 323 Q362 333 372 337 Q375 339 385 333 L533 254 Q557 240 565 266 Q568 275 568 285 L568 337 Q568 362 547 372 L425 422 Q393 435 367 419 Q322 395 322 351Z" />
+    </svg>
+  </div>
+</div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const size = Number(params.get("size")) || 512;
+  const icon = document.getElementById("icon");
+  icon.dataset.variant = params.get("variant") || "rounded";
+  icon.style.width = icon.style.height = size + "px";
+</script>
+</body>
+</html>
