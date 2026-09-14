@@ -17,7 +17,12 @@
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td valign="middle">
-                      <img src="{{ .SiteURL }}/brand/grep-email-logo.png" width="142" height="44" alt="Grep" style="display:block;border:0;width:142px;height:44px;color:#2E1B3D;font-size:28px;font-weight:800;">
+                      <!-- The wordmark is an absolute URL rather than one built from the
+                           SiteURL variable: this file is pasted into one production
+                           dashboard, and a Site URL that is empty, points elsewhere or
+                           carries a trailing slash turns the logo into a broken image in
+                           every inbox that receives it. -->
+                      <img src="https://grep.team/brand/grep-email-logo.png" width="142" height="44" alt="Grep" style="display:block;border:0;width:142px;height:44px;color:#2E1B3D;font-size:28px;font-weight:800;">
                     </td>
                     <td align="right" valign="middle" style="color:#706479;font-size:11px;font-weight:800;letter-spacing:1.7px;text-transform:uppercase;">Trenerrommet</td>
                   </tr>

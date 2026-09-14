@@ -67,14 +67,15 @@ describe("AppShell navigation", () => {
   });
 
   // A deep link is worth signing in for; the bare front door is not, so an
-  // unknown visitor meets the public introduction instead of an empty gate.
-  it("sends a signed-out visitor from the front door to the introduction", () => {
+  // unknown visitor is moved on instead of being left on an empty gate. That
+  // used to be `/velkommen`; while the introduction is down it is `/sign-in`.
+  it("sends a signed-out visitor from the front door to sign-in", () => {
     mocks.pathname.mockReturnValue("/");
     mocks.useGrep.mockReturnValue(grepState(null));
 
     render(<AppShell><div>Oversikt</div></AppShell>);
 
-    expect(mocks.replace).toHaveBeenCalledWith("/velkommen");
+    expect(mocks.replace).toHaveBeenCalledWith("/sign-in");
     expect(screen.queryByRole("link", { name: "Logg inn" })).not.toBeInTheDocument();
     expect(screen.queryByText("Oversikt")).not.toBeInTheDocument();
   });

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { z } from "zod";
+import { Link2 as LinkIcon, ShieldCheck, Upload } from "lucide-react";
 import { useGrep } from "./app-provider";
 import { HelpHint } from "./help-tip";
 import { Button, Field, inputClass, Modal, textareaClass } from "./ui";
@@ -16,14 +17,17 @@ export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exerc
   const [values, setValues] = useState<{ name: string; category: Exercise["category"]; ageGroups: ExerciseAgeGroup[]; description: string; mediaUrl: string }>(
     exercise ? { name: exercise.name, category: exercise.category, ageGroups: exercise.ageGroups, description: exercise.description, mediaUrl: exercise.mediaUrl ?? "" }
       : { name: "", category: EXERCISE_CATEGORIES[0], ageGroups: [], description: "", mediaUrl: "" });
+  // A link and an upload are mutually exclusive, and an exercise that already
+  // carries one opens on the tab that holds it.
+  const [source, setSource] = useState<"link" | "upload">("link");
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null); const [submitting, setSubmitting] = useState(false);
   async function submit(event: React.FormEvent) {
-    event.preventDefault(); const parsed = schema.safeParse(mediaFile ? { ...values, mediaUrl: "" } : values); if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Kontroller skjemaet"); return; }
+    event.preventDefault(); const parsed = schema.safeParse({ ...values, mediaUrl: source === "link" ? values.mediaUrl : "" }); if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Kontroller skjemaet"); return; }
     setSubmitting(true); setError(null);
     let uploadedUrl: string | null = null;
     try {
-      if (mediaFile) { validateExerciseMediaUpload(mediaFile); uploadedUrl = await uploadExerciseMedia(mediaFile); }
+      if (source === "upload" && mediaFile) { validateExerciseMediaUpload(mediaFile); uploadedUrl = await uploadExerciseMedia(mediaFile); }
       const input = uploadedUrl ? { ...parsed.data, mediaUrl: uploadedUrl } : parsed.data;
       if (exercise) await updateExercise(exercise.id, input); else await addExercise(input);
       onClose();
@@ -43,9 +47,30 @@ export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exerc
           "6-9" both. The picker carries its own group label instead. */}
       <div className="grid min-w-0 gap-2 text-sm font-semibold"><span>Aldersgrupper</span><ExerciseAgeGroupPicker value={values.ageGroups} onChange={(ageGroups) => setValues({ ...values, ageGroups })} /><span className="text-xs font-normal text-[var(--ink-soft)]">Velg alle gruppene øvelsen passer for. Uten en gruppe vises øvelsen bare under «Alle aldre».</span></div>
       <Field label="Beskrivelse" hint="Forklar organiseringen, gjennomføringen og de viktigste trenermomentene."><textarea className={textareaClass} value={values.description} onChange={(event) => setValues({ ...values, description: event.target.value })} placeholder="Spillerne jobber i tre rekker …" /></Field>
-      <Field label="Lenke til bilde eller video (valgfritt)" hint="HTTPS-bilder, YouTube, Vimeo og direkte videolenker støttes." htmlFor="exercise-media-url" help={<HelpHint topic="media-link" />}><input id="exercise-media-url" className={inputClass} type="url" value={values.mediaUrl} onChange={(event) => setValues({ ...values, mediaUrl: event.target.value })} placeholder="https://..." /></Field>
-      <div className="relative flex items-center"><span className="h-px flex-1 bg-[var(--line)]" /><span className="px-3 text-xs font-bold uppercase tracking-[.1em] text-[var(--ink-soft)]">eller</span><span className="h-px flex-1 bg-[var(--line)]" /></div>
-      <Field label="Last opp et bilde eller en MP4-video" hint="JPG, PNG, WebP og MP4 støttes. Maksimal filstørrelse er 5 MB. Den opplastede filen erstatter lenken ovenfor."><input className={`${inputClass} cursor-pointer py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--paper-deep)] file:px-3 file:py-1.5 file:text-xs file:font-bold`} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,.jpg,.jpeg,.png,.webp,.mp4" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (!file) { setMediaFile(null); return; } try { validateExerciseMediaUpload(file); setMediaFile(file); setValues({ ...values, mediaUrl: "" }); setError(null); } catch (caught) { event.target.value = ""; setMediaFile(null); setError(caught instanceof Error ? caught.message : "Velg et gyldig bilde eller en MP4-video"); } }} /></Field>
+      {/* Link and upload were two independent fields, so nothing on screen said
+          they were one choice — a coach could fill both, and the upload would
+          quietly win. A segmented control makes the either/or the first thing
+          decided, and carries the recommendation we actually have: an embed
+          keeps the video credited to whoever made it. Only the chosen source is
+          submitted, so the hidden one survives a stray click without leaking
+          into the saved exercise. */}
+      <div className="grid min-w-0 gap-2.5 text-sm font-semibold">
+        <span className="flex items-center gap-1.5">Bilde eller video <span className="font-normal text-[var(--ink-soft)]">(valgfritt)</span><HelpHint topic="media-link" /></span>
+        <div className="grep-segments" role="group" aria-label="Velg hvordan du legger ved bilde eller video">
+          <button type="button" className="flex-1" aria-pressed={source === "link"} onClick={() => { setSource("link"); setMediaFile(null); setError(null); }}><LinkIcon size={15} />Lim inn lenke<span>Anbefalt</span></button>
+          <button type="button" className="flex-1" aria-pressed={source === "upload"} onClick={() => { setSource("upload"); setError(null); }}><Upload size={15} />Last opp fil</button>
+        </div>
+        {/* Keyed so React unmounts one input and mounts the other: both
+            branches put an <input> in the same slot, and without a key the
+            controlled url field is reused as the uncontrolled file field. */}
+        {source === "link"
+          ? <><input key="link" id="exercise-media-url" aria-label="Lenke til bilde eller video" className={inputClass} type="url" value={values.mediaUrl} onChange={(event) => setValues({ ...values, mediaUrl: event.target.value })} placeholder="https://..." /><span className="text-xs font-normal text-[var(--ink-soft)]">HTTPS-bilder, YouTube, Vimeo og direkte videolenker støttes. Videoen blir stående hos den som har laget den.</span></>
+          : <><input key="upload" aria-label="Last opp et bilde eller en MP4-video" className={`${inputClass} cursor-pointer py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--paper-deep)] file:px-3 file:py-1.5 file:text-xs file:font-bold`} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,.jpg,.jpeg,.png,.webp,.mp4" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (!file) { setMediaFile(null); return; } try { validateExerciseMediaUpload(file); setMediaFile(file); setError(null); } catch (caught) { event.target.value = ""; setMediaFile(null); setError(caught instanceof Error ? caught.message : "Velg et gyldig bilde eller en MP4-video"); } }} /><span className="text-xs font-normal text-[var(--ink-soft)]">JPG, PNG, WebP og MP4 støttes. Maksimal filstørrelse er 5 MB.</span>
+            {/* The upload leaves the coach's own phone and becomes part of a
+                library every trener can open, so the rights question is asked
+                where the file is chosen rather than buried in the terms. */}
+            <p className="mt-0.5 flex items-start gap-2.5 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-xs font-normal leading-5 text-[var(--ink-soft)]"><ShieldCheck size={15} className="mt-px shrink-0 text-[var(--ink)]" aria-hidden /><span><strong className="font-bold text-[var(--ink)]">Husk!</strong> Last bare opp bilder og video du har laget selv eller har lov til å dele. Filen blir synlig for alle trenere i Grep.</span></p></>}
+      </div>
       {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
       <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Avbryt</Button><Button type="submit" disabled={submitting}>{submitting ? "Lagrer…" : exercise ? "Lagre endringer" : "Legg til i øvelsesbanken"}</Button></div>
     </form>

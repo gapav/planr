@@ -31,6 +31,7 @@ import { AppShell } from "./app-shell";
 import { useGrep } from "./app-provider";
 import { GroupingBoard } from "./grouping-board";
 import { HelpTip } from "./help-tip";
+import { MediaCreditLine } from "./media-credit";
 import { CopySessionDialog, ReopenSessionDialog } from "./session-actions";
 import { TeamCrest } from "./team-crest";
 import { Avatar, Button, EmptyState, Modal, Tag } from "./ui";
@@ -348,6 +349,7 @@ function ExerciseDetail({ item }: { item: SessionItem }) {
 
   return <div className="grid gap-5">
     {item.mediaUrl && embedUrl ? <div className="aspect-video overflow-hidden rounded-[20px] bg-black"><iframe src={embedUrl} title={`${item.title} video`} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div> : item.mediaUrl && mediaKind === "video" ? <video src={item.mediaUrl} controls playsInline preload="metadata" className="aspect-video w-full rounded-[20px] bg-black object-contain" /> : item.mediaUrl && mediaKind === "image" ? <img src={item.mediaUrl} alt={item.title} className="max-h-[55vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" /> : item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="max-h-[45vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" /> : null}
+    <MediaCreditLine mediaUrl={item.mediaUrl} />
     {item.description && <section><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--orange)]">Instruksjoner</p><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{item.description}</p></section>}
     {item.coachingNotes && <section className="rounded-2xl bg-[#fff0e8] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[#9c3913]">Stikkord</p><p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6">{item.coachingNotes}</p></section>}
     {!item.mediaUrl && !item.description && !item.coachingNotes && <p className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen flere øvelsesdetaljer er tilgjengelige.</p>}

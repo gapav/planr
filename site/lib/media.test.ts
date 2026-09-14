@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { getExerciseEmbedUrl, MAX_EXERCISE_MEDIA_BYTES, MAX_TEAM_LOGO_BYTES, parseExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "./media";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fetchMediaInfo, getExerciseEmbedUrl, MAX_EXERCISE_MEDIA_BYTES, MAX_TEAM_LOGO_BYTES, parseExerciseMedia, readMediaCredit, validateExerciseMediaUpload, validateTeamLogoUpload } from "./media";
 
 describe("exercise media", () => {
   it("extracts YouTube thumbnails", () => {
@@ -51,5 +51,62 @@ describe("team logo uploads", () => {
   });
   it("rejects a file whose extension contradicts its type", () => {
     expect(() => validateTeamLogoUpload({ name: "klubb.png", size: 1024, type: "image/jpeg" })).toThrow("JPG");
+  });
+});
+
+describe("media credit", () => {
+  const oEmbed = { author_name: "Norges Håndballforbund", author_url: "https://vimeo.com/norgeshaandballforbund" };
+
+  it("credits the account that uploaded the video", () => {
+    expect(readMediaCredit(oEmbed)).toEqual({ name: "Norges Håndballforbund", url: "https://vimeo.com/norgeshaandballforbund" });
+  });
+  it("keeps the name but drops a profile link that leaves Vimeo", () => {
+    expect(readMediaCredit({ ...oEmbed, author_url: "https://handball.no/" })).toEqual({ name: "Norges Håndballforbund", url: null });
+    expect(readMediaCredit({ ...oEmbed, author_url: "http://vimeo.com/nhf" })).toEqual({ name: "Norges Håndballforbund", url: null });
+    expect(readMediaCredit({ ...oEmbed, author_url: "https://notvimeo.com/nhf" })).toEqual({ name: "Norges Håndballforbund", url: null });
+    expect(readMediaCredit({ ...oEmbed, author_url: 42 })).toEqual({ name: "Norges Håndballforbund", url: null });
+  });
+  it("credits nobody when the provider names nobody", () => {
+    expect(readMediaCredit({ author_url: "https://vimeo.com/nhf" })).toBeNull();
+    expect(readMediaCredit({ author_name: "   " })).toBeNull();
+    expect(readMediaCredit(null)).toBeNull();
+  });
+});
+
+describe("fetchMediaInfo", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("asks the proxy once per Vimeo link and reuses the answer", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ thumbnailUrl: "https://i.vimeocdn.com/video/1.jpg", credit: { name: "NHF", url: "https://vimeo.com/nhf" } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const url = "https://vimeo.com/900000001";
+    expect(await fetchMediaInfo(url)).toEqual({ thumbnailUrl: "https://i.vimeocdn.com/video/1.jpg", credit: { name: "NHF", url: "https://vimeo.com/nhf" } });
+    expect(await fetchMediaInfo(url)).toEqual({ thumbnailUrl: "https://i.vimeocdn.com/video/1.jpg", credit: { name: "NHF", url: "https://vimeo.com/nhf" } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never asks the proxy about a link no provider can answer for", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await fetchMediaInfo("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toEqual({ thumbnailUrl: null, credit: null });
+    expect(await fetchMediaInfo("not a url")).toEqual({ thumbnailUrl: null, credit: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("retries a link the proxy could not answer for, and survives a failed request", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ ok: true, json: async () => ({ thumbnailUrl: null, credit: { name: "NHF" } }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const url = "https://vimeo.com/900000002";
+    expect(await fetchMediaInfo(url)).toEqual({ thumbnailUrl: null, credit: null });
+    expect(await fetchMediaInfo(url)).toEqual({ thumbnailUrl: null, credit: { name: "NHF", url: null } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

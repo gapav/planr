@@ -4,6 +4,7 @@
 import { Play, ZoomIn } from "lucide-react";
 import { useState } from "react";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
+import { MediaCreditLine } from "./media-credit";
 import { Modal, Tag } from "./ui";
 import { getExerciseEmbedUrl, parseExerciseMedia } from "@/lib/media";
 import { formatAgeGroup } from "@/lib/exercises";
@@ -63,6 +64,8 @@ export function ExerciseDetail({ exercise, onClose }: { exercise: ExerciseDetail
             <span className="absolute inset-0 grid place-items-center bg-black/15 transition group-hover:bg-black/25"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/90 shadow-lg">{mediaKind === "image" ? <ZoomIn size={22} /> : <Play size={22} fill="currentColor" />}</span></span>
           </button>
         : <ExerciseThumbnail exercise={exercise} className="aspect-[16/9] w-full overflow-hidden rounded-[20px]" />}
+
+      <MediaCreditLine mediaUrl={exercise.mediaUrl} />
 
       <div className="flex flex-wrap items-center gap-2">
         {exercise.category && <Tag tone="orange">{exercise.category}</Tag>}

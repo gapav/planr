@@ -1,8 +1,7 @@
-import { parseExerciseMedia } from "@/lib/media";
+import { parseExerciseMedia, readMediaCredit, type MediaInfo } from "@/lib/media";
 
-interface VimeoOEmbedResponse {
-  thumbnail_url?: unknown;
-}
+/** Nothing usable came back. A missing thumbnail or credit is never an error — the card and the credit line both do without. */
+const emptyMediaInfo: MediaInfo = { thumbnailUrl: null, credit: null };
 
 export async function GET(request: Request) {
   const mediaUrl = new URL(request.url).searchParams.get("url");
@@ -10,7 +9,7 @@ export async function GET(request: Request) {
 
   try {
     if (parseExerciseMedia(mediaUrl).kind !== "vimeo") {
-      return Response.json({ error: "Her kan bare miniatyrbilder fra Vimeo hentes" }, { status: 400 });
+      return Response.json({ error: "Her kan bare medier fra Vimeo slås opp" }, { status: 400 });
     }
 
     const oEmbedUrl = new URL("https://vimeo.com/api/oembed.json");
@@ -20,16 +19,24 @@ export async function GET(request: Request) {
       headers: { Referer: new URL(request.url).origin },
       signal: AbortSignal.timeout(5_000),
     });
-    if (!response.ok) return Response.json({ thumbnailUrl: null });
+    if (!response.ok) return Response.json(emptyMediaInfo);
 
-    const data = await response.json() as VimeoOEmbedResponse;
-    if (typeof data.thumbnail_url !== "string") return Response.json({ thumbnailUrl: null });
-    const thumbnailUrl = new URL(data.thumbnail_url);
-    if (thumbnailUrl.protocol !== "https:" || (thumbnailUrl.hostname !== "vimeocdn.com" && !thumbnailUrl.hostname.endsWith(".vimeocdn.com"))) {
-      return Response.json({ thumbnailUrl: null });
-    }
-    return Response.json({ thumbnailUrl: thumbnailUrl.toString() });
+    const data = await response.json() as unknown;
+    return Response.json({ thumbnailUrl: vimeoThumbnailUrl(data), credit: readMediaCredit(data) } satisfies MediaInfo);
   } catch {
-    return Response.json({ thumbnailUrl: null });
+    return Response.json(emptyMediaInfo);
+  }
+}
+
+/** Only Vimeo's own CDN may become an `<img src>`: the payload decides the host otherwise. */
+function vimeoThumbnailUrl(payload: unknown): string | null {
+  const { thumbnail_url: raw } = (payload ?? {}) as { thumbnail_url?: unknown };
+  if (typeof raw !== "string") return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || (url.hostname !== "vimeocdn.com" && !url.hostname.endsWith(".vimeocdn.com"))) return null;
+    return url.toString();
+  } catch {
+    return null;
   }
 }

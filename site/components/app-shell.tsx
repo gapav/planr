@@ -46,12 +46,16 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
   }, [mobileOpen]);
 
   // The front door is the only signed-out route with nothing to come back to,
-  // so an unknown visitor gets the public introduction instead of a bare
-  // sign-in card. Deep links keep the gate below, which carries `next` so the
-  // coach lands back on the page they actually asked for.
+  // so an unknown visitor is sent somewhere rather than left on a bare gate
+  // card. Deep links keep the gate below, which carries `next` so the coach
+  // lands back on the page they actually asked for.
+  //
+  // TEMPORARY: this used to be `/velkommen`. The public introduction is down
+  // until its branding and copyright work is finished — see the matching note
+  // in `next.config.ts`, which redirects the route itself.
   const signedOutHome = !authLoading && !user && pathname === "/";
   useEffect(() => {
-    if (signedOutHome) router.replace("/velkommen");
+    if (signedOutHome) router.replace("/sign-in");
   }, [signedOutHome, router]);
 
   function switchTeam(id: string) {
