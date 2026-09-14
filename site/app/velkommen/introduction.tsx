@@ -93,7 +93,7 @@ export function GrepIntroduction() {
     <section className={styles.mailSection} aria-labelledby="mail-heading">
       <div className={styles.mailCopy} data-reveal>
         <p className={styles.eyebrow}>03 / FÅ PLANEN PÅ E-POST</p>
-        <h2 id="mail-heading">Treningsdag?<br /><span>Planen ligger klar.</span></h2>
+        <h2 id="mail-heading">Trening i dag?<br /><span>Planen ligger klar.</span></h2>
         <div className={styles.toggleShot} role="img" aria-label="Innstillingen «Dagens økt på e-post» i Grep, med en bryter som slås av og på.">
           <div className={styles.digestHead}>
             <span className={styles.digestIcon}><MailCheck size={20} aria-hidden /></span>
@@ -133,8 +133,7 @@ export function GrepIntroduction() {
       <div className={styles.interestCopy}>
         <p className={styles.eyebrow}> TA GREP FOR LAGET DITT</p>
         <h2 id="interest-heading">Nysgjerrig?<br />Send oss en melding!</h2>
-        <p>Du trenger ikke en invitasjon for å melde interesse. Send oss bare en melding, så tar vi kontakt om å prøve Grep.</p>
-        <span className={styles.interestTag}>Mer tid til laget. Sammen.</span>
+        <p>Send oss en melding, så tar vi kontakt om hvordan ditt lag kan prøve Grep.</p>
       </div>
       <InterestForm />
     </section>
