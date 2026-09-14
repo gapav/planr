@@ -351,7 +351,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-session-featured .grep-match-meta { font-size: 13px; }
 .grep-session-hit { position: absolute; inset: 0; z-index: 0; border-radius: inherit; }
 .grep-session-row > :not(.grep-session-hit), .grep-session-featured > :not(.grep-session-hit) { position: relative; pointer-events: none; }
-.grep-session-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; pointer-events: auto; }
+/* Scoped to the row on purpose: the rule above is `.grep-session-row >
+   :not(.grep-session-hit)`, and `:not()` carries its argument's
+   specificity, so a bare `.grep-session-actions` loses to it and the menu
+   button ends up with no pointer events — every tap on it falls through to
+   the overlaid link and opens the session instead. */
+.grep-session-row > .grep-session-actions, .grep-session-featured > .grep-session-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; pointer-events: auto; }
 .grep-session-open { z-index: 20; }
 .grep-match-date.grep-session-live { background: var(--grep-apricot); color: var(--grep-ink); }
 .grep-match-date > strong + span { font-weight: 600; color: var(--ink-soft); }
