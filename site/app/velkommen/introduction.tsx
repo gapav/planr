@@ -107,7 +107,7 @@ export function GrepIntroduction() {
             <span className={styles.digestSwitch}><span /></span>
           </div>
         </div>
-        <p>Morgenen på treningsdagen får hele trenerteamet en oppsummering av dagens økt på mail. Du ser hvem som har ansvar for hva, og hvor lenge hver bolk varer.</p>
+        <p>Morgenen på treningsdagen får trenerteamet en oppsummering av dagens økt på mail. Du ser hvem som har ansvar for hva, og hvor lenge hver bolk varer.</p>
       </div>
       <MailPreview />
     </section>
@@ -115,7 +115,7 @@ export function GrepIntroduction() {
       <div className={styles.mobileCopy} data-reveal>
         <p className={styles.eyebrow}>04 / TA PLANEN MED</p>
         <h2 id="mobile-heading">Planen i lomma.<br /><span>Blikket på laget.</span></h2>
-        <p>Når dere møtes på banen, ligger økten klar. Registrer oppmøte, generer laginndeling og følg planen, én bolk om gangen.</p>
+        <p>Når dere møtes på banen, ligger økten klar i appen for hele teamet. Registrer oppmøte, generer laginndeling og følg planen, én bolk om gangen.</p>
         <div className={styles.deviceNote}><Smartphone size={23} aria-hidden /><span>Enklere når treningen er i gang.<br /><strong>Laget for mobilen på banen.</strong></span></div>
       </div>
       <div className={styles.phonePair}>
