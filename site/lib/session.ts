@@ -1,4 +1,5 @@
 import { monthKey, monthLabel, shiftMonth } from "./fixtures";
+import { minutesLabel } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile, SessionBlock, SessionItem, SessionTab } from "./types";
 
@@ -23,7 +24,7 @@ export function suggestedGroupCount(session: Pick<PlannedSession, "blocks">) {
   const counts = session.blocks.filter(isStationBlock).map((block) => block.items.length).filter((count) => count >= MIN_STATIONS);
   return counts.length ? Math.max(...counts) : null;
 }
-export function sessionDuration(session: PlannedSession) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
+export function sessionDuration(session: Pick<PlannedSession, "blocks">) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
 
 /**
  * When each block falls on the clock: the session's own start, plus the blocks
@@ -151,6 +152,39 @@ export function isNearTerm(session: PlannedSession, now = new Date(), timeZone?:
   if (session.status === "in_progress") return true;
   const days = calendarDaysUntil(session.startsAt, now, timeZone);
   return days !== null && days >= 0 && days <= 6;
+}
+
+/**
+ * What a calendar row calls the session. A name a coach typed stands as it is,
+ * but a generated one is the date said twice — the row already carries «tor. 8.»
+ * in its own column — and a row whose only words repeat the column beside it
+ * says nothing about the workout. The blocks do: they are what the session is.
+ * A plan with neither keeps the name it was given.
+ */
+export function sessionRowHeadline(session: Pick<PlannedSession, "title" | "blocks">) {
+  const title = session.title.trim();
+  if (!isAutoSessionTitle(title)) return { text: title, fromBlocks: false };
+  const blocks = session.blocks.map((block) => block.title.trim()).filter(Boolean);
+  return blocks.length ? { text: blocks.join(" · "), fromBlocks: true } : { text: title || UNTITLED_SESSION_TITLE, fromBlocks: false };
+}
+
+/**
+ * How much of the plan is actually there, for the right-hand end of a calendar
+ * row. Without it a month of published sessions renders a five-block plan and
+ * an emptied one as the same line, and the one question a coach reads a month
+ * ahead to answer — which of these still need work — is the one the list cannot
+ * answer. The built minutes are only spelled out against the planned ones when
+ * the plan is short of them: a session that is all there says its length once.
+ */
+export function sessionPlanSummary(session: Pick<PlannedSession, "blocks" | "plannedDurationMinutes">) {
+  const count = session.blocks.length;
+  // Tense-free on purpose: the same row serves Kommende and Gjennomførte, and
+  // «ennå» is wrong about a workout that has already been run.
+  if (!count) return "Ingen bolker";
+  const blocks = `${count} ${count === 1 ? "bolk" : "bolker"}`;
+  const built = sessionDuration(session);
+  if (!built) return blocks;
+  return built < session.plannedDurationMinutes ? `${blocks} · ${built} av ${session.plannedDurationMinutes} min` : `${blocks} · ${minutesLabel(built)}`;
 }
 
 // Months are the section unit in the calendar tabs: a team runs a handful of

@@ -263,25 +263,39 @@ function MatchDay({ day, routine, onOpen, onWarmup }: { day: MatchDayGroup; rout
  * in the header and each row keeps only what varies: the throw-off and who we
  * meet. A lone match has nothing to share, so it skips the header rather than
  * growing a line that repeats the row beneath it.
+ *
+ * Every squad is carded, whether the day holds one or three. The card is what
+ * says "one trip", and a Sunday whose squads were carded only because there
+ * happened to be two of them would have the same squad looking like two
+ * different things on two different weekends.
  */
 function MatchDayTeamGroup({ group, routine, onOpen, onWarmup }: { group: MatchDayTeam; routine: WarmupRoutine | null; onOpen(fixture: TeamFixture): void; onWarmup(fixture: TeamFixture): void }) {
   const rows = <ul className="grep-match-day-list">
     {group.fixtures.map((fixture) => <li key={fixture.id}><MatchEntry fixture={fixture} grouped={group.fixtures.length > 1} sharedVenue={group.venue !== null} onOpen={() => onOpen(fixture)} /></li>)}
   </ul>;
-  if (group.fixtures.length < 2) return rows;
+  // A lone match is carded like the rest but is not a landmark: the row already
+  // spells both teams out, so a region announcing the squad again is one more
+  // thing to step through for nothing.
+  if (group.fixtures.length < 2) return <div className="grep-match-group">{rows}</div>;
 
   const first = group.fixtures[0];
   const meetAt = routine ? warmupSchedule(group.startsAt, routine)?.meetAt ?? null : null;
+  // On a Sunday carrying two squads the hairline that meant "a second team" and
+  // the hairline that meant "a second match" were the same line, and the day
+  // read as four unrelated rows. Carding each squad — the head everything shares
+  // and the throw-offs under it — is what makes two of them two trips.
   return <section className="grep-match-group" aria-label={`${group.team}, ${matchCount(group.fixtures.length)}`}>
-    <p className="grep-match-group-head">
-      <span className="grep-match-group-team"><TeamDots fixture={first} />{" "}{group.team}</span>
-      <span className="grep-match-group-count">{matchCount(group.fixtures.length)}</span>
-    </p>
-    <p className="grep-match-meta grep-match-group-meta">
-      {group.venue && <span><MapPin size={13} />{group.venue}</span>}
-      {meetAt && <button type="button" className="grep-match-meetup" onClick={() => onWarmup(first)}><Clock3 size={13} />Oppmøte {time(meetAt)}</button>}
-      {group.venue && isHomeVenue(group.venue) && <HomeVenue fixture={first} />}
-    </p>
+    <div className="grep-match-group-header">
+      <p className="grep-match-group-head">
+        <span className="grep-match-group-team"><TeamDots fixture={first} />{" "}{group.team}</span>
+        <span className="grep-match-group-count">{matchCount(group.fixtures.length)}</span>
+      </p>
+      {(group.venue || meetAt) && <p className="grep-match-meta grep-match-group-meta">
+        {group.venue && <span><MapPin size={13} />{group.venue}</span>}
+        {meetAt && <button type="button" className="grep-match-meetup" onClick={() => onWarmup(first)}><Clock3 size={13} />Oppmøte {time(meetAt)}</button>}
+        {group.venue && isHomeVenue(group.venue) && <HomeVenue fixture={first} />}
+      </p>}
+    </div>
     {rows}
   </section>;
 }

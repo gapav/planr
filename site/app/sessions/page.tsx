@@ -11,7 +11,7 @@ import { CopySessionDialog, ReopenSessionDialog, SessionMenu } from "@/component
 import { PageHeading } from "@/components/page-heading";
 import { Avatar, Button, EmptyState, Field, Modal, Tag, textareaClass } from "@/components/ui";
 import { monthKey } from "@/lib/fixtures";
-import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration } from "@/lib/session";
+import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration, sessionPlanSummary, sessionRowHeadline } from "@/lib/session";
 import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
 import type { PlannedSession, Profile, SessionTab } from "@/lib/types";
 import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
@@ -120,10 +120,12 @@ interface FocusCredit { author: Profile | null; name: string; at: string }
 // day and month are all it has to say.
 const focusDateFormat = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "short" });
 
-// The focus is the head of the month's card, above the sessions it is meant to
-// steer and on the same ground as them. No accent either — in this list the
-// apricot means "the next thing you act on", and a focus is context for the
-// plans, not one of them.
+// The focus is the head of the month's card, set into its own recessed band so
+// the plans under it read as the workouts carrying a theme. On the rows' own
+// white it was a third sibling on a hairline grid, and the longest text in the
+// card besides — which left the context outweighing the plans it exists to
+// steer. Still no accent: in this list the apricot means "the next thing you
+// act on", and a focus is context for the plans, not one of them.
 function MonthFocusRow({ label, note, credit, editable, standalone, onEdit }: { label: string; note: string | null; credit: FocusCredit | null; editable: boolean; standalone: boolean; onEdit(): void }) {
   if (!note) return editable
     ? <button type="button" onClick={onEdit} className={cn("grep-session-focus-empty", standalone && "grep-session-focus-offer")}><Target size={16} />Sett månedens fokus</button>
@@ -232,14 +234,23 @@ function SessionRow({ session, tab, hero = false, onCopy, onReopen, onDelete }: 
 }
 
 // Sessions further out than the coming week, and every finished one, are things
-// you read rather than act on: the same row, one line tall, carrying the date
-// and the title only. Everything else is one tap away in the plan itself.
+// you read rather than act on: the same row, one line tall. Still one line — the
+// point of the compact row is that a plan four weeks out does not compete with
+// the one on Thursday — but a line that says what the workout is rather than
+// what day it falls on. The date column already has the day; the middle carries
+// the blocks the session is made of, and the right-hand end how much of the plan
+// is there. Everything else is one tap away in the plan itself.
 function CompactSessionRow({ session, onCopy, onReopen, onDelete }: { session: PlannedSession; onCopy(): void; onReopen(): void; onDelete(): void }) {
   const date = sessionDateParts(session.startsAt); const [menuOpen, setMenuOpen] = useState(false);
+  const headline = sessionRowHeadline(session);
+  // The overlaid link keeps naming the session rather than the headline shown:
+  // two rows reading «Oppvarming · Spill» would otherwise be one accessible
+  // name, and the row's own text is in the list for a screen reader either way.
   return <li className={cn("grep-session-row grep-session-compact", menuOpen && "grep-session-open")}>
     <Link href={`/sessions/${session.id}`} aria-label={`Åpne ${session.title}`} className="grep-session-hit" />
     <SessionDay date={date} />
-    <span className="grep-session-copy"><span className="grep-session-headline"><h3>{session.title}</h3></span></span>
+    <span className="grep-session-copy"><span className="grep-session-headline"><h3 className={cn(headline.fromBlocks && "grep-session-derived")}>{headline.text}</h3></span></span>
+    <span className="grep-session-plan">{sessionPlanSummary(session)}</span>
     <span className="grep-session-actions">
       <SessionMenu session={session} open={menuOpen} onOpenChange={setMenuOpen} onCopy={onCopy} onReopen={onReopen} onDelete={onDelete} />
     </span>

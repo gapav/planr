@@ -90,6 +90,36 @@ describe("MatchCalendar", () => {
     expect(within(days[0]).getAllByRole("region").map((group) => group.getAttribute("aria-label"))).toEqual(["Fjordvik Rød, 2 kamper"]);
   });
 
+  // The card is what says "one trip", so a squad gets one whether or not the day
+  // gave it company — otherwise the same squad looks like two different things
+  // on two different weekends.
+  it("cards every squad, on a day holding one as on a day holding two", () => {
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    const days = [...screen.getByLabelText("Månedens kamper").querySelectorAll<HTMLElement>(".grep-match-day")];
+
+    // The 12th carries Fjordvik Rød's two matches and Fjordvik Blå's one.
+    expect(days[0].querySelectorAll(".grep-match-group")).toHaveLength(2);
+    // The 26th holds one squad, and it is carded the same way.
+    expect(days[1].querySelectorAll(".grep-match-group")).toHaveLength(1);
+  });
+
+  // The head is a band now, so an empty line in it is a visible gap rather than
+  // whitespace nobody notices.
+  it("leaves the shared line out of a squad's head when there is nothing to share", () => {
+    mocks.useGrep.mockReturnValue({ removeFixture, warmupRoutines: [] });
+    const sameDay = demoFixtures
+      .filter((fixture) => fixture.startsAt.startsWith("2026-09-12"))
+      .slice(0, 2)
+      .map((fixture, index) => ({ ...fixture, id: `no-venue-${index}`, venue: "", ourTeams: ["Fjordvik Rød"], homeTeam: "Fjordvik Rød" }));
+    render(<MatchCalendar fixtures={sameDay} canManage={false} canEditWarmup />);
+
+    const head = screen.getByRole("region", { name: "Fjordvik Rød, 2 kamper" }).querySelector(".grep-match-group-header") as HTMLElement;
+    expect(within(head).getByText("Fjordvik Rød")).toBeInTheDocument();
+    expect(head.querySelector(".grep-match-group-meta")).toBeNull();
+    // Each row still answers for its own hall, since the head no longer does.
+    expect(within(screen.getByLabelText("Månedens kamper")).getAllByText("Bane ikke satt")).toHaveLength(2);
+  });
+
   it("marks the club's own hall instead of calling every listed match a hjemmekamp", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
     const agenda = screen.getByLabelText("Månedens kamper");

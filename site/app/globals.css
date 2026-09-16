@@ -250,7 +250,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-card-icon svg { margin-right: 0; }
 .grep-page { width: 100%; max-width: 1264px; margin: 0 auto; padding: 36px 24px 64px; }
 .grep-match-featured { display: flex; align-items: center; gap: 22px; width: 100%; padding: 26px; text-align: left; background: white; border: 1px solid var(--line); border-radius: 20px; background: #f4edf9; }
-.grep-match-date { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 62px; min-height: 70px; border-radius: 14px; background: var(--paper-deep); }
+.grep-match-date { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 62px; min-height: 70px; border-radius: 14px; background: var(--surface); }
 .grep-match-date > span { font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; }
 .grep-match-date strong { font-size: 27px; line-height: 1.2; letter-spacing: -.05em; }
 .grep-match-featured .grep-match-date { background: #ffffffb8; color: var(--ink); width: 74px; height: 84px; }
@@ -268,9 +268,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-match-controls { display: flex; align-items: center; gap: 20px; }
 .grep-match-view.grep-segments { gap: 2px; padding: 3px; border-radius: 12px; }
 .grep-match-view button { min-height: 36px; padding: 6px 12px; font-size: 12px; gap: 7px; }
-/* One card per day: the date is stated once on the left, and the day's matches
-   stack beside it, each keeping its own team tint and accent. */
-.grep-match-day { display: flex; align-items: flex-start; gap: 18px; width: 100%; padding: 16px 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+/* One tray per day: the date is stated once on the left, and the day's squads
+   card up beside it, each keeping its own team tint and accent. The tray is the
+   recessed ground rather than white, because the cards on it are the white — a
+   squad carded on a white day was a box inside a box, and the beige filled the
+   card it sat in until the card read as a frame around it. */
+.grep-match-day { display: flex; align-items: flex-start; gap: 18px; width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper-deep); }
 .grep-match-day:hover { border-color: #d6cdda; }
 .grep-match-day-list { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
 /* Team colour is a mark, never a surface: the dot in the title is the only
@@ -282,15 +285,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-match-day-list > li + li { border-top: 1px solid var(--line); }
 /* A squad's match day: everything the matches share, stated once above them. */
 .grep-match-day-body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-/* Squads need a firmer break than the rows inside one squad's day. */
-.grep-match-day-body > * + * { margin-top: 16px; padding-top: 18px; border-top: 1px solid var(--line); }
-.grep-match-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; padding: 0 14px; }
+/* The gap between two cards is the whole separation. The hairline this rule used
+   to draw was the ambiguity: the same line at the same width separated two
+   squads and two throw-offs an hour apart — one rule for two levels of the day,
+   so four rows read as four unrelated trips. */
+.grep-match-day-body > * + * { margin-top: 10px; }
+/* A squad's whole match day on one card: the head it shares and every throw-off
+   under it. Every squad gets one, whether the day holds one or three — the card
+   is what says "one trip", and carding a squad only when it happens to have
+   company would leave the same squad looking like two different things on two
+   different weekends. */
+.grep-match-group { padding: 12px 4px 8px; border-radius: 14px; background: var(--surface); }
+.grep-match-group-header { padding: 0 10px; }
+.grep-match-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; }
 .grep-match-group-team { font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
 .grep-match-group-count { flex-shrink: 0; font-size: 12px; color: var(--ink-soft); }
-.grep-match-group-meta { margin: 6px 0 2px; padding: 0 14px; }
+.grep-match-group-meta { margin: 7px 0 0; }
+/* The rows sit on the card, inset to where the head starts. */
+.grep-match-group .grep-match-entry { padding-left: 10px; padding-right: 10px; }
 .grep-match-meetup { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 1px 9px; border-radius: 999px; background: var(--grep-lilac); color: #4f3a63; font-size: 12px; font-weight: 650; }
 .grep-match-meetup:hover { background: #ded0ef; }
-.grep-match-group .grep-match-day-list { margin-top: 2px; }
+.grep-match-group .grep-match-day-list { margin-top: 8px; }
 .grep-match-opponents { font-size: 15px; color: var(--ink-soft); }
 /* The phone's replacement for the date badge, and the date every reader hears. */
 .grep-match-dayhead { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -318,7 +333,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .grep-match-dayhead span { flex-shrink: 0; font-size: 11px; color: var(--ink-soft); }
   .grep-match-day-list { width: 100%; }
   .grep-match-entry { padding: 11px 6px; gap: 12px; }
-  .grep-match-group-head, .grep-match-group-meta { padding: 0 6px; }
+  /* The rows lose their inset on a phone, so the head loses it with them — the
+     squad's name has to start where its matches do. */
+  .grep-match-group { padding: 10px 3px 6px; }
+  .grep-match-group-header { padding: 0 3px; }
+  .grep-match-group .grep-match-entry { padding-left: 3px; padding-right: 3px; }
   .grep-match-group-team { font-size: 14px; }
   .grep-match-opponents { font-size: 14px; }
   .grep-match-row-copy > strong { font-size: 14px; }
@@ -378,6 +397,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-session-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 7px; }
 .grep-session-headline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
 .grep-session-headline h3 { font-size: 16px; font-weight: 600; line-height: 1.4; letter-spacing: -.02em; overflow-wrap: anywhere; }
+/* A row naming its blocks instead of repeating its date is content, not a title:
+   a shade lighter than a name a coach chose, and clipped rather than wrapped so
+   the compact row stays the one line it exists to be. */
+.grep-session-derived { min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The compact row's right-hand end. It answers «which of these still need work»,
+   and it gives the row a second anchor: a title alone leaves one word floating a
+   thousand pixels from the menu, which is what makes a workout read as a table
+   row. Tabular figures so the counts line up down the month. */
+.grep-session-plan { flex-shrink: 0; font-size: 12px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .grep-session-venue { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grep-session-blocks { font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grep-session-progress { display: flex; align-items: center; gap: 12px; }
@@ -385,8 +413,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-session-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--grep-apricot); transition: width .2s; }
 .grep-session-progress small { flex-shrink: 0; font-size: 12px; color: var(--ink-soft); }
 
-.grep-session-focus { display: block; width: 100%; padding: 17px 20px; text-align: left; transition: background .15s; }
-button.grep-session-focus:hover { background: var(--paper); }
+/* The head of the month's card, set into it. On the same white as the rows the
+   focus was a third sibling on a hairline grid, and the longest text in the card
+   at that — so it outweighed the plans it exists to steer. Recessed onto the
+   ground the date badges and progress tracks already use, it reads as what the
+   workouts under it are carrying. It has to be deeper than `--paper`: a hovered
+   row is exactly that colour, and a header that matches a hover state is not a
+   header. The band belongs to a focus that exists — washing the invitation to
+   write one would put the card's weight on the row with nothing in it. */
+.grep-session-focus { display: block; width: 100%; padding: 17px 20px; text-align: left; background: var(--paper-deep); transition: background .15s; }
+button.grep-session-focus:hover { background: #e9e5de; }
 .grep-session-focus small { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
 .grep-session-focus p { margin: 9px 0 0; font-size: 14px; font-weight: 500; line-height: 1.6; white-space: pre-line; }
 .grep-session-focus-by { display: flex; align-items: center; gap: 8px; margin-top: 11px; font-size: 12px; color: var(--ink-soft); }
@@ -402,6 +438,12 @@ button.grep-session-focus:hover { background: var(--paper); }
   .grep-session-row { gap: 10px; padding: 12px 4px 12px 12px; }
   .grep-session-day { width: 54px; font-size: 11px; }
   .grep-session-headline h3 { font-size: 15px; }
+  /* No room for a right-hand column beside the title on a phone, so the plan
+     drops under it — ordered past the menu so the menu stays on the first line
+     rather than being pushed to a third. */
+  .grep-session-compact { flex-wrap: wrap; row-gap: 2px; }
+  .grep-session-compact > .grep-session-actions { order: 2; }
+  .grep-session-compact > .grep-session-plan { order: 3; width: 100%; padding-left: 64px; }
   .grep-session-month-heading { font-size: 17px; }
   .grep-session-focus, .grep-session-focus-empty { padding-left: 14px; padding-right: 14px; }
 }

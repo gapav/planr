@@ -85,10 +85,33 @@ describe("session calendar rows", () => {
   it("shrinks sessions further out than the coming week to a single line", () => {
     renderPage([upcoming("a", "Denne uka", "2026-09-04T13:45:00.000Z"), upcoming("b", "Om en måned", "2026-10-01T13:45:00.000Z")]);
 
-    // Both keep the menu; the compact row drops the meta line it does not need.
-    expect(within(rowFor("Denne uka")).getByText(/bolk/)).toBeInTheDocument();
-    expect(within(rowFor("Om en måned")).queryByText(/bolk/)).toBeNull();
+    // Both keep the menu; the compact row drops the meta line it does not need,
+    // but keeps how much of the plan is there — a month of published sessions
+    // would otherwise render a full plan and an empty one as the same line.
+    expect(within(rowFor("Denne uka")).getByText(/Fjordvik Arena/)).toBeInTheDocument();
+    expect(within(rowFor("Om en måned")).queryByText(/Fjordvik Arena/)).toBeNull();
+    expect(within(rowFor("Om en måned")).getByText("Ingen bolker")).toBeInTheDocument();
     expect(within(rowFor("Om en måned")).getByRole("button", { name: "Flere valg for Om en måned" })).toBeInTheDocument();
+  });
+
+  // A generated title is the date over again, and the row already has a date
+  // column — so a session nobody has named is named by what is in it.
+  it("names a far-out session by its blocks instead of repeating its date", () => {
+    renderPage([
+      upcoming("a", "Denne uka", "2026-09-04T13:45:00.000Z"),
+      upcoming("b", "Uke 40 - torsdag", "2026-10-01T13:45:00.000Z", { blocks: demoSessions[0].blocks }),
+    ]);
+
+    const row = rowFor("Uke 40 - torsdag");
+    expect(within(row).queryByText("Uke 40 - torsdag")).toBeNull();
+    expect(within(row).getByRole("heading", { name: "Oppvarming · Stasjoner · Spill" })).toBeInTheDocument();
+    expect(within(row).getByText("3 bolker · 1 t 30 min")).toBeInTheDocument();
+  });
+
+  it("keeps a name the coach chose on the row that has one", () => {
+    renderPage([upcoming("a", "Denne uka", "2026-09-04T13:45:00.000Z"), upcoming("b", "Skudd & pådrag", "2026-10-01T13:45:00.000Z", { blocks: demoSessions[0].blocks })]);
+
+    expect(within(rowFor("Skudd & pådrag")).getByRole("heading", { name: "Skudd & pådrag" })).toBeInTheDocument();
   });
 
   it("sends the whole card to the plan, where the actions live", () => {

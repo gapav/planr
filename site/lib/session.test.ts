@@ -4,7 +4,7 @@ import { demoSessions } from "./demo-data";
 import { clockTime } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile } from "./types";
-import { assignedCoach, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, splitSessionStart, splitSessionTime, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
+import { assignedCoach, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanSummary, sessionRowHeadline, splitSessionStart, splitSessionTime, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -286,6 +286,38 @@ describe("automatic session titles", () => {
   it("leaves a title the coach wrote alone", () => {
     expect(isAutoSessionTitle("Uke 38 - fredag: avslutningsspill")).toBe(false);
     expect(isAutoSessionTitle("Keepertrening")).toBe(false);
+  });
+});
+
+// What one line of the calendar has to say about a workout four weeks out.
+describe("a calendar row's headline and plan", () => {
+  const empty = { ...demoSessions[1], blocks: [] };
+
+  it("names a session by its blocks when nobody has titled it", () => {
+    // The row's own date column already says «fre. 4.», so the generated title
+    // would be the same information twice and the workout nowhere.
+    expect(sessionRowHeadline({ ...demoSessions[0], title: "Uke 38 - fredag" })).toEqual({ text: "Oppvarming · Stasjoner · Spill", fromBlocks: true });
+    expect(sessionRowHeadline({ ...demoSessions[0], title: "" })).toEqual({ text: "Oppvarming · Stasjoner · Spill", fromBlocks: true });
+  });
+  it("keeps a name the coach chose", () => {
+    expect(sessionRowHeadline(demoSessions[0])).toEqual({ text: "Fredag — kontring og press", fromBlocks: false });
+  });
+  it("falls back to the generated name when there are no blocks to name it by", () => {
+    expect(sessionRowHeadline({ ...empty, title: "Uke 38 - fredag" })).toEqual({ text: "Uke 38 - fredag", fromBlocks: false });
+    expect(sessionRowHeadline({ ...empty, title: "" })).toEqual({ text: UNTITLED_SESSION_TITLE, fromBlocks: false });
+  });
+
+  it("says how much of the plan is there", () => {
+    expect(sessionPlanSummary({ ...demoSessions[0], plannedDurationMinutes: 90 })).toBe("3 bolker · 1 t 30 min");
+  });
+  it("spells the built minutes out against the planned ones only when the plan is short", () => {
+    expect(sessionPlanSummary({ ...demoSessions[0], plannedDurationMinutes: 120 })).toBe("3 bolker · 90 av 120 min");
+  });
+  it("counts blocks that hold nothing yet without inventing a duration", () => {
+    expect(sessionPlanSummary({ plannedDurationMinutes: 90, blocks: [{ ...demoSessions[0].blocks[0], items: [] }] })).toBe("1 bolk");
+  });
+  it("says an emptied plan is empty, in a tense that suits a finished session too", () => {
+    expect(sessionPlanSummary(empty)).toBe("Ingen bolker");
   });
 });
 
