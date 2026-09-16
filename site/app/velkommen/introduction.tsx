@@ -75,7 +75,7 @@ export function GrepIntroduction() {
       </div>
       <figure className={styles.exerciseFrame} data-reveal>
         <Image src="/intro/exercises-illustrative-v2.png" alt="Eksempelvisning av Greps øvelsesbank med aldersfiltre, temaer og illustrerte øvelseskort, blant annet to genererte videominiatyrer." width={1419} height={1109} sizes="(max-width: 760px) 94vw, 90vw" />
-        <figcaption> </figcaption>
+        <figcaption>Øvelsesbanken · Eksempelvisning med illustrative øvelser og antall, samt fiktive trenernavn.</figcaption>
       </figure>
     </section>
     <section className={styles.planSection} aria-labelledby="plan-heading">

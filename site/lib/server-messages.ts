@@ -39,3 +39,26 @@ export function norwegianServerMessage(message: string, fallback = "Handlingen k
 export function isInvitationAlreadyUsed(message: string) {
   return norwegianServerMessage(message, "") === serverMessageTranslations["Invitation has already been used"];
 }
+
+/**
+ * True when the request never got an answer from PostgREST at all.
+ *
+ * postgrest-js turns a rejected `fetch` — the wifi dropped, the phone slept
+ * mid-request, the tab was navigating away — into an ordinary error result:
+ * `{ status: 0, error: { message: "TypeError: Failed to fetch", code: "" } }`,
+ * shaped exactly like a refusal from the database. It is the one failure where
+ * the row may well have been written and only the answer was lost, so calling
+ * it "handlingen kunne ikke fullføres" is a false alarm — the coach watches the
+ * change survive a refresh and learns to ignore every warning after it.
+ */
+export function isTransportFailure(result: { status?: number; error?: { message?: string } | null }): boolean {
+  if (result.status === 0) return true;
+  // The `${error.name ?? "FetchError"}: ${error.message}` postgrest-js builds
+  // from the rejection; no message the database raises is shaped like it.
+  return /^(?:TypeError|FetchError|AbortError|NetworkError|TimeoutError):/.test(result.error?.message ?? "");
+}
+
+/**
+ * What to say about a lost answer: never "it failed", because it may not have.
+ */
+export const CONNECTION_LOST_MESSAGE = "Vi mistet forbindelsen mens endringen ble lagret. Den kan ha blitt lagret likevel — oppdater siden for å se hva som gjelder.";

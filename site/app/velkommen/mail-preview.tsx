@@ -37,5 +37,6 @@ export function MailPreview() {
       scrolling="no"
       style={{ height }}
     />
+    <figcaption>Dagens økt · Fiktivt lag og fiktiv økt, ellers e-posten slik den sendes.</figcaption>
   </figure>;
 }

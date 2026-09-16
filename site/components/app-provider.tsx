@@ -8,7 +8,7 @@ import { demoExercises, demoFixtures, demoMonthFocus, demoPlayers, demoWarmupRou
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { displayNameError, normalizeDisplayName } from "@/lib/profile";
-import { isInvitationAlreadyUsed, norwegianServerMessage } from "@/lib/server-messages";
+import { CONNECTION_LOST_MESSAGE, isInvitationAlreadyUsed, isTransportFailure, norwegianServerMessage } from "@/lib/server-messages";
 import { minimizePlayerName } from "@/lib/roster";
 import { buildSessionCopy, nextPosition, stationRotation, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -35,6 +35,10 @@ const TEAM_LOGO_BUCKET = "team-logos";
 // absent on the server, so every access is guarded.
 const SELECTED_TEAM_KEY = "plannr.selected-team";
 const NOT_EXERCISE_OWNER = "Du kan bare endre øvelser du har lagt til selv";
+
+// What `persist` needs from a Supabase call: the refusal, and the HTTP status
+// that says whether there was a server on the other end to refuse at all.
+type PersistResult = { error: { message: string } | null; status?: number };
 
 function readSelectedTeamId(): string | null {
   try { return window.localStorage.getItem(SELECTED_TEAM_KEY); } catch { return null; }
@@ -350,6 +354,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAdminAccountsLoaded(true);
   }, [supabase]);
 
+  // Whose `profiles` row has actually been read. A failed read only costs
+  // something while this does not yet name the signed-in coach.
+  const loadedProfileId = useRef<string | null>(null);
   const loadPrivateData = useCallback(async (authUser: User) => {
     if (!supabase) return;
     const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: monthFocusRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }, { data: favoriteRows }] = await Promise.all([
@@ -365,10 +372,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       supabase.from("session_groupings").select("session_id, kind, groups, generated_at"),
       supabase.from("exercise_favorites").select("exercise_id"),
     ]);
-    if (profileRow) setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: COACH_AVATAR_SELF, isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password, sessionDigestEmail: profileRow.session_digest_email !== false });
+    if (profileRow) { loadedProfileId.current = profileRow.id; setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: COACH_AVATAR_SELF, isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password, sessionDigestEmail: profileRow.session_digest_email !== false }); }
     // This row carries `must_set_password`, so losing it silently means a coach
-    // signs in looking fine and skips the forced password change. Say so.
-    else if (profileError) setNotice("Profilen din kunne ikke lastes.");
+    // signs in looking fine and skips the forced password change. Say so — but
+    // only the first time, when there is nothing to fall back on. Every later
+    // load is a refresh of a profile already in hand, which a failure leaves
+    // untouched; and refreshes are unprompted (any auth event past the throttle,
+    // so every tab refocus), so a notice then reads as "the thing you just did
+    // failed" about an action that went through perfectly.
+    else if (profileError && loadedProfileId.current !== authUser.id) { console.error("[grep] profilen kunne ikke leses", profileError); setNotice("Profilen din kunne ikke lastes."); }
     if (memberships) {
       type MembershipRow = { team_id: string; profile_id: string; role: TeamRole; teams: { id: string; name: string; logo_url: string | null } | null; profiles: { id: string; email: string; full_name: string; avatar_url: string | null } | null };
       const grouped = new Map<string, Team>();
@@ -411,7 +423,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastWorkspaceLoad = useRef<WorkspaceLoad | null>(null);
   const settleWorkspace = useCallback((authUser: User | null) => {
     setAuthLoading(false);
-    if (!authUser) { lastWorkspaceLoad.current = null; setExercises([]); setWorkspaceLoaded(true); return; }
+    if (!authUser) { lastWorkspaceLoad.current = null; loadedProfileId.current = null; setExercises([]); setWorkspaceLoaded(true); return; }
     void loadExercises();
     if (!shouldLoadWorkspace(lastWorkspaceLoad.current, authUser.id, Date.now())) { setWorkspaceLoaded(true); return; }
     // Claimed before the load rather than after, so the second of two events
@@ -446,11 +458,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
   }, []);
 
-  const persist = useCallback(async (operation: (() => PromiseLike<{ error: { message: string } | null }>) | null) => {
+  const persist = useCallback(async (operation: (() => PromiseLike<PersistResult>) | null) => {
     if (!operation) { setSaveState("saved"); return; }
     setSaveState("saving");
-    const { error } = await operation();
-    if (error) { const message = norwegianServerMessage(error.message); setSaveState("error"); setNotice(message); throw new Error(message); }
+    const result = await operation();
+    if (result.error) {
+      // `norwegianServerMessage` keeps one sentence and throws away the code,
+      // the hint and the detail — the three fields that say which failure this
+      // actually was. Keep them where whoever is asked "why did it say that?"
+      // can read them.
+      console.error("[grep] lagringen svarte med en feil", result.error);
+      // A lost answer is not a refusal. Rolling the local state back is still
+      // right — nobody knows whether the row landed — but the wording must not
+      // promise that nothing was saved, because usually something was.
+      if (isTransportFailure(result)) { setSaveState("offline"); setNotice(CONNECTION_LOST_MESSAGE); throw new Error(CONNECTION_LOST_MESSAGE); }
+      const message = norwegianServerMessage(result.error.message);
+      setSaveState("error"); setNotice(message); throw new Error(message);
+    }
     setSaveState("saved");
   }, []);
 
@@ -535,6 +559,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
     lastWorkspaceLoad.current = null;
+    loadedProfileId.current = null;
     setUser(supabase ? null : demoUser);
     // Øvelsesbanken stays readable signed out, so the hearts would otherwise
     // still be on screen for whoever sits down at the machine next.

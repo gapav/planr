@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isInvitationAlreadyUsed, norwegianServerMessage } from "./server-messages";
+import { isInvitationAlreadyUsed, isTransportFailure, norwegianServerMessage } from "./server-messages";
 
 describe("norwegianServerMessage", () => {
   it("explains the manual colour migration when the schema is older than the app", () => {
@@ -36,5 +36,25 @@ describe("isInvitationAlreadyUsed", () => {
     expect(isInvitationAlreadyUsed("Invitasjonen tilhører en annen e-postadresse")).toBe(false);
     expect(isInvitationAlreadyUsed("Invitasjonen har utløpt")).toBe(false);
     expect(isInvitationAlreadyUsed("something else entirely")).toBe(false);
+  });
+});
+
+describe("isTransportFailure", () => {
+  it("recognises the rejected fetch postgrest-js reports as status 0", () => {
+    expect(isTransportFailure({ status: 0, error: { message: "TypeError: Failed to fetch" } })).toBe(true);
+  });
+
+  it("recognises a lost answer by its message alone", () => {
+    expect(isTransportFailure({ error: { message: "TypeError: Load failed" } })).toBe(true);
+    expect(isTransportFailure({ error: { message: "AbortError: The user aborted a request." } })).toBe(true);
+    expect(isTransportFailure({ error: { message: "FetchError: request to … failed" } })).toBe(true);
+  });
+
+  // A refusal reached the database and nothing was written, so it keeps the
+  // wording that says the action failed.
+  it("does not mistake a database refusal for a lost connection", () => {
+    expect(isTransportFailure({ status: 403, error: { message: "new row violates row-level security policy for table \"sessions\"" } })).toBe(false);
+    expect(isTransportFailure({ status: 400, error: { message: "Denne økten pågår og er låst" } })).toBe(false);
+    expect(isTransportFailure({ status: 204, error: null })).toBe(false);
   });
 });
