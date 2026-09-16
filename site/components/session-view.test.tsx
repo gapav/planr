@@ -36,6 +36,15 @@ describe("session view", () => {
     expect(screen.getByRole("link", { name: "Rediger" })).toHaveAttribute("href", `/sessions/${draft.id}/edit`);
   });
 
+  it("reads a block's note as its own paragraph, not as a run-on after the label", () => {
+    render(<SessionView sessionId={draft.id} />);
+
+    // Found by its exact text: the label is a sibling, so the note is no longer
+    // glued to «Notat for bolken» inside one line of prose.
+    expect(screen.getByText(draft.blocks[0].notes)).toBeInTheDocument();
+    expect(screen.getAllByText("Notat for bolken")).toHaveLength(draft.blocks.filter((block) => block.notes).length);
+  });
+
   it("opens an activity with the plan's own copy of the details", () => {
     render(<SessionView sessionId={draft.id} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

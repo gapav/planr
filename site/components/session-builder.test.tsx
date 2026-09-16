@@ -1,14 +1,14 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { demoExercises, demoSessions, demoTeams } from "@/lib/demo-data";
 import { SessionBuilder } from "./session-builder";
 
-const mocks = vi.hoisted(() => ({ useGrep: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), useSessionRealtime: vi.fn() }));
 
 vi.mock("./app-provider", () => ({ useGrep: mocks.useGrep }));
 vi.mock("./app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => <>{children}</> }));
-vi.mock("@/hooks/use-session-realtime", () => ({ useSessionRealtime: () => ({ collaborators: [], connected: true }) }));
+vi.mock("@/hooks/use-session-realtime", () => ({ useSessionRealtime: mocks.useSessionRealtime }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children: ReactNode; href: string }) => <a href={href} {...props}>{children}</a>,
@@ -24,7 +24,42 @@ describe("session builder", () => {
   beforeEach(() => {
     updateItem.mockReset();
     updateBlock.mockReset();
+    mocks.useSessionRealtime.mockReturnValue({ collaborators: [], connected: true });
     mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock });
+  });
+
+  // The header is the only thing that tells a coach whether their typing is
+  // reaching the database, so a refused save must not read as a saved one.
+  describe("save indicator", () => {
+    function renderWith(saveState: string, connected = true) {
+      mocks.useSessionRealtime.mockReturnValue({ collaborators: [], connected });
+      mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, user: null, saveState, isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock });
+      render(<SessionBuilder sessionId={draft.id} />);
+    }
+
+    it("says a refused save was not saved", () => {
+      renderWith("error");
+      expect(screen.getByText("Siste endring ble ikke lagret")).toBeInTheDocument();
+      expect(screen.queryByText("Alle endringer er lagret")).not.toBeInTheDocument();
+    });
+
+    // A reconnecting socket says nothing about whether the last write landed,
+    // so the refusal still wins.
+    it("keeps the refusal visible while the socket reconnects", () => {
+      renderWith("error", false);
+      expect(screen.getByText("Siste endring ble ikke lagret")).toBeInTheDocument();
+    });
+
+    it("reports the other three states as before", () => {
+      renderWith("saving");
+      expect(screen.getByText("Lagrer…")).toBeInTheDocument();
+      cleanup();
+      renderWith("offline");
+      expect(screen.getByText("Kobler til på nytt …")).toBeInTheDocument();
+      cleanup();
+      renderWith("saved");
+      expect(screen.getByText("Alle endringer er lagret")).toBeInTheDocument();
+    });
   });
 
   it("opens the exercise view for an added item with the plan's own copy of the details", () => {
