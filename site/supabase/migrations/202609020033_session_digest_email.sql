@@ -1,5 +1,11 @@
 -- The morning digest: "dagens økt" in the coaches' inboxes on the day it runs.
 --
+-- Shipped as 202609020032, which 202609020032_reopen_and_copy_session.sql
+-- already held; renamed to 033 so the ordering is readable from the
+-- filenames. The SQL is unchanged and it ran against production under the
+-- old number — there is nothing to apply here, and re-running it would stop
+-- at `create policy` rather than change anything.
+--
 -- A scheduled job (Vercel Cron -> app/api/cron/daily-session-digest) wakes up
 -- once every morning, finds the sessions starting that day and mails each coach
 -- on the team. Two things have to live in the database for that to be safe:

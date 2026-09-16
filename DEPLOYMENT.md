@@ -248,7 +248,7 @@ assigned activities marked. No session that day means no email at all.
 | `SUPABASE_SECRET_KEY` | The job runs at 07:00 with nobody signed in, so RLS has no user to authorize. It reads with the secret key, like the invite route. |
 | `RESEND_API_KEY`, `RESEND_FROM` | The delivery itself. Unset, the job still runs and reports what it *would* have sent — and claims nothing, so the first configured run sends everything. |
 
-Migration `202609020032_session_digest_email.sql` must be applied first: it adds
+Migration `202609020033_session_digest_email.sql` must be applied first: it adds
 the per-coach opt-out and the log the job uses to avoid sending twice.
 
 **The schedule** lives in `site/vercel.json` as `0 5 * * *` — 07:00 in Oslo in

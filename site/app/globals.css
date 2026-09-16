@@ -623,3 +623,43 @@ button.grep-session-focus:hover { background: #e9e5de; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/*
+ * Paper. A session plan is regularly run by someone who has no account — a
+ * parent standing in, an assistant who never signed in — and the app has no way
+ * to hand them the plan. Ctrl+P is that way.
+ *
+ * Everything that only works under a finger goes: the shell, the sticky action
+ * bar, the mobile navigation. What is left is the plan. Descriptions are
+ * unclamped because a reader on paper cannot tap a card open, and blocks are
+ * kept whole so a bolk is never split across two sheets.
+ *
+ * Browsers print backgrounds only if the reader ticks the box, so nothing here
+ * may depend on one: the cue box earns a border instead of its peach fill.
+ */
+@media print {
+  @page { margin: 14mm; }
+  html, body { background: #fff; }
+  .grep-skip-link, .grep-sidebar, .grep-mobile-header, .grep-mobile-nav, .grep-notice, [data-print="hide"] { display: none !important; }
+  /* Both are `display: grid` with a sidebar column from 1024px up, and print
+     surfaces wide enough to match it exist. Without this the plan prints into
+     the right-hand column of a grid whose left column is now empty. */
+  .grep-shell, .grep-shell-collapsed { display: block; }
+  .grep-shell, .grep-main { min-height: 0; background: #fff; }
+  .grep-main-with-mobile-nav { padding-bottom: 0; }
+  .clamp-2 { display: block; overflow: visible; -webkit-line-clamp: unset; }
+  /* The screen's breathing room is paper a coach has to carry. Reclaiming the
+     gutters and the gaps between bolker is what keeps a 90-minute plan on two
+     sheets instead of four. The @page margin above is the real margin. */
+  [data-print="sheet"] { padding-bottom: 0; }
+  [data-print="body"] { max-width: none; padding: 0; }
+  [data-print="plan"] { margin-top: 18px; }
+  [data-print="blocks"] { margin-top: 12px; gap: 12px; }
+  [data-print="block"] { box-shadow: none; }
+  /* A bolk of six stations is taller than a sheet, so it flows — but a single
+     activity is never split down the middle, and a bolk's heading never sits
+     alone at the foot of a page with its first activity overleaf. */
+  [data-print="item"] { break-inside: avoid; }
+  [data-print="block-head"] { break-after: avoid; }
+  [data-print="cue"] { border: 1px solid var(--line); }
+}

@@ -114,7 +114,7 @@ wires them together. `lib/email-shell.ts` is the envelope both it and
 Two invariants: **drafts never mail** (the status filter is the only thing
 preventing a letter about a session `start_session` would refuse), and **sending
 is idempotent** — the job claims each (session, coach) pair in
-`session_email_log` (migration `202609020032`) before sending and only mails the
+`session_email_log` (migration `202609020033`) before sending and only mails the
 claims the database granted, giving a claim back when a send fails. A run with
 no Resend key claims nothing, so it stays a dry run. `?dry=1` reports recipients
 without claiming. `profiles.session_digest_email` is the per-coach opt-out,
@@ -127,6 +127,14 @@ toggled from `/team`.
 ### Styling
 
 Tailwind v4 (`@import "tailwindcss"` in `app/globals.css`) with the palette as CSS custom properties on `:root` (`--ink`, `--paper`, `--orange`, …). Use those variables rather than hard-coded hexes. Classes are composed with `cn()` (clsx + tailwind-merge) from `lib/utils.ts`. Shared primitives are in `components/ui.tsx`; the app is light-mode only (`colorScheme: "light"`) and honors `prefers-reduced-motion`.
+
+The `@media print` block at the foot of `globals.css` is how a plan reaches
+someone with no account — «Skriv ut» in the session menu is just `window.print()`
+on `/sessions/<id>`. It works off `data-print` attributes in `session-view.tsx`
+rather than the utility classes, so the two move together: `hide` drops chrome,
+`item` keeps an activity whole across a page break, `block-head` stops a heading
+being orphaned, and `cue` gives the Stikkord box a border, because browsers only
+print backgrounds if the reader asks for them.
 
 ## Tests
 

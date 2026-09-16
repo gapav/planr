@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(202);
+select plan(209);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -156,6 +156,24 @@ select throws_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000
 select throws_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot copy another team plan');
 reset role;
 
+-- 202609020001: the private Realtime topic two coaches share while editing one
+-- plan. `grep_realtime_read` and `grep_realtime_write` on realtime.messages are
+-- built from this function and nothing else, so it is the entire authorization
+-- boundary for collaboration — and the one part of that feature a SQL suite can
+-- settle. It is fed a client-supplied string, so the malformed cases matter as
+-- much as the membership one.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select ok(public.can_access_session_topic('session:30000000-0000-0000-0000-000000000001'), 'a coach on the team may join their own session topic');
+select ok(not public.can_access_session_topic('session:30000000-0000-0000-0000-000000000099'), 'a topic naming a session that does not exist is refused');
+select ok(not public.can_access_session_topic('session:not-a-uuid'), 'a malformed topic is refused rather than raised');
+select ok(not public.can_access_session_topic('*'), 'the wildcard topic is refused');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select ok(not public.can_access_session_topic('session:30000000-0000-0000-0000-000000000001'), 'a coach outside the team cannot join its session topic');
+reset role;
+
 update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000003';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
@@ -235,7 +253,7 @@ select is((select count(*)::integer from public.profiles where full_name = 'Hija
 select throws_ok($$ select public.admin_set_display_name('10000000-0000-0000-0000-000000000002', 'Hijacked') $$, 'P0001', 'Du må være systemadministrator', 'a team admin cannot rename another coach through the admin RPC');
 select throws_ok($$ update public.profiles set must_set_password = false where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'the retired password flag is not writable from a browser session');
 select throws_ok($$ update public.profiles set is_global_admin = true where id = '10000000-0000-0000-0000-000000000001' $$, '42501', null, 'a coach cannot make themselves a global admin');
--- 202609020032 added the morning digest opt-out to that same column grant. It
+-- 202609020033 added the morning digest opt-out to that same column grant. It
 -- is a personal preference, so the grant lets a coach write it and
 -- profiles_update_self keeps it to their own row.
 select lives_ok($$ update public.profiles set session_digest_email = false where id = '10000000-0000-0000-0000-000000000001' $$, 'a coach can turn their own morning session email off');
@@ -272,6 +290,22 @@ select is((select token::text from public.team_invitations where email = 'coach@
 select lives_ok($$ select public.accept_team_invitation('50000000-0000-0000-0000-000000000001') $$, 'an invited coach can accept an invitation they found for themselves');
 select is((select count(*)::integer from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000002'), 1, 'accepting the invitation puts the coach on the team');
 select throws_ok($$ select public.accept_team_invitation('50000000-0000-0000-0000-000000000001') $$, 'P0001', 'Invitasjonen er allerede brukt', 'an invitation cannot be claimed twice');
+reset role;
+
+-- 202609020026: the two remaining ways a token can be presented and still not
+-- be worth a seat. Neither is an RLS decision — `accept_team_invitation` finds
+-- the row by token whoever asks — so these lines in the function are the only
+-- thing standing between a stale or misaddressed link and a team.
+insert into public.team_invitations (team_id, email, role, token, invited_by, expires_at)
+select id, 'coach@example.com', 'coach', '50000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', now() - interval '1 day'
+from public.teams where id = current_setting('plannr.test_team')::uuid;
+insert into public.team_invitations (team_id, email, role, token, invited_by, expires_at)
+select id, 'someone-else@example.com', 'coach', '50000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', now() + interval '7 days'
+from public.teams where id = current_setting('plannr.test_team')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select throws_ok($$ select public.accept_team_invitation('50000000-0000-0000-0000-000000000002') $$, 'P0001', 'Invitasjonen har utløpt', 'an invitation past its expiry cannot be claimed');
+select throws_ok($$ select public.accept_team_invitation('50000000-0000-0000-0000-000000000003') $$, 'P0001', 'Invitasjonen tilhører en annen e-postadresse', 'an invitation addressed to someone else cannot be claimed by the wrong account');
 reset role;
 
 -- 202609020018: the platform owner administers every team without joining one,
@@ -485,7 +519,7 @@ select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-0000000
 select is(jsonb_array_length(public.admin_list_accounts()), 4, 'an anonymized tombstone is absent from the active account directory');
 reset role;
 
--- 202609020032: the morning digest's own record of what it has already sent.
+-- 202609020033: the morning digest's own record of what it has already sent.
 -- Only the scheduled job writes it, and the job holds the secret key, so the
 -- table is readable by the team and writable by nobody with a browser session.
 insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)

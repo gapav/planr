@@ -216,16 +216,15 @@ of the two deleting migrations above — it is the wrong tool for rebuilding a
 project from a backup. Use it to stand up a new dev environment; use
 `make restore` to recover.
 
-### Known wrinkle: a duplicate version number
+### Resolved: the duplicate version number
 
-Two migrations share the version `202609020032`:
+Two migrations used to share the version `202609020032`. The digest one is now
+`202609020033_session_digest_email.sql`; its SQL did not change, and it keeps
+the position it always had in filename order, so the bootstrap is byte-identical
+apart from that one banner. Nothing needs applying — it ran in production under
+the old number.
 
-- `202609020032_reopen_and_copy_session.sql`
-- `202609020032_session_digest_email.sql`
-
-Harmless today — they touch disjoint objects, so the order between them does not
-change the result, and filename sort order happens to match the order they were
-applied in production. But it means "which ran first" cannot be answered from
-the filenames. If the project ever adopts `supabase db push` and its migration
-history table, this has to be resolved first — renaming the later one to
-`202609020033_` is the fix. `make doctor` flags it on every run.
+Should it happen again, `make doctor` prints a note listing any duplicated
+version. Renaming the *later* file to the next free number is the fix, and it has
+to be done before the project could adopt `supabase db push` and its migration
+history table.

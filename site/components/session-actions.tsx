@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, MoreHorizontal, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Copy, MoreHorizontal, Pencil, Printer, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -21,9 +21,11 @@ import { cn, formatSessionDate } from "@/lib/utils";
  * locked in the database, so the menu drops "Rediger" rather than offering a
  * screen that would bounce back, and only a finished one has anything to
  * reopen. An action the host cannot handle is left out entirely — the plan view
- * has no list to return to after a delete, so it does not offer one.
+ * has no list to return to after a delete, so it does not offer one, and only
+ * the plan view offers "Skriv ut", since printing from the calendar would put
+ * the calendar on the paper rather than the session the menu belongs to.
  */
-export function SessionMenu({ session, open, onOpenChange, onCopy, onReopen, onDelete }: { session: PlannedSession; open: boolean; onOpenChange(open: boolean): void; onCopy(): void; onReopen?(): void; onDelete?(): void }) {
+export function SessionMenu({ session, open, onOpenChange, onCopy, onPrint, onReopen, onDelete }: { session: PlannedSession; open: boolean; onOpenChange(open: boolean): void; onCopy(): void; onPrint?(): void; onReopen?(): void; onDelete?(): void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -41,6 +43,7 @@ export function SessionMenu({ session, open, onOpenChange, onCopy, onReopen, onD
     {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-30 w-56 rounded-xl border border-[var(--line)] bg-white p-1.5 text-sm font-semibold shadow-xl">
       {editHref && <Link href={editHref} role="menuitem" autoFocus onClick={() => onOpenChange(false)} className={cn(entry, "text-[var(--ink)] hover:bg-[var(--paper)]")}><Pencil size={16} />Rediger</Link>}
       <button type="button" role="menuitem" autoFocus={!editHref} onClick={() => { onOpenChange(false); onCopy(); }} className={cn(entry, "text-[var(--ink)] hover:bg-[var(--paper)]")}><Copy size={16} />Kopier økt</button>
+      {onPrint && <button type="button" role="menuitem" onClick={() => { onOpenChange(false); onPrint(); }} className={cn(entry, "text-[var(--ink)] hover:bg-[var(--paper)]")}><Printer size={16} />Skriv ut</button>}
       {reopenable && <button type="button" role="menuitem" onClick={() => { onOpenChange(false); onReopen?.(); }} className={cn(entry, "text-[var(--ink)] hover:bg-[var(--paper)]")}><RotateCcw size={16} />Gjenåpne økt</button>}
       {onDelete && <>
         <div className="my-1.5 h-px bg-[var(--line)]" />

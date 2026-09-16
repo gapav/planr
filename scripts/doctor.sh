@@ -56,9 +56,9 @@ else
   warn "prod_bootstrap.sql missing  →  make bootstrap"; FAIL=1
 fi
 
-# Two migration files sharing version 202609020032 is harmless today (they
-# touch disjoint objects, and filename order happens to match the order they
-# were applied) but it makes "which ran first" unanswerable from the filenames.
+# Two migration files sharing a version makes "which ran first" unanswerable
+# from the filenames, and blocks ever adopting `supabase db push`. The one pair
+# this repo had was renamed apart; this catches the next one.
 dupes=$(ls -1 "$MIGRATIONS_DIR"/*.sql 2>/dev/null | xargs -n1 basename \
         | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d)
 [[ -n "$dupes" ]] && info "Note: duplicate migration version(s): $(echo $dupes | tr '\n' ' ')"

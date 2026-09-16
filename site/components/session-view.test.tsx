@@ -45,6 +45,27 @@ describe("session view", () => {
     expect(screen.getAllByText("Notat for bolken")).toHaveLength(draft.blocks.filter((block) => block.notes).length);
   });
 
+  it("prints the plan for whoever is running it without an account", () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => {});
+    render(<SessionView sessionId={draft.id} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `Flere valg for ${draft.title}` }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Skriv ut" }));
+
+    expect(print).toHaveBeenCalled();
+    print.mockRestore();
+  });
+
+  it("keeps the action bar off the paper — the plan below carries the title", () => {
+    render(<SessionView sessionId={draft.id} />);
+
+    // The stylesheet hides `[data-print="hide"]`; this is the markup half of
+    // that pair, which jsdom cannot check by asking for computed styles.
+    const bar = document.querySelector('[data-print="hide"]');
+    expect(bar).toBeInTheDocument();
+    expect(within(bar as HTMLElement).getByRole("link", { name: "Rediger" })).toBeInTheDocument();
+  });
+
   it("opens an activity with the plan's own copy of the details", () => {
     render(<SessionView sessionId={draft.id} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
