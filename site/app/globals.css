@@ -91,6 +91,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @keyframes soft-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .soft-in { animation: soft-in 280ms ease-out both; }
 
+/* A menu that grows out of the control that opened it, and folds back into it.
+   The rows arrive just behind the panel so the list reads as filling in rather
+   than being stamped down whole. The global prefers-reduced-motion rule below
+   flattens all three; nothing here is load-bearing, and the panel is unmounted
+   on a timer rather than on `animationend` for exactly that reason. */
+@keyframes grep-pop { from { opacity: 0; transform: scale(.94) translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes grep-pop-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.97) translateY(-4px); } }
+@keyframes grep-pop-row { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.grep-pop { transform-origin: top right; animation: grep-pop 150ms cubic-bezier(.16, 1, .3, 1) both; }
+.grep-pop-left { transform-origin: top left; }
+.grep-pop-row { animation: grep-pop-row 190ms ease-out both; }
+/* Folding back is one movement: the rows go with the panel, not after it. */
+.grep-pop.is-closing { animation: grep-pop-out 120ms ease-in both; }
+.grep-pop.is-closing .grep-pop-row { animation: none; }
+
 /* Shared Grep identity. More expressive surfaces around calm working areas. */
 .grep-logo { display: inline-flex; flex-shrink: 0; border-radius: 6px; color: inherit; }
 .grep-logo-lockup { width: 126px; height: 40px; }
@@ -490,7 +505,22 @@ button.grep-session-focus:hover { background: #e9e5de; }
    one tone table in `ui.tsx`; a row with no tone of its own ("Alle tema") keeps
    the brand lilac, which is what "no choice made" has always looked like. */
 .grep-rail-option.is-on { background: var(--rail-tint, var(--grep-lilac)); color: var(--rail-tint-ink, #40244f); font-weight: 600; }
-.grep-rail-option.is-empty { color: #9b91a2; }
+/* A row worth nothing keeps its count and its place in the reading order, and
+   stops behaving like a control: no hover, no pointer. */
+.grep-rail-option.is-empty { color: #9b91a2; cursor: default; }
+.grep-rail-option.is-empty:hover { background: none; color: #9b91a2; }
+/* A chosen samling is shown whole, so the axes below it are switched off rather
+   than taken away — the taxonomy stays visible, the rail keeps its height, and
+   nothing lights up to suggest a choice is still being made. `is-on` survives
+   on the «Alle» row it lands on, greyed, so the row still reads as "everything,
+   and not yours to change right now". */
+.grep-rail-section.is-off .grep-rail-heading { color: #b3a9b9; }
+.grep-rail-option:disabled { color: #a79dae; cursor: default; }
+.grep-rail-option:disabled:hover { background: none; color: #a79dae; }
+.grep-rail-option:disabled.is-on { background: #2e1b3d0a; color: #8d7f97; }
+.grep-rail-option:disabled .grep-rail-icon,
+.grep-rail-option:disabled .grep-rail-count { color: #bcb3c1; }
+.grep-rail-note { padding: 6px 12px 0; font-size: 12px; line-height: 1.5; color: #8d7f97; }
 .grep-rail-icon { flex-shrink: 0; color: #8d7f97; }
 .grep-rail-option.is-on .grep-rail-icon { color: color-mix(in srgb, var(--rail-tint-ink, #6b4d84) 80%, transparent); }
 .grep-rail-label { min-width: 0; flex: 1; overflow-wrap: anywhere; }
@@ -499,8 +529,17 @@ button.grep-session-focus:hover { background: #e9e5de; }
 .grep-rail-option.is-on .grep-rail-count { color: color-mix(in srgb, var(--rail-tint-ink, #6b4d84) 75%, transparent); }
 .grep-rail-favorites { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid var(--grep-line); border-radius: 12px; background: var(--surface); font-size: 13px; font-weight: 550; color: #5f5368; transition: border-color .15s, background .15s, color .15s; }
 .grep-rail-favorites:hover { border-color: #cdbbd9; color: var(--grep-ink); }
+.grep-rail-favorites.is-empty { color: #9b91a2; cursor: default; }
+.grep-rail-favorites.is-empty:hover { border-color: var(--grep-line); color: #9b91a2; }
 .grep-rail-favorites.is-on { border-color: #e9b79c; background: #ffb28a26; color: #7a3f1c; }
 .grep-rail-favorites .grep-rail-count { margin-left: auto; }
+
+/* Starting a samling is an offer, not an option in the list above it: the same
+   row geometry so the column stays even, but dashed and quiet until hovered. */
+.grep-rail-new { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 36px; padding: 6px 10px 6px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; color: #8d7f97; transition: background .15s, color .15s; }
+.grep-rail-new:hover { background: #2e1b3d08; color: var(--grep-ink); }
+.grep-rail-new svg { flex-shrink: 0; }
+.grep-rail-empty { padding: 2px 12px 4px; font-size: 12px; line-height: 1.5; color: #9b91a2; }
 
 .grep-library-toolbar { display: flex; align-items: center; gap: 10px; }
 .grep-library-search { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
@@ -534,11 +573,18 @@ button.grep-session-focus:hover { background: #e9e5de; }
 }
 
 .grep-filter-chips button { min-height: 40px; font-size: 12px; font-weight: 550; border-radius: 10px; background: #fffefd; border-color: var(--line); color: #75667e; box-shadow: none; }
-.grep-filter-chips button:hover { border-color: #a68abb; }
+.grep-filter-chips button:hover:not(:disabled):not([aria-disabled="true"]) { border-color: #a68abb; }
+.grep-filter-chips button[aria-disabled="true"] { cursor: default; }
 .grep-filter-chips button[aria-pressed="true"] { background: #e9ddf7; border-color: #c2a7d6; color: #40244f; box-shadow: inset 0 -2px #b493cb; }
 .grep-filter-chips button[aria-pressed="true"] svg { color: #5a3673; }
 .grep-exercise-card { border-radius: 18px 6px 18px 18px; box-shadow: 0 4px 16px #2e1b3d03; }
 .grep-exercise-card:hover { border-color: #bb9ecb; box-shadow: 0 6px 22px #2e1b3d09; }
+/* The card used to clip itself, which is what kept the thumbnail square-cornered
+   — and what cut the menu in its corner off at the card's edge. So the media
+   clips itself instead (one pixel tighter, the way a border-box clip lands),
+   and the card that has a menu open is lifted over the cards drawn after it. */
+.grep-exercise-media { border-radius: 17px 5px 0 0; }
+.grep-exercise-card:has([aria-expanded="true"]) { z-index: 20; }
 .grep-exercise-card h2 { font-size: 19px; font-weight: 650; line-height: 1.3; }
 .grep-team-content { margin-top: 24px; }
 .grep-context-note { display: flex; align-items: flex-start; gap: 12px; padding: 17px 20px; background: #f0ede7; border-radius: 12px; color: #665e69; font-size: 13px; line-height: 1.6; }

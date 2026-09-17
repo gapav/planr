@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn, readableInk } from "@/lib/utils";
 
@@ -47,13 +48,25 @@ export function Modal({ open, title, description, children, onClose, size = "md"
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-  return <div className="fixed inset-0 z-50 grid place-items-end bg-[#10201d]/45 p-0 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onPointerDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+  // A dialog belongs to the page, not to whatever opened it, and `position:
+  // fixed` alone does not promise that: an ancestor carrying a transform,
+  // filter or backdrop-filter becomes the containing block for everything fixed
+  // inside it. A library card is exactly that ancestor — `.soft-in` fills
+  // forwards, so its `transform: translateY(0)` never goes away — and the
+  // dialog the card's own menu opened was laid out inside the card and then
+  // clipped by its `overflow-hidden`. Escaping to the body is the only fix that
+  // does not depend on knowing every ancestor a modal may one day open under.
+  //
+  // There is no document to portal into while the page is being prerendered,
+  // and nothing to portal either: a dialog is opened by a click, so `open` is
+  // false in every render the server makes and in the one the browser hydrates.
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(<div className="fixed inset-0 z-50 grid place-items-end bg-[#10201d]/45 p-0 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onPointerDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className={cn("max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-[var(--surface)] p-5 pt-0 shadow-2xl soft-in sm:rounded-[28px] sm:p-7 sm:pt-0", size === "sm" && "sm:max-w-md", size === "md" && "sm:max-w-xl", size === "lg" && "sm:max-w-3xl")}>
       <div className="sticky top-0 z-10 -mx-5 mb-6 flex items-start justify-between gap-5 border-b border-[var(--line)] bg-[var(--surface)] px-5 pb-4 pt-5 sm:-mx-7 sm:px-7 sm:pt-7"><div><h2 id="modal-title" className="text-2xl font-black tracking-[-.04em]">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">{description}</p>}</div><Button variant="ghost" size="sm" aria-label="Lukk dialogboksen" onClick={onClose} className="-mr-2 h-11 w-11 shrink-0 px-0"><X size={19} /></Button></div>
       {children}
     </section>
-  </div>;
+  </div>, document.body);
 }
 
 export function Field({ label, hint, help, htmlFor, children }: { label: string; hint?: string; help?: ReactNode; htmlFor?: string; children: ReactNode }) {

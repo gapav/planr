@@ -2,10 +2,11 @@
 
 import { ArrowDown, ArrowUp, ChevronRight, Clock3, Eye, Library, Plus, Search, Timer, Trash2, TriangleAlert, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { countExerciseFacets, filterExercises } from "@/lib/exercises";
+import { countExerciseFacets, filterExercises, type ExerciseShortlist } from "@/lib/exercises";
 import { scheduleWarmupItems, warmupDuration, warmupSchedule } from "@/lib/warmup";
 import type { Exercise, ExerciseAgeGroup, ExerciseCategory, TeamFixture, WarmupItem, WarmupRoutine } from "@/lib/types";
 import { useGrep } from "./app-provider";
+import { ShortlistChips, useShortlistIds } from "./collections";
 import { ExerciseAgeGroupFilter } from "./exercise-age-group-filter";
 import { ExerciseCategoryFilter } from "./exercise-category-filter";
 import { ExerciseDetail, sessionItemDetailSubject, type ExerciseDetailSubject } from "./exercise-detail";
@@ -184,10 +185,17 @@ function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDo
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<ExerciseCategory[]>([]);
   const [ageGroups, setAgeGroups] = useState<ExerciseAgeGroup[]>([]);
-  const filter = useMemo(() => ({ query, categories, ageGroups }), [query, categories, ageGroups]);
+  // The same strip as the session builder's picker: a warm-up is picked from
+  // the same library and the same shortlists.
+  const [shortlist, setShortlist] = useState<ExerciseShortlist | null>(null);
+  const shortlistIds = useShortlistIds(shortlist);
+  const filter = useMemo(() => ({ query, categories, ageGroups, shortlistIds }), [query, categories, ageGroups, shortlistIds]);
   const filtered = useMemo(() => filterExercises(exercises, filter), [exercises, filter]);
   const counts = useMemo(() => countExerciseFacets(exercises, filter), [exercises, filter]);
-  function resetFilters() { setQuery(""); setCategories([]); setAgeGroups([]); }
+  function resetFilters() { setQuery(""); setCategories([]); setAgeGroups([]); setShortlist(null); }
+  // Same rule as the session picker: a chosen shortlist is shown whole, so the
+  // other two axes are cleared and go quiet while it stands.
+  function chooseShortlist(next: ExerciseShortlist | null) { setShortlist(next); setCategories([]); setAgeGroups([]); }
 
   async function add(exercise: Exercise) {
     await addWarmupExercise(routine.id, exercise);
@@ -196,8 +204,9 @@ function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDo
 
   return <div className="grid grid-cols-1 gap-3">
     <div className="relative"><Search className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={18} /><input className={`${inputClass} pl-10`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Søk etter øvelser …" aria-label="Søk etter øvelser" autoFocus /></div>
-    <ExerciseCategoryFilter value={categories} onChange={setCategories} counts={counts} />
-    <ExerciseAgeGroupFilter value={ageGroups} onChange={setAgeGroups} counts={counts} />
+    <ShortlistChips value={shortlist} onChange={chooseShortlist} />
+    <ExerciseCategoryFilter value={categories} onChange={setCategories} counts={counts} disabled={shortlist !== null} />
+    <ExerciseAgeGroupFilter value={ageGroups} onChange={setAgeGroups} counts={counts} disabled={shortlist !== null} />
     <p className="text-xs font-semibold text-[var(--ink-soft)]">{filtered.length} øvelser</p>
     {filtered.length ? <div className="grid max-h-[50vh] grid-cols-1 gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]">
       <button type="button" className="group/media relative h-20 w-24 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]" aria-label={`Vis detaljer for ${exercise.name}`} onClick={() => onPreview(exercise)}><ExerciseThumbnail exercise={exercise} className="h-full w-full" /><span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-8 w-8 place-items-center rounded-full bg-white/90"><Eye size={15} /></span></span></button>

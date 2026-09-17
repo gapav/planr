@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoExercises, demoSessions, demoWarmupRoutines } from "./demo-data";
 import type { ExerciseAgeGroup } from "./types";
-import { canEditExercise, countExerciseFacets, emptyExerciseFilterState, filterExercises, formatAgeGroup, hasActiveExerciseFilter, indexExercises, matchesAgeGroup, matchesAgeGroups, parseExerciseFilterParams, resolveAll, resolveItemDisplay, resolveSessionDisplay, resolveWarmupRoutineDisplay, serializeExerciseFilterParams, teamAgeGroup, toggleFilterValue } from "./exercises";
+import { canEditExercise, countExerciseFacets, emptyExerciseFilterState, filterExercises, formatAgeGroup, hasActiveExerciseFilter, indexExercises, matchesAgeGroup, matchesAgeGroups, parseExerciseFilterParams, resolveAll, resolveItemDisplay, resolveSessionDisplay, resolveWarmupRoutineDisplay, sameShortlist, serializeExerciseFilterParams, shortlistExerciseIds, teamAgeGroup, toggleFilterValue } from "./exercises";
 import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES } from "./types";
 
 describe("exercise filtering", () => {
@@ -20,22 +20,24 @@ describe("exercise filtering", () => {
 
   it("leaves the library whole when nothing is filtered", () => {
     expect(filterExercises(demoExercises)).toHaveLength(demoExercises.length);
-    expect(filterExercises(demoExercises, { favoriteIds: null })).toHaveLength(demoExercises.length);
+    expect(filterExercises(demoExercises, { shortlistIds: null })).toHaveLength(demoExercises.length);
   });
 
-  it("narrows the library to the coach's hearted exercises", () => {
-    const favoriteIds = new Set(["exercise-2", "exercise-4"]);
-    expect(filterExercises(demoExercises, { favoriteIds }).map((exercise) => exercise.id)).toEqual(["exercise-2", "exercise-4"]);
+  // The same slot carries a samling's contents; the filter cannot tell the two
+  // shortlists apart, and deliberately does not try.
+  it("narrows the library to one chosen shortlist", () => {
+    const shortlistIds = new Set(["exercise-2", "exercise-4"]);
+    expect(filterExercises(demoExercises, { shortlistIds }).map((exercise) => exercise.id)).toEqual(["exercise-2", "exercise-4"]);
   });
 
-  it("applies search and category on top of the favourites", () => {
-    const favoriteIds = new Set(["exercise-2", "exercise-4"]);
-    expect(filterExercises(demoExercises, { categories: ["Forsvar"], favoriteIds }).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
-    expect(filterExercises(demoExercises, { query: "kant", categories: ["Forsvar"], favoriteIds })).toEqual([]);
+  it("applies search and category on top of the shortlist", () => {
+    const shortlistIds = new Set(["exercise-2", "exercise-4"]);
+    expect(filterExercises(demoExercises, { categories: ["Forsvar"], shortlistIds }).map((exercise) => exercise.id)).toEqual(["exercise-2"]);
+    expect(filterExercises(demoExercises, { query: "kant", categories: ["Forsvar"], shortlistIds })).toEqual([]);
   });
 
-  it("shows nothing rather than everything when no exercise is hearted", () => {
-    expect(filterExercises(demoExercises, { favoriteIds: new Set() })).toEqual([]);
+  it("shows nothing rather than everything when the shortlist is empty", () => {
+    expect(filterExercises(demoExercises, { shortlistIds: new Set() })).toEqual([]);
   });
 
   it("filters exercises by age group", () => {
@@ -135,13 +137,27 @@ describe("filter state and its query string", () => {
   it("notices each dimension on its own", () => {
     expect(hasActiveExerciseFilter({ ...emptyExerciseFilterState(), categories: ["Angrep"] })).toBe(true);
     expect(hasActiveExerciseFilter({ ...emptyExerciseFilterState(), ageGroups: ["6-9"] })).toBe(true);
-    expect(hasActiveExerciseFilter({ ...emptyExerciseFilterState(), favoritesOnly: true })).toBe(true);
+    expect(hasActiveExerciseFilter({ ...emptyExerciseFilterState(), shortlist: { kind: "favorites" } })).toBe(true);
+    expect(hasActiveExerciseFilter({ ...emptyExerciseFilterState(), shortlist: { kind: "collection", id: "c1" } })).toBe(true);
   });
 
   it("round-trips a filter through the query string", () => {
-    const state = { query: "kant", categories: ["Angrep", "Forsvar"] as const, ageGroups: ["13-15"] as const, favoritesOnly: true };
+    const state = { query: "kant", categories: ["Angrep", "Forsvar"] as const, ageGroups: ["13-15"] as const, shortlist: { kind: "favorites" } as const };
     const restored = parseExerciseFilterParams(serializeExerciseFilterParams({ ...state, categories: [...state.categories], ageGroups: [...state.ageGroups] }));
-    expect(restored).toEqual({ query: "kant", categories: ["Forsvar", "Angrep"], ageGroups: ["13-15"], favoritesOnly: true });
+    expect(restored).toEqual({ query: "kant", categories: ["Forsvar", "Angrep"], ageGroups: ["13-15"], shortlist: { kind: "favorites" } });
+  });
+
+  it("round-trips a samling through the query string", () => {
+    const shortlist = { kind: "collection", id: "9f1c6f40-0f0e-4c4a-9a6e-2b9c1b2b3c4d" } as const;
+    expect(serializeExerciseFilterParams({ ...emptyExerciseFilterState(), shortlist }).toString()).toBe(`samling=${shortlist.id}`);
+    expect(parseExerciseFilterParams(new URLSearchParams(`samling=${shortlist.id}`)).shortlist).toEqual(shortlist);
+  });
+
+  // Links written before samlinger existed are in coaches' inboxes; they are
+  // still read, and rewritten in the new form the first time a filter is touched.
+  it("still reads the favourites link the library used to write", () => {
+    expect(parseExerciseFilterParams(new URLSearchParams("favoritter=1")).shortlist).toEqual({ kind: "favorites" });
+    expect(serializeExerciseFilterParams({ ...emptyExerciseFilterState(), shortlist: { kind: "favorites" } }).toString()).toBe("samling=favoritter");
   });
 
   it("keeps an unfiltered library out of the URL", () => {
@@ -156,6 +172,47 @@ describe("filter state and its query string", () => {
 
   it("reads a list in the canonical order however the link was written", () => {
     expect(parseExerciseFilterParams(new URLSearchParams("kategori=Leker,Forsvar")).categories).toEqual(["Forsvar", "Leker"]);
+  });
+});
+
+describe("resolving a chosen shortlist", () => {
+  const collections = [
+    { id: "c1", exerciseIds: ["exercise-1", "exercise-3"] },
+    { id: "c2", exerciseIds: [] },
+  ];
+
+  it("has nothing to narrow by when no shortlist is chosen", () => {
+    expect(shortlistExerciseIds(null, ["exercise-2"], collections)).toBeNull();
+  });
+
+  it("resolves favourites to the coach's own hearts", () => {
+    expect([...shortlistExerciseIds({ kind: "favorites" }, ["exercise-2"], collections) ?? []]).toEqual(["exercise-2"]);
+  });
+
+  it("resolves a samling to its contents", () => {
+    expect([...shortlistExerciseIds({ kind: "collection", id: "c1" }, [], collections) ?? []]).toEqual(["exercise-1", "exercise-3"]);
+  });
+
+  // An empty samling is a real answer; an unknown one is not.
+  it("keeps an empty samling empty", () => {
+    expect([...shortlistExerciseIds({ kind: "collection", id: "c2" }, ["exercise-2"], collections) ?? []]).toEqual([]);
+  });
+
+  // A link to a samling since deleted, or one that arrives before the workspace
+  // has loaded, widens to the whole library rather than emptying the grid.
+  it("widens rather than empties when the samling is unknown", () => {
+    expect(shortlistExerciseIds({ kind: "collection", id: "gone" }, [], collections)).toBeNull();
+  });
+});
+
+describe("comparing shortlists", () => {
+  it("matches a samling by id and favourites by kind", () => {
+    expect(sameShortlist({ kind: "favorites" }, { kind: "favorites" })).toBe(true);
+    expect(sameShortlist({ kind: "collection", id: "c1" }, { kind: "collection", id: "c1" })).toBe(true);
+    expect(sameShortlist({ kind: "collection", id: "c1" }, { kind: "collection", id: "c2" })).toBe(false);
+    expect(sameShortlist({ kind: "favorites" }, { kind: "collection", id: "c1" })).toBe(false);
+    expect(sameShortlist(null, null)).toBe(true);
+    expect(sameShortlist(null, { kind: "favorites" })).toBe(false);
   });
 });
 

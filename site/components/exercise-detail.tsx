@@ -5,6 +5,7 @@ import { Play, ZoomIn } from "lucide-react";
 import { useState } from "react";
 import { bandTone } from "./exercise-age-group-filter";
 import { categoryPresentation } from "./exercise-category-filter";
+import { ShortlistMenu } from "./collections";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { MediaCreditLine } from "./media-credit";
 import { Modal, Tag } from "./ui";
@@ -38,7 +39,17 @@ function withAutoplay(embedUrl: string) {
   return url.toString();
 }
 
-export function ExerciseDetail({ exercise, onClose }: { exercise: ExerciseDetailSubject | null; onClose(): void }) {
+export function ExerciseDetail({ exercise, exerciseId, onClose }: {
+  exercise: ExerciseDetailSubject | null;
+  /**
+   * The library row this view is of, when there is one. A session item's copy
+   * has no id of its own — and nowhere to be kept — so the control is absent
+   * there rather than pointing at something that may since have been archived
+   * or deleted.
+   */
+  exerciseId?: string | null;
+  onClose(): void;
+}) {
   const [playing, setPlaying] = useState(false);
   if (!exercise) return null;
 
@@ -78,6 +89,10 @@ export function ExerciseDetail({ exercise, onClose }: { exercise: ExerciseDetail
 
       {exercise.description ? <section><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--orange)]">Beskrivelse</p><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{exercise.description}</p></section>
         : <p className="rounded-2xl bg-[var(--paper)] px-5 py-6 text-center text-sm text-[var(--ink-soft)]">Denne aktiviteten har ingen beskrivelse.</p>}
+
+      {/* After the video is where a coach decides an exercise is worth keeping,
+          so the bookmark is here as well as on the card. */}
+      {exerciseId && <div><ShortlistMenu exerciseId={exerciseId} exerciseName={exercise.name} labelled /></div>}
 
       {exercise.mediaUrl && <a href={exercise.mediaUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--orange)] underline underline-offset-4">Åpne mediet i ny fane</a>}
     </div>

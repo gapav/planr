@@ -23,8 +23,20 @@ const chipClass = "inline-flex select-none items-center gap-1.5 rounded-full bor
  * first result, and tabbing through every one of them to reach the exercises was
  * the single worst thing about the page on a keyboard. Arrow keys move between
  * chips, Home and End jump to the ends, and Space/Enter toggle as usual.
+ *
+ * A chip worth nothing is not offered: a count of 0 says the click leads to an
+ * empty grid, so the chip stops acting on one. It says so with `aria-disabled`
+ * rather than the `disabled` attribute, because a disabled button cannot hold
+ * focus — and this row is one tab stop whose roving focus has to be able to
+ * land anywhere in it. A chip that is *pressed* stays live however empty it is,
+ * or a filter that emptied itself could never be taken off again.
+ *
+ * `disabled` switches the whole row off without taking it away: reading the
+ * library through a samling suspends the other axes, and a row that vanished
+ * would leave a coach wondering where the topics went — and the layout jumping
+ * every time a samling is picked up or put down.
  */
-export function FilterChipGroup({ label, chips, onToggle }: { label: string; chips: readonly FilterChip[]; onToggle(key: string): void }) {
+export function FilterChipGroup({ label, chips, disabled = false, onToggle }: { label: string; chips: readonly FilterChip[]; disabled?: boolean; onToggle(key: string): void }) {
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
   const [focusKey, setFocusKey] = useState<string | null>(null);
   // Resolved on every render rather than stored as an index, because the chip
@@ -47,20 +59,23 @@ export function FilterChipGroup({ label, chips, onToggle }: { label: string; chi
     event.preventDefault();
   }
 
-  return <div className="grep-filter-chips flex flex-wrap gap-2" role="toolbar" aria-orientation="horizontal" aria-label={label}>
+  return <div className={cn("grep-filter-chips flex flex-wrap gap-2", disabled && "opacity-45")} role="toolbar" aria-orientation="horizontal" aria-label={label}>
     {chips.map((chip, index) => {
       const Icon = chip.icon;
+      const empty = !disabled && !chip.pressed && chip.count === 0;
       return <button
         key={chip.key}
         ref={(node) => { buttons.current[index] = node; }}
         type="button"
         aria-pressed={chip.pressed}
+        disabled={disabled}
         tabIndex={index === focusIndex ? 0 : -1}
         onKeyDown={(event) => onKeyDown(event, index)}
         onFocus={() => setFocusKey(chip.key)}
-        onClick={() => onToggle(chip.key)}
+        aria-disabled={empty || undefined}
+        onClick={() => { if (!empty) onToggle(chip.key); }}
         aria-label={`${chip.label} — ${chip.count} ${chip.count === 1 ? "øvelse" : "øvelser"}`}
-        className={cn(chipClass, !chip.pressed && chip.count === 0 && "opacity-50")}
+        className={cn(chipClass, empty && "opacity-50")}
       >
         {Icon && <Icon size={15} strokeWidth={2.25} aria-hidden="true" />}
         {chip.label}

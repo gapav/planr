@@ -1,4 +1,4 @@
-import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type Exercise, type ExerciseAgeGroup, type ExerciseCategory, type PlannedSession, type Profile, type SessionItem, type WarmupRoutine } from "./types";
+import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type Exercise, type ExerciseAgeGroup, type ExerciseCategory, type ExerciseCollection, type PlannedSession, type Profile, type SessionItem, type WarmupRoutine } from "./types";
 
 /** `"6-9"` reads as `"6-9 år"`. The stored value is a key, never a label. */
 export function formatAgeGroup(group: ExerciseAgeGroup): string {
@@ -67,29 +67,30 @@ function ageGroupForAge(age: number): ExerciseAgeGroup | null {
  * "angrep or skuddferdigheter" — so values within a dimension are or-ed while
  * the dimensions themselves are and-ed. An empty list is therefore not "match
  * nothing" but "this dimension is not constrained", which is also what the
- * "Alle" chip selects. `favoriteIds` narrows the library to the signed-in
- * coach's own shortlist; `null` — the default, and what a signed-out visitor
- * always gets — leaves the whole library in place. A heart is never a property
- * of the shared exercise row, so the set is passed in rather than read off the
- * exercise.
+ * "Alle" chip selects. `shortlistIds` narrows the library to one chosen
+ * shortlist — the coach's own favourites, or a team samling; `null` — the
+ * default, and what a signed-out visitor always gets — leaves the whole library
+ * in place. Neither a heart nor a samling is a property of the shared exercise
+ * row, so the set is passed in rather than read off the exercise, and this
+ * function cannot tell the two apart by design.
  */
 export interface ExerciseFilter {
   query?: string;
   categories?: readonly ExerciseCategory[];
   ageGroups?: readonly ExerciseAgeGroup[];
-  favoriteIds?: ReadonlySet<string> | null;
+  shortlistIds?: ReadonlySet<string> | null;
 }
 
 type FilterableExercise = Pick<Exercise, "id" | "name" | "description" | "category" | "ageGroups">;
 
 export function filterExercises<T extends FilterableExercise>(
   exercises: readonly T[],
-  { query = "", categories = [], ageGroups = [], favoriteIds = null }: ExerciseFilter = {},
+  { query = "", categories = [], ageGroups = [], shortlistIds = null }: ExerciseFilter = {},
 ): T[] {
   const normalizedQuery = query.trim().toLocaleLowerCase("nb-NO");
 
   return exercises.filter((exercise) => {
-    if (favoriteIds && !favoriteIds.has(exercise.id)) return false;
+    if (shortlistIds && !shortlistIds.has(exercise.id)) return false;
     if (categories.length > 0 && !categories.includes(exercise.category)) return false;
     if (!matchesAgeGroups(exercise.ageGroups, ageGroups)) return false;
     const searchableText = `${exercise.name} ${exercise.description}`.toLocaleLowerCase("nb-NO");
@@ -148,15 +149,52 @@ export interface ExerciseFilterState {
   query: string;
   categories: ExerciseCategory[];
   ageGroups: ExerciseAgeGroup[];
-  favoritesOnly: boolean;
+  shortlist: ExerciseShortlist | null;
+}
+
+/**
+ * Which shortlist the library is being read through, if any. Favourites and
+ * samlinger are stored apart — one private to the coach, one belonging to the
+ * team — but a coach reads through one of them at a time: "favorittene mine and
+ * oktoberfokus" is an intersection nobody asks for, and offering it would mean
+ * two controls where the question has one answer.
+ */
+export type ExerciseShortlist = { kind: "favorites" } | { kind: "collection"; id: string };
+
+/** The value `?samling=` takes for the private list, which has no id of its own. */
+export const FAVORITES_SHORTLIST_PARAM = "favoritter";
+
+export function sameShortlist(a: ExerciseShortlist | null, b: ExerciseShortlist | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.kind === "favorites" || b.kind === "favorites") return a.kind === b.kind;
+  return a.id === b.id;
+}
+
+/**
+ * The exercises a chosen shortlist stands for, ready for `shortlistIds`.
+ *
+ * An unknown samling id gives `null` rather than an empty set, which is the
+ * same rule the query-string parser follows: a link to a samling since deleted,
+ * or one arriving before the workspace has loaded, should widen to the whole
+ * library rather than show an empty grid nobody can explain.
+ */
+export function shortlistExerciseIds(
+  shortlist: ExerciseShortlist | null,
+  favoriteExerciseIds: readonly string[],
+  collections: readonly Pick<ExerciseCollection, "id" | "exerciseIds">[],
+): ReadonlySet<string> | null {
+  if (!shortlist) return null;
+  if (shortlist.kind === "favorites") return new Set(favoriteExerciseIds);
+  const collection = collections.find((entry) => entry.id === shortlist.id);
+  return collection ? new Set(collection.exerciseIds) : null;
 }
 
 export function emptyExerciseFilterState(): ExerciseFilterState {
-  return { query: "", categories: [], ageGroups: [], favoritesOnly: false };
+  return { query: "", categories: [], ageGroups: [], shortlist: null };
 }
 
 export function hasActiveExerciseFilter(state: ExerciseFilterState): boolean {
-  return state.query.trim() !== "" || state.categories.length > 0 || state.ageGroups.length > 0 || state.favoritesOnly;
+  return state.query.trim() !== "" || state.categories.length > 0 || state.ageGroups.length > 0 || state.shortlist !== null;
 }
 
 /** Reselecting from the constant keeps a list canonically ordered however the link was written. */
@@ -170,8 +208,20 @@ export function parseExerciseFilterParams(params: URLSearchParams): ExerciseFilt
     query: params.get("q") ?? "",
     categories: readList(params, "kategori", EXERCISE_CATEGORIES),
     ageGroups: readList(params, "alder", EXERCISE_AGE_GROUPS),
-    favoritesOnly: params.get("favoritter") === "1",
+    shortlist: readShortlist(params),
   };
+}
+
+/**
+ * `?favoritter=1` is what the library wrote before samlinger existed, and links
+ * to it are in coaches' inboxes, so it is still read. It is never written back:
+ * the first touch of a filter rewrites the URL in the new form.
+ */
+function readShortlist(params: URLSearchParams): ExerciseShortlist | null {
+  const chosen = params.get("samling");
+  if (chosen === FAVORITES_SHORTLIST_PARAM) return { kind: "favorites" };
+  if (chosen) return { kind: "collection", id: chosen };
+  return params.get("favoritter") === "1" ? { kind: "favorites" } : null;
 }
 
 /** Only non-default fields are written, so an unfiltered library keeps a clean URL. */
@@ -180,7 +230,7 @@ export function serializeExerciseFilterParams(state: ExerciseFilterState): URLSe
   if (state.query.trim() !== "") params.set("q", state.query);
   if (state.categories.length > 0) params.set("kategori", state.categories.join(","));
   if (state.ageGroups.length > 0) params.set("alder", state.ageGroups.join(","));
-  if (state.favoritesOnly) params.set("favoritter", "1");
+  if (state.shortlist) params.set("samling", state.shortlist.kind === "favorites" ? FAVORITES_SHORTLIST_PARAM : state.shortlist.id);
   return params;
 }
 

@@ -34,7 +34,7 @@ export const bandTone: Record<ExerciseAgeGroup, TagTone> = {
   "13-15": "band3",
 };
 
-export function ExerciseAgeGroupFilter({ value, onChange, counts }: { value: readonly ExerciseAgeGroup[]; onChange(ageGroups: ExerciseAgeGroup[]): void; counts: ExerciseFacetCounts }) {
+export function ExerciseAgeGroupFilter({ value, onChange, counts, disabled = false }: { value: readonly ExerciseAgeGroup[]; onChange(ageGroups: ExerciseAgeGroup[]): void; counts: ExerciseFacetCounts; disabled?: boolean }) {
   const chips = [
     { key: ALL_CHIP_KEY, label: "Alle aldre", count: counts.allAgeGroups, pressed: value.length === 0 },
     ...EXERCISE_AGE_GROUPS.map((group) => ({
@@ -48,6 +48,7 @@ export function ExerciseAgeGroupFilter({ value, onChange, counts }: { value: rea
   return <FilterChipGroup
     label="Filtrer etter aldersgruppe"
     chips={chips}
+    disabled={disabled}
     onToggle={(key) => onChange(key === ALL_CHIP_KEY ? [] : toggleFilterValue(value, key as ExerciseAgeGroup, EXERCISE_AGE_GROUPS))}
   />;
 }

@@ -1,5 +1,5 @@
 import { COACH_AVATAR_PEER, COACH_AVATAR_SELF } from "./team-palette";
-import type { Exercise, MonthFocus, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
+import type { Exercise, ExerciseCollection, MonthFocus, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
 
 export const demoUser: Profile = {
   id: "user-gard", email: "gard@fjordvik.no", fullName: "Gard Pavel", initials: "GP", color: COACH_AVATAR_SELF, isGlobalAdmin: true, teamRole: "admin",
@@ -92,6 +92,14 @@ export const demoExercises: Exercise[] = exerciseSeed.map(([id, name, descriptio
     archivedAt: null, createdAt: `2026-08-${30 - index * 2}T08:00:00.000Z`, updatedAt: `2026-08-${30 - index * 2}T08:00:00.000Z`,
   };
 });
+
+// One samling, so preview mode shows the rail group filled rather than an
+// empty heading — and shows it on the team the demo opens on.
+export const demoCollections: ExerciseCollection[] = [{
+  id: "collection-oktober", teamId: "team-senior", name: "Oktober 2026 fokus",
+  exerciseIds: ["exercise-2", "exercise-4"], createdBy: "user-gard",
+  createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z",
+}];
 
 export const demoSessions: PlannedSession[] = [
   {

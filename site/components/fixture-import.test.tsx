@@ -15,8 +15,11 @@ vi.mock("read-excel-file/browser", () => ({ readSheet: async () => [
 
 beforeEach(() => { mocks.save.mockReset().mockResolvedValue({ added: 1, updated: 0 }); mocks.close.mockReset(); });
 async function openColours() {
-  const { container } = render(<FixtureImport open onClose={mocks.close} />);
-  fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(["test"], "schedule.xlsx")] } });
+  render(<FixtureImport open onClose={mocks.close} />);
+  // The dialog is portalled to the body — a card's own transform would
+  // otherwise become the containing block for its `position: fixed` — so the
+  // file input is not under the render root.
+  fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [new File(["test"], "schedule.xlsx")] } });
   fireEvent.click(await screen.findByRole("checkbox", { name: /Fjordvik Blå/ }));
   fireEvent.click(screen.getByRole("button", { name: "Neste: lagfarger" }));
 }

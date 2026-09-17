@@ -81,6 +81,21 @@ describe("ExerciseCategoryFilter", () => {
     expect(chip("Alle")).toHaveAttribute("aria-pressed", "false");
   });
 
+  // A chosen samling does the narrowing on its own, so the row goes quiet
+  // rather than away — the counts stay readable, the clicks stop, and the
+  // layout does not jump when the samling is put down again.
+  it("switches the whole row off without hiding it", () => {
+    const onChange = vi.fn();
+    render(<ExerciseCategoryFilter value={[]} onChange={onChange} counts={counts} disabled />);
+
+    expect(chip("Forsvar")).toBeDisabled();
+    expect(chip("Forsvar")).toHaveAccessibleName("Forsvar — 1 øvelse");
+    fireEvent.click(chip("Forsvar"));
+    expect(onChange).not.toHaveBeenCalled();
+    // The per-chip dimming would stack on the row's own, so it stands down.
+    expect(chip("Målvakt")).not.toHaveClass("opacity-50");
+  });
+
   it("is a single tab stop that arrow keys move within", () => {
     render(<ExerciseCategoryFilter value={[]} onChange={vi.fn()} counts={counts} />);
 

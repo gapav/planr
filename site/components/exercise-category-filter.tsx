@@ -32,7 +32,7 @@ export const categoryPresentation: Record<ExerciseCategory, { icon: LucideIcon; 
 /** "Alle" is the absence of a filter, not a seventh category. */
 export const ALL_CHIP_KEY = "__alle__";
 
-export function ExerciseCategoryFilter({ value, onChange, counts }: { value: readonly ExerciseCategory[]; onChange(categories: ExerciseCategory[]): void; counts: ExerciseFacetCounts }) {
+export function ExerciseCategoryFilter({ value, onChange, counts, disabled = false }: { value: readonly ExerciseCategory[]; onChange(categories: ExerciseCategory[]): void; counts: ExerciseFacetCounts; disabled?: boolean }) {
   const chips = [
     { key: ALL_CHIP_KEY, label: "Alle", icon: LayoutGrid, count: counts.allCategories, pressed: value.length === 0 },
     ...EXERCISE_CATEGORIES.map((category) => ({
@@ -47,6 +47,7 @@ export function ExerciseCategoryFilter({ value, onChange, counts }: { value: rea
   return <FilterChipGroup
     label="Filtrer etter kategori"
     chips={chips}
+    disabled={disabled}
     onToggle={(key) => onChange(key === ALL_CHIP_KEY ? [] : toggleFilterValue(value, key as ExerciseCategory, EXERCISE_CATEGORIES))}
   />;
 }

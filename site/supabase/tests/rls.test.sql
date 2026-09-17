@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(209);
+select plan(221);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -93,6 +93,8 @@ select throws_ok($$ select count(*) from public.exercises $$, '42501', null, 'an
 select throws_ok($$ insert into public.exercises(name, description, media_url, media_kind, created_by) values ('Blocked', 'Anonymous writes are blocked.', 'https://example.com/x.jpg', 'image', '10000000-0000-0000-0000-000000000003') $$, '42501', null, 'anonymous visitors cannot add exercises');
 select throws_ok($$ select count(*) from public.exercise_favorites $$, '42501', null, 'anonymous visitors cannot read favourites');
 select throws_ok($$ insert into public.exercise_favorites (profile_id, exercise_id) values ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot heart an exercise');
+select throws_ok($$ select count(*) from public.exercise_collections $$, '42501', null, 'anonymous visitors cannot read samlinger');
+select throws_ok($$ insert into public.exercise_collection_items (collection_id, exercise_id) values ('80000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot fill a samling');
 select throws_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot reopen a workout');
 select throws_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001') $$, '42501', null, 'anonymous visitors cannot copy a plan');
 reset role;
@@ -121,6 +123,13 @@ select lives_ok($$ update public.exercises set description = 'An updated public 
 select lives_ok($$ insert into public.exercise_favorites (profile_id, exercise_id) values ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001') $$, 'a coach can heart a library exercise');
 select throws_ok($$ insert into public.exercise_favorites (profile_id, exercise_id) values ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'a coach cannot heart an exercise on behalf of another coach');
 select is((select count(*)::integer from public.exercise_favorites), 1, 'the coach sees their own favourite');
+-- Samlinger (202609170001): the named shortlist belongs to the team, so unlike
+-- the private heart above every coach on it reads and writes one. `created_by`
+-- records who started it and cannot be claimed on another coach's behalf.
+select lives_ok(format($$ insert into public.exercise_collections (id, team_id, name, created_by) values ('80000000-0000-0000-0000-000000000001', '%s', 'Oktober 2026 fokus', '10000000-0000-0000-0000-000000000001') $$, current_setting('plannr.test_team')), 'a coach can start a samling for their own team');
+select throws_ok(format($$ insert into public.exercise_collections (team_id, name, created_by) values ('%s', 'Vinterfokus', '10000000-0000-0000-0000-000000000002') $$, current_setting('plannr.test_team')), '42501', null, 'a coach cannot start a samling in another coach name');
+select throws_ok(format($$ insert into public.exercise_collections (team_id, name, created_by) values ('%s', 'oktober 2026 FOKUS ', '10000000-0000-0000-0000-000000000001') $$, current_setting('plannr.test_team')), '23505', null, 'a samling name is unique within the team however it is capitalised');
+select lives_ok($$ insert into public.exercise_collection_items (collection_id, exercise_id) values ('80000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001') $$, 'a coach can put a library exercise in a samling');
 select lives_ok(format($$ insert into storage.objects (bucket_id, name) values ('team-logos', '%s/logo.png') $$, current_setting('plannr.test_team')), 'a team admin can upload a club logo into their team folder');
 select lives_ok($$ update public.teams set logo_url = 'https://cdn.example.com/storage/v1/object/public/team-logos/logo.png' $$, 'a team admin can set the club logo');
 select throws_ok($$ update public.teams set logo_url = 'http://cdn.example.com/logo.png' $$, '23514', null, 'a club logo must be an HTTPS URL');
@@ -140,6 +149,15 @@ select lives_ok($$ select public.start_session('30000000-0000-0000-0000-00000000
 select throws_ok($$ update public.sessions set title = 'Changed while live', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'an in-progress plan is locked');
 select throws_ok($$ update public.session_attendance set is_present = false, updated_by = '10000000-0000-0000-0000-000000000001' where session_id = '30000000-0000-0000-0000-000000000001' and player_id = '40000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'in-progress attendance is locked');
 reset role;
+-- A samling is team property, not the property of the coach who started it:
+-- the policies are built from `is_team_member`, so a plain coach renames and
+-- fills one exactly as the team administrator does.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.exercise_collections), 1, 'every coach on the team sees the team samling');
+select lives_ok($$ update public.exercise_collections set name = 'Oktoberfokus' where id = '80000000-0000-0000-0000-000000000001' $$, 'a coach who did not start the samling can still rename it');
+reset role;
+
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
 -- `exercises_edit_owner` refuses a foreign edit by filtering the row out of the
@@ -150,6 +168,9 @@ select lives_ok($$ update public.exercises set archived_at = now() where id = '2
 select is((select archived_at from public.exercises where id = '20000000-0000-0000-0000-000000000001'), null::timestamptz, 'a coach cannot archive an exercise another coach created');
 select is((select count(*)::integer from public.exercise_favorites), 0, 'a coach cannot read another coach favourites');
 select lives_ok($$ delete from public.exercise_favorites where exercise_id = '20000000-0000-0000-0000-000000000001' $$, 'a delete of another coach favourite is filtered away rather than raised');
+select is((select count(*)::integer from public.exercise_collections), 0, 'a coach outside the team cannot read its samlinger');
+select throws_ok($$ insert into public.exercise_collection_items (collection_id, exercise_id) values ('80000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'a coach outside the team cannot fill its samlinger');
+select lives_ok($$ delete from public.exercise_collections where id = '80000000-0000-0000-0000-000000000001' $$, 'a delete of another team samling is filtered away rather than raised');
 select throws_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reset another team workout');
 select throws_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot skip setup for another team workout');
 select throws_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reopen another team workout');
@@ -184,6 +205,7 @@ update public.profiles set is_global_admin = false where id = '10000000-0000-000
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select is((select count(*)::integer from public.exercise_favorites where profile_id = '10000000-0000-0000-0000-000000000001'), 1, 'another coach delete never reached the favourite');
+select is((select count(*)::integer from public.exercise_collections where id = '80000000-0000-0000-0000-000000000001'), 1, 'another coach delete never reached the samling');
 select lives_ok($$ delete from public.exercise_favorites where exercise_id = '20000000-0000-0000-0000-000000000001' $$, 'a coach can remove their own favourite');
 select lives_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'a published workout can start without attendance or groups');
 select is((select status::text || ':' || coalesce(grouping_kind::text, 'none') from public.sessions where id = '30000000-0000-0000-0000-000000000002'), 'in_progress:none', 'skipping setup starts the workout without a grouping kind');

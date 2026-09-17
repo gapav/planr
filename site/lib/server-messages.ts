@@ -30,6 +30,13 @@ const norwegianServerMessages = new Set(Object.values(serverMessageTranslations)
 
 export function norwegianServerMessage(message: string, fallback = "Handlingen kunne ikke fullføres.") {
   if (/our_team_colors/.test(message) && /column|schema cache/i.test(message)) return "Lagfarger trenger en databaseoppdatering. Be systemadministratoren bruke migrasjonen 202609130001 før du importerer.";
+  // Migrations are applied by hand, so a feature can reach the browser before
+  // its tables reach the database. Name the migration rather than let PostgREST
+  // say "schema cache" to a coach.
+  if (/exercise_collections?/.test(message) && /schema cache|does not exist/i.test(message)) return "Samlinger trenger en databaseoppdatering. Be systemadministratoren bruke migrasjonen 202609170001.";
+  // The unique index folds case and trims, so two coaches naming the same
+  // samling at the same moment is the only way past the check in the dialog.
+  if (/exercise_collections_team_name_key/.test(message)) return "Laget har allerede en samling med dette navnet.";
   return serverMessageTranslations[message] ?? (norwegianServerMessages.has(message) || /[æøå]/i.test(message) ? message : fallback);
 }
 

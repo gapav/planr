@@ -41,6 +41,24 @@ export interface Exercise {
   createdAt: string; updatedAt: string;
 }
 export type ExerciseInput = Pick<Exercise, "name" | "description" | "category" | "ageGroups" | "mediaUrl">;
+
+/** A samling name is a label, not a note — "Oktober 2026 fokus", not a plan. */
+export const COLLECTION_NAME_MAX_LENGTH = 60;
+/**
+ * A named shortlist of library exercises, belonging to the team rather than to
+ * the coach who started it. Favoritter (`favoriteExerciseIds`) is the private
+ * counterpart and stays separate on purpose: a heart is one coach's taste,
+ * a samling is what the staff is working on together.
+ *
+ * `exerciseIds` is a set, not a list — there is no order, because a samling is
+ * a filter over the library and the moment it carries one it starts competing
+ * with a session. An archived exercise keeps its place; the library query is
+ * what filters it out.
+ */
+export interface ExerciseCollection {
+  id: string; teamId: string; name: string; exerciseIds: string[];
+  createdBy: string; createdAt: string; updatedAt: string;
+}
 /**
  * One activity in a block. `title`, `description`, `mediaUrl` and `thumbnailUrl`
  * are copied from the exercise at insert time, but the library is what a card
