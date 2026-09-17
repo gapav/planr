@@ -71,7 +71,11 @@ enable_confirmations = false
 secure_password_change = false
 max_frequency = "1m"
 otp_length = 8
-otp_expiry = 3600
+# 24 hours, the Supabase maximum. An invite lands in a coach's inbox and is
+# opened whenever they next read it; the one-hour default expired links the
+# administrator then had to mint again. Supabase's security advisor flags any
+# value above 3600 — accepted knowingly, and the links stay single-use.
+otp_expiry = 86400
 
 [auth.sms]
 enable_signup = false
