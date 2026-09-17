@@ -68,8 +68,43 @@ export function Field({ label, hint, help, htmlFor, children }: { label: string;
 export const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3.5 text-[15px] text-[var(--ink)] shadow-sm transition placeholder:text-[#8b9692] hover:border-[#aaa69b] focus:border-[var(--ink)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--ink)]";
 export const textareaClass = `${inputClass} min-h-28 resize-y py-3 leading-6`;
 
-export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "orange" | "green" | "blue" }) {
-  return <span className={cn("inline-flex min-h-6 items-center rounded-full px-2.5 text-xs font-bold", tone === "neutral" && "bg-black/5 text-[var(--ink-soft)]", tone === "orange" && "bg-[#ffe2d2] text-[#73402c]", tone === "green" && "bg-[#e9ddf7] text-[#59416b]", tone === "blue" && "bg-[#dceaf3] text-[#315c73]")}>{children}</span>;
+/**
+ * A tone is a pair of colours rather than a pair of classes, so the exercise
+ * library's filter rail can paint a selected row in the same hue as the tag it
+ * filters for without either place owning the palette. The values themselves
+ * are the `--tag-*` tokens in `globals.css`.
+ *
+ * The first four tones are the app's status palette and are named from before
+ * the rebrand moved their hues: `orange` is apricot and `green` is lilac — a
+ * draft and a published session, not a colour. Renaming them is a change across
+ * a dozen files for no gain, so they stay; `orange` and `blue` now point at the
+ * apricot and sky tokens rather than repeating their hex.
+ *
+ * The rest are the library's taxonomy: one hue per topic, plus a lilac ramp for
+ * the age bands. See the `--tag-*` block for why a band is a ramp and a topic is
+ * not, and `categoryPresentation` / `bandTone` for which value wears which.
+ */
+export const tagTones = {
+  neutral: { tint: "rgb(0 0 0 / .05)", ink: "var(--ink-soft)" },
+  orange: { tint: "var(--tag-apricot)", ink: "var(--tag-apricot-ink)" },
+  green: { tint: "#e9ddf7", ink: "#59416b" },
+  blue: { tint: "var(--tag-sky)", ink: "var(--tag-sky-ink)" },
+  sky: { tint: "var(--tag-sky)", ink: "var(--tag-sky-ink)" },
+  apricot: { tint: "var(--tag-apricot)", ink: "var(--tag-apricot-ink)" },
+  rose: { tint: "var(--tag-rose)", ink: "var(--tag-rose-ink)" },
+  teal: { tint: "var(--tag-teal)", ink: "var(--tag-teal-ink)" },
+  sage: { tint: "var(--tag-sage)", ink: "var(--tag-sage-ink)" },
+  gold: { tint: "var(--tag-gold)", ink: "var(--tag-gold-ink)" },
+  band1: { tint: "var(--tag-band-1)", ink: "var(--tag-band-1-ink)" },
+  band2: { tint: "var(--tag-band-2)", ink: "var(--tag-band-2-ink)" },
+  band3: { tint: "var(--tag-band-3)", ink: "var(--tag-band-3-ink)" },
+} as const satisfies Record<string, { tint: string; ink: string }>;
+
+export type TagTone = keyof typeof tagTones;
+
+export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: TagTone }) {
+  const { tint, ink } = tagTones[tone];
+  return <span className="inline-flex min-h-6 items-center rounded-full px-2.5 text-xs font-bold" style={{ background: tint, color: ink }}>{children}</span>;
 }
 
 export function Avatar({ name, initials, color, size = "md" }: { name: string; initials: string; color: string; size?: "sm" | "md" | "lg" }) {

@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ActiveExerciseFilters, ExerciseFilterRail, ExerciseFilterSheet } from "./exercise-filter-rail";
+import { categoryPresentation } from "./exercise-category-filter";
+import { tagTones } from "./ui";
 import { countExerciseFacets, emptyExerciseFilterState } from "@/lib/exercises";
 import { demoExercises } from "@/lib/demo-data";
 import type { ExerciseFilterState } from "@/lib/exercises";
@@ -32,6 +34,19 @@ describe("ExerciseFilterRail", () => {
 
     fireEvent.click(option("Forsvar"));
     expect(onChange).toHaveBeenCalledWith({ categories: ["Forsvar", "Angrep"] });
+  });
+
+  // The rail and the grid have to agree: a chosen topic is highlighted in the
+  // same hue as the tag on every card it then leaves standing. jsdom has no
+  // cascade, so the rule is asserted on the custom property the CSS reads.
+  it("highlights a row in the hue its own value wears on a card", () => {
+    renderRail(state({ categories: ["Forsvar"], ageGroups: ["13-15"] }));
+
+    expect(option("Forsvar").style.getPropertyValue("--rail-tint")).toBe(tagTones[categoryPresentation.Forsvar.tone].tint);
+    expect(option("13-15 år").style.getPropertyValue("--rail-tint")).toBe(tagTones.band3.tint);
+    // «Alle tema» stands for no choice at all, so it keeps the brand lilac the
+    // stylesheet falls back to.
+    expect(option("Alle tema").style.getPropertyValue("--rail-tint")).toBe("");
   });
 
   it("clears a dimension from its own «alle» row", () => {

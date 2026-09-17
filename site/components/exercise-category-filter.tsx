@@ -2,27 +2,31 @@
 
 import { Dices, Dumbbell, Hand, LayoutGrid, type LucideIcon, Shield, Target, Zap } from "lucide-react";
 import { FilterChipGroup } from "@/components/filter-chips";
+import type { TagTone } from "@/components/ui";
 import type { ExerciseFacetCounts } from "@/lib/exercises";
 import { toggleFilterValue } from "@/lib/exercises";
 import { EXERCISE_CATEGORIES, type ExerciseCategory } from "@/lib/types";
 
 /**
- * The icon each category wears — on a chip, and on a card with no media of its
- * own (`ExerciseThumbnail`).
+ * How each category reads: the icon it wears on a chip and on a card with no
+ * media of its own (`ExerciseThumbnail`), and the `Tag` tone its name wears on
+ * a library card and in the detail dialog. Six topics in one apricot told a
+ * coach scanning the grid nothing the label had not already said.
  *
- * Each category used to carry a bespoke pressed/idle palette here as well. The
- * rebrand's `.grep-filter-chips` rules outrank every one of them, so all six
- * rendered identically for months while the code claimed otherwise; the palette
- * is deleted rather than revived, because one accent doing the work of "this
- * chip is on" is the rest of the app's rule.
+ * `tone` is for tags only. Each category used to carry a bespoke pressed/idle
+ * chip palette here as well; the rebrand's `.grep-filter-chips` rules outrank
+ * every one of them, so all six rendered identically for months while the code
+ * claimed otherwise. That palette stays deleted — one accent doing the work of
+ * "this chip is on" is the rest of the app's rule, and a hue that says *which*
+ * topic is a different job from a state that says *whether* it is chosen.
  */
-export const categoryPresentation: Record<ExerciseCategory, { icon: LucideIcon }> = {
-  Forsvar: { icon: Shield },
-  Angrep: { icon: Zap },
-  Skuddferdigheter: { icon: Target },
-  Målvakt: { icon: Hand },
-  Fysisk: { icon: Dumbbell },
-  Leker: { icon: Dices },
+export const categoryPresentation: Record<ExerciseCategory, { icon: LucideIcon; tone: TagTone }> = {
+  Forsvar: { icon: Shield, tone: "sky" },
+  Angrep: { icon: Zap, tone: "apricot" },
+  Skuddferdigheter: { icon: Target, tone: "rose" },
+  Målvakt: { icon: Hand, tone: "teal" },
+  Fysisk: { icon: Dumbbell, tone: "sage" },
+  Leker: { icon: Dices, tone: "gold" },
 };
 
 /** "Alle" is the absence of a filter, not a seventh category. */

@@ -1,11 +1,22 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ExerciseCategoryFilter } from "./exercise-category-filter";
+import { ExerciseCategoryFilter, categoryPresentation } from "./exercise-category-filter";
 import { countExerciseFacets } from "@/lib/exercises";
 import { demoExercises } from "@/lib/demo-data";
+import { EXERCISE_CATEGORIES } from "@/lib/types";
 
 const counts = countExerciseFacets(demoExercises);
 const chip = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name} —`) });
+
+describe("categoryPresentation", () => {
+  // The hue is the point: six topics sharing one apricot said nothing a coach
+  // could not already read off the label.
+  it("gives every category a tone no other category wears", () => {
+    const tones = EXERCISE_CATEGORIES.map((category) => categoryPresentation[category].tone);
+
+    expect(new Set(tones).size).toBe(EXERCISE_CATEGORIES.length);
+  });
+});
 
 describe("ExerciseCategoryFilter", () => {
   // Each category used to carry its own palette here, which the rebrand's

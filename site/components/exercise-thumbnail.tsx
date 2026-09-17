@@ -7,12 +7,12 @@ import { categoryPresentation } from "@/components/exercise-category-filter";
 import type { Exercise, ExerciseCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** The icon comes from the filter chips so a category reads the same everywhere; only the placeholder's own colours live here. */
+/** The icon and the tag tone come from the filter chips so a category reads the same everywhere; only the placeholder's own colours live here, one wash of the same hue its tag wears. */
 const categoryPlaceholder: Record<ExerciseCategory, { background: string; tint: string }> = {
   Forsvar: { background: "bg-[#eaf5fb]", tint: "text-[#7aa8c4]" },
   Angrep: { background: "bg-[#fff0e8]", tint: "text-[#dd9270]" },
   Skuddferdigheter: { background: "bg-[#fceef4]", tint: "text-[#d08faa]" },
-  Målvakt: { background: "bg-[#f5effb]", tint: "text-[#ac93c9]" },
+  Målvakt: { background: "bg-[#e8f5f2]", tint: "text-[#79b3ab]" },
   Fysisk: { background: "bg-[#edf7f0]", tint: "text-[#88b89b]" },
   Leker: { background: "bg-[#fff7dc]", tint: "text-[#cdac60]" },
 };

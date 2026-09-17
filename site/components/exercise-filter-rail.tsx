@@ -1,9 +1,10 @@
 "use client";
 
 import { Heart, SlidersHorizontal, X } from "lucide-react";
-import { useState } from "react";
+import { type CSSProperties, useState } from "react";
+import { bandTone } from "@/components/exercise-age-group-filter";
 import { categoryPresentation } from "@/components/exercise-category-filter";
-import { Button, Modal } from "@/components/ui";
+import { Button, Modal, tagTones, type TagTone } from "@/components/ui";
 import type { ExerciseFacetCounts, ExerciseFilterState } from "@/lib/exercises";
 import { formatAgeGroup, toggleFilterValue } from "@/lib/exercises";
 import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type ExerciseAgeGroup, type ExerciseCategory } from "@/lib/types";
@@ -85,6 +86,7 @@ function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, onCh
         <li><RailOption label="Alle aldre" count={counts.allAgeGroups} selected={ages.length === 0} onSelect={() => onChange({ ageGroups: [] })} /></li>
         {EXERCISE_AGE_GROUPS.map((group) => <li key={group}><RailOption
           label={formatAgeGroup(group)}
+          tone={bandTone[group]}
           count={counts.ageGroups[group]}
           selected={ages.includes(group)}
           // Said once, on the band it explains: a coach who opens the library
@@ -103,6 +105,7 @@ function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, onCh
         {EXERCISE_CATEGORIES.map((category) => <li key={category}><RailOption
           label={category}
           icon={categoryPresentation[category].icon}
+          tone={categoryPresentation[category].tone}
           count={counts.categories[category]}
           selected={filters.categories.includes(category)}
           onSelect={() => onChange({ categories: toggleFilterValue(filters.categories, category as ExerciseCategory, EXERCISE_CATEGORIES) })}
@@ -114,17 +117,25 @@ function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, onCh
 
 /**
  * One line of the rail. `depth` is where a nested topic will indent from; it is
- * always 0 while the taxonomy is flat.
+ * always 0 while the taxonomy is flat. `tone` is the hue this row's value wears
+ * as a tag on a card, handed to the CSS as `--rail-tint`: a chosen topic or band
+ * should look in the rail like what it then picks out of the grid. A row that
+ * stands for the absence of a choice passes none and keeps the brand lilac.
  */
-function RailOption({ label, icon: Icon, count, selected, note, depth = 0, onSelect }: {
+function RailOption({ label, icon: Icon, tone, count, selected, note, depth = 0, onSelect }: {
   label: string;
   icon?: typeof Heart;
+  tone?: TagTone;
   count: number;
   selected: boolean;
   note?: string;
   depth?: number;
   onSelect(): void;
 }) {
+  const style: CSSProperties = {
+    ...(depth ? { paddingLeft: `${12 + depth * 14}px` } : null),
+    ...(tone ? { "--rail-tint": tagTones[tone].tint, "--rail-tint-ink": tagTones[tone].ink } as CSSProperties : null),
+  };
   return <button
     type="button"
     aria-pressed={selected}
@@ -136,7 +147,7 @@ function RailOption({ label, icon: Icon, count, selected, note, depth = 0, onSel
     // An empty topic stays reachable — the count is the answer, and disabling it
     // would hide why the grid is empty — but it does not ask for attention.
     className={cn("grep-rail-option", selected && "is-on", !selected && count === 0 && "is-empty")}
-    style={depth ? { paddingLeft: `${12 + depth * 14}px` } : undefined}
+    style={style}
   >
     {Icon && <Icon size={15} className="grep-rail-icon" aria-hidden />}
     <span className="grep-rail-label">{label}{note && <small>{note}</small>}</span>

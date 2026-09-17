@@ -2,6 +2,7 @@
 
 import { ALL_CHIP_KEY } from "@/components/exercise-category-filter";
 import { FilterChipGroup } from "@/components/filter-chips";
+import type { TagTone } from "@/components/ui";
 import type { ExerciseFacetCounts } from "@/lib/exercises";
 import { formatAgeGroup, toggleFilterValue } from "@/lib/exercises";
 import { EXERCISE_AGE_GROUPS, type ExerciseAgeGroup } from "@/lib/types";
@@ -10,14 +11,27 @@ import { cn } from "@/lib/utils";
 /**
  * Age bands read as one scale rather than three unrelated topics, so they share
  * a palette and grow darker with age instead of each getting a colour of its
- * own. Only `ExerciseAgeGroupPicker` wears it: a chip inside `.grep-filter-chips`
- * is painted by the rebrand's own rules, and the picker tags an exercise in a
- * form, where nothing else states which bands are set.
+ * own — which is also what keeps them apart from a topic, where the hue *is* the
+ * value. The ramp is the brand lilac: it was a green that nothing else in the
+ * app had worn since the rebrand, and a band now sits beside a topic tag on
+ * every library card, so the two families have to be told apart at a glance.
  */
 const agePresentation: Record<ExerciseAgeGroup, { pressed: string; idle: string }> = {
-  "6-9": { pressed: "border-[#3f8f6b] bg-[#3f8f6b] text-white", idle: "border-[#c3e3d1] bg-[#eef8f2] text-[#2f6a4f] hover:border-[#8ac2a4]" },
-  "10-12": { pressed: "border-[#357052] bg-[#357052] text-white", idle: "border-[#b6d9c5] bg-[#e8f4ed] text-[#2a5d43] hover:border-[#79b498]" },
-  "13-15": { pressed: "border-[#27553d] bg-[#27553d] text-white", idle: "border-[#a8d0b9] bg-[#e2f0e8] text-[#234f39] hover:border-[#6aa88c]" },
+  "6-9": { pressed: "border-[#7f5fa8] bg-[#7f5fa8] text-white", idle: "border-[#dcc9ef] bg-[var(--tag-band-1)] text-[var(--tag-band-1-ink)] hover:border-[#b394d6]" },
+  "10-12": { pressed: "border-[#745295] bg-[#745295] text-white", idle: "border-[#cfb6e8] bg-[var(--tag-band-2)] text-[var(--tag-band-2-ink)] hover:border-[#a37fca]" },
+  "13-15": { pressed: "border-[#5c3f79] bg-[#5c3f79] text-white", idle: "border-[#c0a2e0] bg-[var(--tag-band-3)] text-[var(--tag-band-3-ink)] hover:border-[#9269bd]" },
+};
+
+/**
+ * The same ramp as a `Tag` tone, for the bands printed on a library card and in
+ * the exercise dialog. Keyed off the band rather than its position so a fourth
+ * entry in `EXERCISE_AGE_GROUPS` is a compile error here — a new band with no
+ * colour of its own would silently fall back to the one before it.
+ */
+export const bandTone: Record<ExerciseAgeGroup, TagTone> = {
+  "6-9": "band1",
+  "10-12": "band2",
+  "13-15": "band3",
 };
 
 export function ExerciseAgeGroupFilter({ value, onChange, counts }: { value: readonly ExerciseAgeGroup[]; onChange(ageGroups: ExerciseAgeGroup[]): void; counts: ExerciseFacetCounts }) {

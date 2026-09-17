@@ -1,11 +1,29 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ExerciseAgeGroupFilter, ExerciseAgeGroupPicker } from "./exercise-age-group-filter";
+import { ExerciseAgeGroupFilter, ExerciseAgeGroupPicker, bandTone } from "./exercise-age-group-filter";
+import { categoryPresentation } from "./exercise-category-filter";
 import { countExerciseFacets } from "@/lib/exercises";
 import { demoExercises } from "@/lib/demo-data";
+import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES } from "@/lib/types";
 
 const counts = countExerciseFacets(demoExercises);
 const chip = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name} —`) });
+
+describe("bandTone", () => {
+  it("gives every band a tone of its own", () => {
+    const tones = EXERCISE_AGE_GROUPS.map((group) => bandTone[group]);
+
+    expect(new Set(tones).size).toBe(EXERCISE_AGE_GROUPS.length);
+  });
+
+  // A card prints a topic and its bands side by side, so a band borrowing a
+  // topic's hue would make the row read as five values of one thing.
+  it("keeps the band ramp clear of every topic hue", () => {
+    const topics = new Set(EXERCISE_CATEGORIES.map((category) => categoryPresentation[category].tone));
+
+    for (const group of EXERCISE_AGE_GROUPS) expect(topics.has(bandTone[group])).toBe(false);
+  });
+});
 
 describe("ExerciseAgeGroupFilter", () => {
   it("offers every band plus an unfiltered default", () => {

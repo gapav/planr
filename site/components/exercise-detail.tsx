@@ -3,6 +3,8 @@
 
 import { Play, ZoomIn } from "lucide-react";
 import { useState } from "react";
+import { bandTone } from "./exercise-age-group-filter";
+import { categoryPresentation } from "./exercise-category-filter";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { MediaCreditLine } from "./media-credit";
 import { Modal, Tag } from "./ui";
@@ -68,9 +70,9 @@ export function ExerciseDetail({ exercise, onClose }: { exercise: ExerciseDetail
       <MediaCreditLine mediaUrl={exercise.mediaUrl} />
 
       <div className="flex flex-wrap items-center gap-2">
-        {exercise.category && <Tag tone="orange">{exercise.category}</Tag>}
-        {exercise.ageGroups?.map((group) => <Tag key={group} tone="green">{formatAgeGroup(group)}</Tag>)}
-        {exercise.mediaKind ? <Tag tone={exercise.mediaKind === "image" ? "green" : "blue"}>{exercise.mediaKind === "image" ? "Bilde" : "Video"}</Tag> : <Tag tone="green">Uten medier</Tag>}
+        {exercise.category && <Tag tone={categoryPresentation[exercise.category].tone}>{exercise.category}</Tag>}
+        {exercise.ageGroups?.map((group) => <Tag key={group} tone={bandTone[group]}>{formatAgeGroup(group)}</Tag>)}
+        {exercise.mediaKind ? <Tag>{exercise.mediaKind === "image" ? "Bilde" : "Video"}</Tag> : <Tag>Uten medier</Tag>}
         {exercise.createdByName && <span className="text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}</span>}
       </div>
 
