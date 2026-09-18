@@ -92,18 +92,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .soft-in { animation: soft-in 280ms ease-out both; }
 
 /* A menu that grows out of the control that opened it, and folds back into it.
-   The rows arrive just behind the panel so the list reads as filling in rather
-   than being stamped down whole. The global prefers-reduced-motion rule below
-   flattens all three; nothing here is load-bearing, and the panel is unmounted
-   on a timer rather than on `animationend` for exactly that reason. */
-@keyframes grep-pop { from { opacity: 0; transform: scale(.94) translateY(-6px); } to { opacity: 1; transform: none; } }
-@keyframes grep-pop-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.97) translateY(-4px); } }
-@keyframes grep-pop-row { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.grep-pop { transform-origin: top right; animation: grep-pop 150ms cubic-bezier(.16, 1, .3, 1) both; }
+   The panel carries the whole movement and the rows only fade in behind it: a
+   row sliding inside a panel that is itself sliding is two motions on one pixel,
+   which reads as a stutter rather than as depth, and it was the reason this felt
+   restless rather than quick. The scale is kept shallow for the same reason —
+   text resampled through a big scale shimmers on the way. The global
+   prefers-reduced-motion rule below flattens all of it; nothing here is
+   load-bearing, and the panel is unmounted on a timer rather than on
+   `animationend` for exactly that reason. */
+@keyframes grep-pop { from { opacity: 0; transform: scale(.965) translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes grep-pop-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.975) translateY(-5px); } }
+@keyframes grep-pop-row { from { opacity: 0; } to { opacity: 1; } }
+.grep-pop { transform-origin: top right; will-change: transform, opacity; backface-visibility: hidden; animation: grep-pop 200ms cubic-bezier(.22, 1, .3, 1) both; }
 .grep-pop-left { transform-origin: top left; }
-.grep-pop-row { animation: grep-pop-row 190ms ease-out both; }
+.grep-pop-row { animation: grep-pop-row 170ms ease-out both; }
 /* Folding back is one movement: the rows go with the panel, not after it. */
-.grep-pop.is-closing { animation: grep-pop-out 120ms ease-in both; }
+.grep-pop.is-closing { animation: grep-pop-out 130ms cubic-bezier(.4, 0, .9, .45) both; }
 .grep-pop.is-closing .grep-pop-row { animation: none; }
 
 /* Shared Grep identity. More expressive surfaces around calm working areas. */

@@ -23,20 +23,53 @@ function grepState(patch: Record<string, unknown> = {}) {
 
 const openMenu = (name: string) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^(Lagre|${name} er lagret)`) }));
 
+/** What the corner glyph is actually drawing, read off the one svg it renders. */
+function glyph(name: string | RegExp) {
+  const svg = screen.getByRole("button", { name }).querySelector("svg");
+  const bookmark = svg?.querySelector(":scope > path");
+  return {
+    filled: bookmark?.getAttribute("fill") === "currentColor",
+    heart: Boolean(svg?.querySelector("path[transform]")),
+    cutOut: Boolean(svg?.querySelector("mask")),
+  };
+}
+
 describe("ShortlistMenu", () => {
   beforeEach(() => mocks.useGrep.mockReset());
 
-  // One circle in the corner, not two: the trigger says whether the exercise is
-  // kept anywhere, the menu says where.
-  it("says whether the exercise is kept, without saying where", () => {
-    mocks.useGrep.mockReturnValue(grepState());
-    // `exercise-2` is in the demo samling, `exercise-1` is hearted, `exercise-3`
-    // is in neither.
+  // One circle in the corner, not two — but it now says which of the two kinds
+  // of list the exercise is on, because the glyph does.
+  it("says where the exercise is kept, in both halves", () => {
+    // `exercise-2` is in the demo samling, `exercise-1` is hearted and, here,
+    // in the samling as well; `exercise-3` is in neither.
+    mocks.useGrep.mockReturnValue(grepState({ favoriteExerciseIds: ["exercise-1", "exercise-2"] }));
     render(<><ShortlistMenu exerciseId="exercise-2" exerciseName="Kant" /><ShortlistMenu exerciseId="exercise-1" exerciseName="Kontring" /><ShortlistMenu exerciseId="exercise-3" exerciseName="Sirkel" /></>);
 
-    expect(screen.getByRole("button", { name: "Kant er lagret. Endre favoritter og samlinger" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Kontring er lagret. Endre favoritter og samlinger" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kant er lagret i favoritter og 1 samling. Endre favoritter og samlinger" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kontring er lagret i favoritter. Endre favoritter og samlinger" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lagre Sirkel i favoritter eller en samling" })).toBeInTheDocument();
+  });
+
+  // The old glyph answered with the strongest fact it had, so a heart hid a
+  // samling. The two are drawn as independent properties of one bookmark now:
+  // filled for the team's samling, a heart in the body for the coach's own.
+  it("draws the heart and the samling as two facts, not one", () => {
+    mocks.useGrep.mockReturnValue(grepState({ favoriteExerciseIds: ["exercise-1", "exercise-2"] }));
+    render(<><ShortlistMenu exerciseId="exercise-3" exerciseName="Sirkel" /><ShortlistMenu exerciseId="exercise-1" exerciseName="Kontring" /><ShortlistMenu exerciseId="exercise-2" exerciseName="Kant" /></>);
+
+    // Neither: an empty bookmark.
+    expect(glyph("Lagre Sirkel i favoritter eller en samling")).toEqual({ filled: false, heart: false, cutOut: false });
+    // Hearted only: an empty bookmark with a solid heart in it.
+    expect(glyph(/^Kontring/)).toEqual({ filled: false, heart: true, cutOut: false });
+    // Both: a filled bookmark with the heart cut back out of the fill.
+    expect(glyph(/^Kant/)).toEqual({ filled: true, heart: true, cutOut: true });
+  });
+
+  it("fills the bookmark for a samling nobody has hearted", () => {
+    mocks.useGrep.mockReturnValue(grepState({ favoriteExerciseIds: [] }));
+    render(<ShortlistMenu exerciseId="exercise-2" exerciseName="Kant" />);
+
+    expect(glyph(/^Kant/)).toEqual({ filled: true, heart: false, cutOut: false });
   });
 
   // The heart moved inside the menu when the second circle came off the card,

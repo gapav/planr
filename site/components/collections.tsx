@@ -1,7 +1,7 @@
 "use client";
 
-import { Bookmark, BookmarkCheck, Check, Heart, MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Bookmark, Check, Heart, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useGrep } from "./app-provider";
 import { FilterChipGroup } from "./filter-chips";
 import { Button, Field, Modal, inputClass } from "./ui";
@@ -28,6 +28,54 @@ import { cn } from "@/lib/utils";
 function useTeamCollections() {
   const { collections, currentTeam } = useGrep();
   return useMemo(() => collectionsForTeam(collections, currentTeam?.id), [collections, currentTeam]);
+}
+
+/** Lucide's own bookmark and heart, so the glyph sits with the rest of the set. */
+const BOOKMARK_PATH = "M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z";
+const HEART_PATH = "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z";
+/**
+ * The heart at 42%, centred in the bookmark's body rather than on the icon grid.
+ * Larger and its lobes run into the bookmark's own walls; smaller and the hole
+ * it cuts stops reading as a heart at the 18px the card corner draws it at.
+ */
+const HEART_IN_BOOKMARK = "translate(6.96 5.06) scale(.42)";
+
+/**
+ * Where an exercise is kept, in one glyph.
+ *
+ * An exercise can be hearted *and* live in three samlinger, so the two facts
+ * cannot take turns on one badge: the glyph this replaces answered with the
+ * strongest fact it had, and a hearted exercise therefore looked exactly like a
+ * hearted one nobody had put in «Oktober-fokus». Membership is a set, and the
+ * corner of the card has to read like one.
+ *
+ * So they are drawn as two independent properties of a single shape. The
+ * bookmark is the frame and never changes — this is the control that keeps
+ * things. It is *filled* when the team holds the exercise in a samling, and a
+ * heart sits in its body when the coach has it in favoritter. Four states, four
+ * distinct silhouettes, and the same split the menu underneath uses: the fill is
+ * what the team can see, the heart is the coach's own.
+ *
+ * When both are true the heart is cut out of the fill rather than painted over
+ * it. The trigger sits on a translucent white circle on top of a photograph, and
+ * a heart in flat white would be the only opaque thing in it.
+ */
+function ShortlistGlyph({ favorited, collected, size = 18 }: { favorited: boolean; collected: boolean; size?: number }) {
+  // A mask id has to be unique per instance — the same glyph is drawn once per
+  // card — and `useId` spells one with colons, which a `url(#…)` cannot carry.
+  const maskId = `shortlist-cut-${useId().replace(/:/g, "")}`;
+  const cutOut = favorited && collected;
+
+  return <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    {cutOut && <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+      <rect width="24" height="24" fill="#fff" />
+      {/* Stroked as well as filled, so the hole clears the heart by a hair and
+          the fill does not close back over its point at 18px. */}
+      <path d={HEART_PATH} transform={HEART_IN_BOOKMARK} fill="#000" stroke="#000" strokeWidth={2.6} />
+    </mask>}
+    <path d={BOOKMARK_PATH} fill={collected ? "currentColor" : "none"} mask={cutOut ? `url(#${maskId})` : undefined} />
+    {favorited && !collected && <path d={HEART_PATH} transform={HEART_IN_BOOKMARK} fill="currentColor" stroke="none" />}
+  </svg>;
 }
 
 /**
@@ -73,7 +121,7 @@ export function ShortlistMenu({ exerciseId, exerciseName, labelled = false, clas
   // for reduced motion and would leave the menu open for good.
   const close = useCallback(() => {
     setClosing(true);
-    closeTimer.current = window.setTimeout(() => { setOpen(false); setClosing(false); }, 130);
+    closeTimer.current = window.setTimeout(() => { setOpen(false); setClosing(false); }, 150);
   }, []);
   useDismissable(open && !closing, `[data-shortlist-menu="${exerciseId}"]`, close, () => document.getElementById(`shortlist-button-${exerciseId}`)?.focus());
 
@@ -84,13 +132,18 @@ export function ShortlistMenu({ exerciseId, exerciseName, labelled = false, clas
   // A coach between teams still has their own hearts; only the shared half of
   // the menu needs a team to belong to.
   const holding = currentTeam ? collections.filter((collection) => collection.exerciseIds.includes(exerciseId)) : [];
-  const kept = favorited || holding.length > 0;
-  // The glyph answers with the strongest fact it has, so a hearted exercise
-  // still reads as one at a glance from across the grid.
-  const Icon = favorited ? Heart : kept ? BookmarkCheck : Bookmark;
+  const collected = holding.length > 0;
+  const kept = favorited || collected;
+  // The glyph draws both facts at once, so the label owes a reader who cannot
+  // see it the same two — and still opens on «lagret», which is the word the
+  // labelled variant wears and the one a voice control will be given.
+  const samlinger = holding.length === 1 ? "1 samling" : `${holding.length} samlinger`;
+  const keptIn = favorited && collected ? `favoritter og ${samlinger}` : favorited ? "favoritter" : collected ? samlinger : null;
 
+  // The rows only fade, so they can arrive closer together than they could when
+  // each one was also moving inside a panel that was itself moving.
   let rowIndex = 0;
-  const staggered = () => ({ animationDelay: `${Math.min(rowIndex++ * 22, 130)}ms` });
+  const staggered = () => ({ animationDelay: `${Math.min(rowIndex++ * 14, 90)}ms` });
 
   return <span data-shortlist-menu={exerciseId} className={cn("relative", className)}>
     <button
@@ -98,7 +151,7 @@ export function ShortlistMenu({ exerciseId, exerciseName, labelled = false, clas
       id={`shortlist-button-${exerciseId}`}
       aria-expanded={open}
       aria-haspopup="true"
-      aria-label={kept ? `${exerciseName} er lagret. Endre favoritter og samlinger` : `Lagre ${exerciseName} i favoritter eller en samling`}
+      aria-label={keptIn ? `${exerciseName} er lagret i ${keptIn}. Endre favoritter og samlinger` : `Lagre ${exerciseName} i favoritter eller en samling`}
       onClick={() => open ? close() : setOpen(true)}
       className={cn("transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]",
         labelled
@@ -106,7 +159,7 @@ export function ShortlistMenu({ exerciseId, exerciseName, labelled = false, clas
           : "grid h-10 w-10 place-items-center rounded-full bg-white/90 shadow-md backdrop-blur hover:scale-105 hover:bg-white",
         kept ? "text-[var(--orange)]" : "text-[var(--ink-soft)]")}
     >
-      <Icon size={18} fill={favorited ? "currentColor" : "none"} />
+      <ShortlistGlyph favorited={favorited} collected={collected} />
       {labelled && <span>{kept ? "Lagret" : "Lagre øvelsen"}</span>}
     </button>
 
@@ -130,7 +183,7 @@ export function ShortlistMenu({ exerciseId, exerciseName, labelled = false, clas
           every samling — and the rows stay the menu's own children. */}
       {currentTeam && <div role="group" aria-label="Samlinger — hele laget">
         <p aria-hidden="true" className="grep-pop-row mt-1.5 border-t border-[var(--line)] px-2.5 pb-1 pt-2 text-[10px] font-black uppercase tracking-[.09em] text-[var(--ink-soft)]" style={staggered()}>Samlinger · hele laget</p>
-        {collections.length > 0 && <ul role="none" className="max-h-56 overflow-y-auto thin-scrollbar">
+        {collections.length > 0 && <ul role="none" className="max-h-56 overflow-y-auto overscroll-contain thin-scrollbar">
           {collections.map((collection) => <li role="none" key={collection.id}><ShortlistRow
             label={collection.name}
             icon={Bookmark}
