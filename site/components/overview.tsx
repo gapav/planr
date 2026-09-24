@@ -4,6 +4,7 @@ import { ArrowRight, CalendarDays, ChevronRight, Clock3, ListFilter, MapPin, Sea
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AccountMenu } from "./account-menu";
 import { useGrep } from "./app-provider";
 import { AppShell } from "./app-shell";
 import { CourtArtwork } from "./court-artwork";
@@ -60,7 +61,7 @@ export function Overview() {
     <div className="overview-topbar">
       <span className="overview-team">{currentTeam?.name ?? "Ditt trenerrom"}</span>
       <Link href="/exercises" className="overview-search" aria-label="Søk i øvelsesbanken"><Search size={20} /></Link>
-      <span className="overview-avatar" title={user?.fullName}>{user?.initials ?? "T"}</span>
+      <AccountMenu />
     </div>
     <header className="overview-welcome">
       <div className="overview-welcome-copy">
