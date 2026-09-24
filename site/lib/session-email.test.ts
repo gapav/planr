@@ -22,14 +22,19 @@ function session(overrides: Partial<DigestSession> = {}): DigestSession {
 }
 
 describe("digestSubject", () => {
-  it("puts the time and the title where a phone shows them", () => {
-    // 16:00Z is 18:00 in Oslo.
-    expect(digestSubject([session()])).toBe("I dag 18:00 · Teknikkøkt");
+  it("names the team and nothing more", () => {
+    expect(digestSubject([session()])).toBe("Dagens økt for Fjordvik G14");
   });
 
-  it("counts them when a coach has more than one", () => {
-    expect(digestSubject([session(), session({ id: "session-2", startsAt: "2026-09-12T18:00:00.000Z" })]))
-      .toBe("2 økter i dag · første 18:00");
+  it("lists every team when more than one trains", () => {
+    expect(digestSubject([session(), session({ id: "session-2", teamName: "Fjordvik J13" })]))
+      .toBe("Dagens økter for Fjordvik G14 og Fjordvik J13");
+    expect(digestSubject([session(), session({ id: "session-2", teamName: "B" }), session({ id: "session-3", teamName: "C" })]))
+      .toBe("Dagens økter for Fjordvik G14, B og C");
+  });
+
+  it("names a team once even when it has two sessions", () => {
+    expect(digestSubject([session(), session({ id: "session-2" })])).toBe("Dagens økter for Fjordvik G14");
   });
 });
 
@@ -146,5 +151,12 @@ describe("dailySessionDigestEmail", () => {
     const mail = dailySessionDigestEmail({ recipient, sessions: three, siteUrl })!;
     expect(mail.html).toContain("3 økter");
     expect(mail.html).not.toContain("Begge");
+  });
+
+  it("says which teams train rather than counting sessions", () => {
+    const two = [session(), session({ id: "session-2", teamName: "Fjordvik J13" })];
+    const mail = dailySessionDigestEmail({ recipient, sessions: two, siteUrl })!;
+    expect(mail.html).toContain("i dag har Fjordvik G14 og Fjordvik J13 trening");
+    expect(mail.html).not.toContain("på lagene dine");
   });
 });

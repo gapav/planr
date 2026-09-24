@@ -1,9 +1,8 @@
 /**
  * "Dagens økt" — the letter the scheduled job sends on a training morning.
  *
- * It is written to be readable without opening it: the subject carries the
- * time and the title, and the body is the plan itself rather than a nudge to
- * go and look at the plan. A coach standing in a hall with a phone should not
+ * The subject only names the team — «Dagens økt for G14» — and the body is the
+ * plan itself rather than a nudge to go and look at the plan. A coach standing in a hall with a phone should not
  * need to sign in to remember what the third block was.
  *
  * Only one session's worth of detail per day is usually in play, but a coach on
@@ -66,11 +65,21 @@ function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] || "trener";
 }
 
-export function digestSubject(sessions: readonly DigestSession[], timeZone: string = CLUB_TIME_ZONE): string {
-  const [first] = sessions;
-  if (!first) return "Dagens økt";
-  if (sessions.length === 1) return `I dag ${clockTime(first.startsAt, timeZone)} · ${first.title}`;
-  return `${sessions.length} økter i dag · første ${clockTime(first.startsAt, timeZone)}`;
+/**
+ * The teams training today, as a sentence names them: «A», «A og B»,
+ * «A, B og C». A team with two sessions is named once.
+ */
+function teamList(sessions: readonly DigestSession[]): string {
+  const names = [...new Set(sessions.map((session) => session.teamName.trim()).filter(Boolean))];
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} og ${names[names.length - 1]}`;
+}
+
+/** Short on purpose: the team is what a coach scans an inbox for; the plan is inside. */
+export function digestSubject(sessions: readonly DigestSession[]): string {
+  const teams = teamList(sessions);
+  const noun = sessions.length > 1 ? "Dagens økter" : "Dagens økt";
+  return teams ? `${noun} for ${teams}` : noun;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -222,14 +231,14 @@ export function dailySessionDigestEmail({ recipient, sessions, siteUrl, timeZone
     : `${sessions.length} økter i dag`;
   const lead = sessions.length === 1
     ? `Hei ${escapeHtml(firstName(recipient.fullName))} — her er økta <strong>${escapeHtml(first.teamName)}</strong> kjører i dag. Hele planen står under, så du har den i lomma.`
-    : `Hei ${escapeHtml(firstName(recipient.fullName))} — det er ${sessions.length} økter på lagene dine i dag. Alle planene står under.`;
+    : `Hei ${escapeHtml(firstName(recipient.fullName))} — i dag har ${escapeHtml(teamList(sessions))} trening. Alle planene står under.`;
   const body = sessions.map((session) => sessionCard(session, recipient.profileId, timeZone)).join("");
   const action = sessions.length === 1
     ? { label: "Åpne økta i Grep", link: sessionLink(siteUrl, first) }
     : { label: "Åpne øktene i Grep", link: `${siteUrl.replace(/\/+$/, "")}/sessions` };
 
   return {
-    subject: digestSubject(sessions, timeZone),
+    subject: digestSubject(sessions),
     html: emailShell({
       preheader: [first.teamName, first.venue.trim()].filter(Boolean).join(" · ") || first.title,
       eyebrow: "Dagens økt",
