@@ -10,7 +10,7 @@ import { ShortlistChips, useShortlistIds } from "./collections";
 import { ExerciseAgeGroupFilter } from "./exercise-age-group-filter";
 import { ExerciseCategoryFilter } from "./exercise-category-filter";
 import { ExerciseDetail, sessionItemDetailSubject, type ExerciseDetailSubject } from "./exercise-detail";
-import { ExerciseThumbnail } from "./exercise-thumbnail";
+import { ExerciseThumbnail, linkedCategory } from "./exercise-thumbnail";
 import { Button, Field, Modal, Tag, inputClass, textareaClass } from "./ui";
 import { cn, minutesLabel } from "@/lib/utils";
 
@@ -71,6 +71,7 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
   routine: WarmupRoutine | null; scheduled: ReturnType<typeof scheduleWarmupItems>; schedule: ReturnType<typeof warmupSchedule>;
   duration: number; canEdit: boolean; busy: boolean; onEdit(): void; onStart(): void; onPreview(subject: ExerciseDetailSubject): void;
 }) {
+  const { exercises } = useGrep();
   if (!routine || !routine.items.length) return <div className="grid grid-cols-1 gap-5 text-center">
     <div className="rounded-[22px] border border-dashed border-[#c8c3b7] bg-[var(--paper)] px-6 py-10">
       <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white text-[var(--orange)] shadow-sm"><Timer size={23} /></span>
@@ -99,11 +100,11 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
     <ol className="grid grid-cols-1 gap-2">{scheduled.map(({ item, startsAt }, index) => {
       // The activity carries its own copy of the media, so the thumbnail and
       // the detail popup are built from the same subject the library would use.
-      const subject = sessionItemDetailSubject(item);
+      const subject = { ...sessionItemDetailSubject(item), category: linkedCategory(item, exercises) };
       return <li key={item.id}>
       <button type="button" onClick={() => onPreview(subject)} className="group flex w-full items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2.5 text-left transition hover:border-[var(--ink)]">
         <span className="grid w-12 shrink-0 text-center"><span className="text-sm font-black leading-4">{startsAt ? clock(startsAt) : index + 1}</span><span className="mt-0.5 text-[10px] font-bold text-[var(--ink-soft)]">{item.durationMinutes} min</span></span>
-        <ExerciseThumbnail exercise={subject} className="h-12 w-16 shrink-0 rounded-xl [&>span]:text-2xl" />
+        <ExerciseThumbnail exercise={subject} className="h-12 w-16 shrink-0 rounded-xl" iconClassName="h-6 w-6" />
         <span className="min-w-0 flex-1"><span className="clamp-2 block font-bold leading-6">{item.title}</span>{(item.coachingNotes || item.description) && <span className="clamp-2 mt-0.5 block text-xs leading-5 text-[var(--ink-soft)]">{item.coachingNotes || item.description}</span>}</span>
         <Eye size={16} className="shrink-0 text-[var(--ink-soft)] opacity-0 transition group-hover:opacity-100" />
       </button>

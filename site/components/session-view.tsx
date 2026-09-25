@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- session thumbnails snapshot arbitrary library media */
 
-import { ArrowLeft, BookOpen, Calendar, CirclePlay, Clock3, Eye, LayoutList, MapPin, Pencil, Printer, Sparkles, Target } from "lucide-react";
+import { ArrowLeft, Calendar, CirclePlay, Clock3, Eye, LayoutList, MapPin, Pencil, Printer, Sparkles, Target } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AppShell } from "./app-shell";
@@ -9,6 +9,7 @@ import { BlockNote } from "./block-note";
 import { blockGlyph } from "./block-presets";
 import { useGrep } from "./app-provider";
 import { ExerciseDetail, sessionItemDetailSubject } from "./exercise-detail";
+import { ItemThumbnailPlaceholder } from "./exercise-thumbnail";
 import { HelpTip } from "./help-tip";
 import { WorkoutSession } from "./live-session";
 import { CopySessionDialog, SessionMenu } from "./session-actions";
@@ -92,7 +93,7 @@ export function SessionView({ sessionId, readOnly = false }: { sessionId: string
           {stations && <p className="border-b border-[var(--line)] px-4 py-2.5 text-xs font-bold text-[var(--ink-soft)] sm:px-5">Øvelsene går samtidig — laget deles i {block.items.length} grupper og roterer hvert {stationRotation(block)}. minutt.</p>}
           {block.notes && <BlockNote notes={block.notes} />}
           <div className="grid gap-2.5 p-3 sm:p-4">{block.items.length ? block.items.map((item, itemIndex) => <button key={item.id} type="button" data-print="item" onClick={() => setPreviewItem(item)} aria-label={`Vis ${item.title}`} className="group flex items-start gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]">
-            <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center bg-[var(--paper-deep)]">{item.kind === "exercise" ? <BookOpen size={17} /> : <Sparkles size={17} />}</span>}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/90"><Eye size={14} /></span></span>{stations && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-white">{itemIndex + 1}</span>}</span>
+            <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <ItemThumbnailPlaceholder item={item} />}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/90"><Eye size={14} /></span></span>{stations && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-white">{itemIndex + 1}</span>}</span>
             <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-3"><strong className="text-[15px] tracking-[-.015em]">{item.title}</strong>{!stations && <span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span>}</span>{item.description && <span className="clamp-2 mt-1 block text-sm leading-6 text-[var(--ink-soft)]">{item.description}</span>}{item.coachingNotes && <span data-print="cue" className="mt-2 block rounded-xl bg-[#fff0e8] px-3 py-2"><span className="text-[10px] font-black uppercase tracking-[.11em] text-[#9c3913]">Stikkord</span><span className="mt-0.5 block text-sm font-semibold leading-6">{item.coachingNotes}</span></span>}<ItemCoach item={item} members={sessionTeam?.members ?? []} /></span>
           </button>) : <p className="py-6 text-center text-sm text-[var(--ink-soft)]">{stations ? "Ingen stasjoner i denne bolken." : "Ingen aktiviteter i denne bolken."}</p>}</div>
         </article>; })}</div> : <div className="mt-6">{readOnly ? <EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Laget har ikke lagt inn noen bolker i økten ennå." /> : <EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Økten har ingen bolker ennå. Åpne den i redigering for å bygge den opp." action={<Link href={`/sessions/${sessionId}/edit`}><Button><Pencil size={16} />Rediger økten</Button></Link>} />}</div>}
