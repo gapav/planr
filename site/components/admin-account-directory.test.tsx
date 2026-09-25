@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { AdminAccountDirectory, filterAdminAccounts, lastSignInLabel } from "./admin-account-directory";
+import { AdminAccountDirectory, lastSignInLabel } from "./admin-account-directory";
+import { filterAdminAccounts } from "@/lib/admin";
 import type { AdminAccount } from "@/lib/types";
 
 const account: AdminAccount = {
@@ -33,7 +34,7 @@ describe("admin account directory", () => {
   it("requires the exact email address before permanent deletion", () => {
     const onDelete = vi.fn().mockResolvedValue(undefined);
     render(<AdminAccountDirectory accounts={[account]} loaded currentUserId="owner" onDelete={onDelete} onRename={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Slett permanent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Slett coach@example.com permanent" }));
     const destructiveButton = screen.getByRole("button", { name: "Slett konto permanent" });
     expect(destructiveButton).toBeDisabled();
     fireEvent.change(screen.getByRole("textbox", { name: /Skriv coach@example.com/ }), { target: { value: "coach@example.com" } });

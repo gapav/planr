@@ -82,24 +82,45 @@ export const overviewHeadlines = [
   "Skal vi gjøre klar neste trening?",
 ] as const;
 
-/** Picks one greeting. Call it on the client only — the server has no opinion. */
-export function overviewHeadline(random = Math.random()) {
-  const index = Math.min(overviewHeadlines.length - 1, Math.max(0, Math.floor(random * overviewHeadlines.length)));
-  return overviewHeadlines[index];
+/**
+ * Lines that only read right at some hours, as [from, to) on the coach's clock.
+ * "Ny dag" is nonsense after dark, and nobody is heading for the hall at
+ * midnight. Lines not listed fit any hour.
+ */
+const headlineHours: Partial<Record<(typeof overviewHeadlines)[number], readonly [number, number]>> = {
+  "Ny dag, ny økt?": [5, 14],
+  "Klar for hallen?": [7, 21],
+  "Klar for å komme i gang?": [5, 22],
+};
+
+/** The greetings that suit the hour `now` falls in. */
+export function overviewHeadlinesAt(now: Date) {
+  const hour = now.getHours();
+  return overviewHeadlines.filter((line) => {
+    const hours = headlineHours[line];
+    return !hours || (hour >= hours[0] && hour < hours[1]);
+  });
+}
+
+/** Picks one greeting that suits the hour. Call it on the client only — the server has no clock worth reading. */
+export function overviewHeadline(now: Date, random = Math.random()) {
+  const lines = overviewHeadlinesAt(now);
+  const index = Math.min(lines.length - 1, Math.max(0, Math.floor(random * lines.length)));
+  return lines[index];
 }
 
 /**
  * The salutation above the headline, read off the coach's own clock. `now` is
  * null until the browser has one, and a server rendering the hour would be
  * rendering it in the wrong time zone anyway, so that case keeps the neutral
- * "Hei".
+ * "Hei". There is no "God natt": in Norwegian that is what you say on leaving,
+ * so the small hours get the neutral "Hei" too.
  */
 export function overviewSalutation(now: Date | null) {
   if (!now) return "Hei";
   const hour = now.getHours();
-  if (hour < 5) return "God natt";
+  if (hour < 5) return "Hei";
   if (hour < 10) return "God morgen";
   if (hour < 18) return "Hei";
-  if (hour < 23) return "God kveld";
-  return "God natt";
+  return "God kveld";
 }

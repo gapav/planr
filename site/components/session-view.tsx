@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- session thumbnails snapshot arbitrary library media */
 
-import { ArrowLeft, BookOpen, Calendar, CirclePlay, Clock3, Eye, LayoutList, MapPin, Pencil, Sparkles, Target } from "lucide-react";
+import { ArrowLeft, BookOpen, Calendar, CirclePlay, Clock3, Eye, LayoutList, MapPin, Pencil, Printer, Sparkles, Target } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AppShell } from "./app-shell";
@@ -26,42 +26,51 @@ import { clockTime, cn, formatSessionDate, minutesLabel } from "@/lib/utils";
  * Editing is one click away at `/sessions/<id>/edit`. A started or finished
  * plan is locked in the database, so it keeps going to the workout view, which
  * is the read-only screen it already has.
+ *
+ * A global admin reading another team's plan from /admin gets this view with
+ * every action removed: RLS lets them read the plan and nothing more, and the
+ * workout view needs the roster they cannot see.
  */
 export function SessionViewScreen({ sessionId }: { sessionId: string }) {
-  const { sessions } = useGrep();
+  const { sessions, adminSessions } = useGrep();
   const session = sessions.find((entry) => entry.id === sessionId);
+  if (!session && adminSessions.some((entry) => entry.id === sessionId)) return <SessionView sessionId={sessionId} readOnly />;
   return session?.status === "in_progress" || session?.status === "completed" ? <WorkoutSession sessionId={sessionId} /> : <SessionView sessionId={sessionId} />;
 }
 
-export function SessionView({ sessionId }: { sessionId: string }) {
+const statusLabel = { draft: "Øktutkast", published: "Publisert", in_progress: "Pågår", completed: "Gjennomført" } as const;
+
+export function SessionView({ sessionId, readOnly = false }: { sessionId: string; readOnly?: boolean }) {
   const store = useGrep();
-  const session = store.sessions.find((entry) => entry.id === sessionId);
+  const session = (readOnly ? store.adminSessions : store.sessions).find((entry) => entry.id === sessionId);
   const [previewItem, setPreviewItem] = useState<SessionItem | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copying, setCopying] = useState(false);
   // A reader is a collaborator too: presence keeps them out of nobody's way and
   // a broadcast from whoever is editing refreshes the plan under them.
-  useSessionRealtime(sessionId, store.user, null, () => store.reloadSession(sessionId), store.isDemoMode);
+  // A read-only admin is not a collaborator: the topic would refuse them anyway.
+  useSessionRealtime(sessionId, readOnly ? null : store.user, null, () => store.reloadSession(sessionId), store.isDemoMode);
   if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<Calendar size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." action={<Link href="/sessions" className="font-bold underline">Tilbake til øktkalenderen</Link>} /></div></AppShell>;
 
-  const sessionTeam = store.teams.find((team) => team.id === session.teamId);
+  const sessionTeam = readOnly ? store.adminTeams.find((team) => team.id === session.teamId) : store.teams.find((team) => team.id === session.teamId);
+  const backHref = readOnly ? `/admin/teams/${session.teamId}?vis=sessions` : "/sessions";
   const schedule = sessionSchedule(session);
   const builtMinutes = sessionDuration(session);
   const difference = builtMinutes - session.plannedDurationMinutes;
 
   return <AppShell><div data-print="sheet" className="min-h-screen pb-24">
     <header data-print="hide" className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--paper)]/92 px-4 py-3 backdrop-blur-xl sm:px-7"><div className="mx-auto flex max-w-[1000px] items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3"><Link href="/sessions" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl hover:bg-black/5" aria-label="Tilbake til øktkalenderen"><ArrowLeft size={20} /></Link><div className="min-w-0"><p className="truncate text-sm font-black">{session.title}</p><p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--ink-soft)]"><Eye size={12} />Visning</p></div></div>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-3"><Link href={backHref} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl hover:bg-black/5" aria-label={readOnly ? "Tilbake til lagets økter" : "Tilbake til øktkalenderen"}><ArrowLeft size={20} /></Link><div className="min-w-0"><p className="truncate text-sm font-black">{session.title}</p><p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--ink-soft)]"><Eye size={12} />{readOnly ? `Kun lesing${sessionTeam ? ` · ${sessionTeam.shortName}` : ""}` : "Visning"}</p></div></div>
+      {readOnly ? <Button variant="secondary" onClick={() => window.print()}><Printer size={16} /><span className="hidden sm:inline">Skriv ut</span></Button> : <div className="flex items-center gap-2">
         <Link href={`/sessions/${sessionId}/live`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)]"><CirclePlay size={17} /><span className="hidden sm:inline">Start økten</span><span className="sm:hidden">Start</span></Link>
         <Link href={`/sessions/${sessionId}/edit`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--orange)] px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(240,100,46,.22)] transition hover:-translate-y-0.5 hover:bg-[var(--orange-dark)]"><Pencil size={16} />Rediger</Link>
         <SessionMenu session={session} open={menuOpen} onOpenChange={setMenuOpen} onCopy={() => setCopying(true)} onPrint={() => window.print()} />
-      </div>
+      </div>}
     </div></header>
 
     <div data-print="body" className="mx-auto max-w-[1000px] px-4 pt-7 sm:px-7">
       <section className="rounded-[26px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(16,32,29,.04)] sm:p-7">
-        <div className="flex flex-wrap items-center gap-2.5">{sessionTeam && <TeamCrest team={sessionTeam} />}<Tag tone={session.status === "draft" ? "orange" : "green"}>{session.status === "draft" ? "Øktutkast" : "Publisert"}</Tag><HelpTip topic="session-publish" /></div>
+        <div className="flex flex-wrap items-center gap-2.5">{sessionTeam && <TeamCrest team={sessionTeam} />}<Tag tone={session.status === "draft" ? "orange" : "green"}>{statusLabel[session.status]}</Tag>{!readOnly && <HelpTip topic="session-publish" />}</div>
         <h1 className="mt-3 text-3xl font-black tracking-[-.045em] sm:text-4xl">{session.title}</h1>
         <dl className="mt-6 grid gap-4 border-t border-[var(--line)] pt-6 sm:grid-cols-2">
           <Detail icon={<Calendar size={17} />} label="Dato og klokkeslett" value={formatSessionDate(session.startsAt)} />
@@ -86,7 +95,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
             <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center bg-[var(--paper-deep)]">{item.kind === "exercise" ? <BookOpen size={17} /> : <Sparkles size={17} />}</span>}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/90"><Eye size={14} /></span></span>{stations && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-white">{itemIndex + 1}</span>}</span>
             <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-3"><strong className="text-[15px] tracking-[-.015em]">{item.title}</strong>{!stations && <span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span>}</span>{item.description && <span className="clamp-2 mt-1 block text-sm leading-6 text-[var(--ink-soft)]">{item.description}</span>}{item.coachingNotes && <span data-print="cue" className="mt-2 block rounded-xl bg-[#fff0e8] px-3 py-2"><span className="text-[10px] font-black uppercase tracking-[.11em] text-[#9c3913]">Stikkord</span><span className="mt-0.5 block text-sm font-semibold leading-6">{item.coachingNotes}</span></span>}<ItemCoach item={item} members={sessionTeam?.members ?? []} /></span>
           </button>) : <p className="py-6 text-center text-sm text-[var(--ink-soft)]">{stations ? "Ingen stasjoner i denne bolken." : "Ingen aktiviteter i denne bolken."}</p>}</div>
-        </article>; })}</div> : <div className="mt-6"><EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Økten har ingen bolker ennå. Åpne den i redigering for å bygge den opp." action={<Link href={`/sessions/${sessionId}/edit`}><Button><Pencil size={16} />Rediger økten</Button></Link>} /></div>}
+        </article>; })}</div> : <div className="mt-6">{readOnly ? <EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Laget har ikke lagt inn noen bolker i økten ennå." /> : <EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Økten har ingen bolker ennå. Åpne den i redigering for å bygge den opp." action={<Link href={`/sessions/${sessionId}/edit`}><Button><Pencil size={16} />Rediger økten</Button></Link>} />}</div>}
       </section>
 
       {session.notes && <section className="mt-8 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5"><h2 className="font-black">Generelle notater</h2><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{session.notes}</p></section>}

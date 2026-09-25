@@ -2,7 +2,7 @@
 
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { mapAdminAccount, mapAdminTeam, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
+import { mapAdminAccount, mapAdminTeam, partitionSessionsByMembership, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
 import { claimableInvitations, invitationUrl, isIdentityChange, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, passwordResetRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
 import { demoCollections, demoExercises, demoFixtures, demoMonthFocus, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { collectionNameError, normalizeCollectionName, sortCollections } from "@/lib/collections";
@@ -153,6 +153,12 @@ interface GrepContextValue {
   // membership-scoped queries the rest of the provider uses.
   adminTeams: AdminTeam[];
   adminTeamsLoaded: boolean;
+  /**
+   * Plans of teams the global admin is not on — read-only, since RLS lets them
+   * read these but not write them. Kept out of `sessions` so no coach screen
+   * picks them up; empty for everyone else.
+   */
+  adminSessions: PlannedSession[];
   adminAccounts: AdminAccount[];
   adminAccountsLoaded: boolean;
   renameTeam(teamId: string, name: string): Promise<void>;
@@ -338,6 +344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [groupings, setGroupings] = useState<SessionGrouping[]>([]);
   const [adminTeams, setAdminTeams] = useState<AdminTeam[]>(() => isSupabaseConfigured ? [] : demoAdminTeams());
   const [adminTeamsLoaded, setAdminTeamsLoaded] = useState(!isSupabaseConfigured);
+  const [adminSessions, setAdminSessions] = useState<PlannedSession[]>([]);
   const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(() => isSupabaseConfigured ? [] : demoAdminAccounts());
   const [adminAccountsLoaded, setAdminAccountsLoaded] = useState(!isSupabaseConfigured);
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -405,6 +412,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // so every tab refocus), so a notice then reads as "the thing you just did
     // failed" about an action that went through perfectly.
     else if (profileError && loadedProfileId.current !== authUser.id) { console.error("[grep] profilen kunne ikke leses", profileError); setNotice("Profilen din kunne ikke lastes."); }
+    let memberTeamIds: Set<string> | null = null;
     if (memberships) {
       type MembershipRow = { team_id: string; profile_id: string; role: TeamRole; teams: { id: string; name: string; logo_url: string | null } | null; profiles: { id: string; email: string; full_name: string; avatar_url: string | null } | null };
       const grouped = new Map<string, Team>();
@@ -420,10 +428,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const mapped = [...grouped.values()];
       setTeams(mapped);
       const teamIds = mapped.map((team) => team.id);
+      memberTeamIds = new Set(teamIds);
       const remembered = readSelectedTeamId();
       setCurrentTeamId((current) => keepSelectedTeamId(current, teamIds, remembered) ?? current);
     }
-    if (sessionRows) setSessions((sessionRows as unknown as DbSession[]).map(mapSession));
+    if (sessionRows) {
+      const { own, others } = partitionSessionsByMembership((sessionRows as unknown as DbSession[]).map(mapSession), memberTeamIds);
+      setSessions(own);
+      setAdminSessions(others);
+    }
     if (invitationRows) setInvitations((invitationRows as unknown as Array<{ id: string; team_id: string; email: string; role: TeamRole; token: string; expires_at: string; accepted_at: string | null }>).map((row) => ({ id: row.id, teamId: row.team_id, email: row.email, role: row.role, token: row.token, expiresAt: row.expires_at, acceptedAt: row.accepted_at })));
     if (playerRows) setPlayers((playerRows as unknown as DbPlayer[]).map(mapPlayer));
     if (fixtureRows) setFixtures((fixtureRows as unknown as DbFixture[]).map(mapFixture));
@@ -596,6 +609,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (supabase) setCollections([]);
     if (supabase) {
       setAdminTeams([]);
+      setAdminSessions([]);
       setAdminAccounts([]);
       setAdminTeamsLoaded(false);
       setAdminAccountsLoaded(false);
@@ -954,6 +968,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAdminTeams(previous);
       throw error;
     }
+    setAdminSessions((current) => current.filter((session) => session.teamId !== teamId));
     setAdminAccounts((current) => current.map((account) => ({
       ...account,
       memberships: account.memberships.filter((membership) => membership.teamId !== teamId),
@@ -1498,9 +1513,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // writing the stored rows in `sessions`/`warmupRoutines`.
   const exerciseLibrary = useMemo(() => indexExercises(exercises), [exercises]);
   const resolvedSessions = useMemo(() => resolveAll(sessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [sessions, exerciseLibrary]);
+  const resolvedAdminSessions = useMemo(() => resolveAll(adminSessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [adminSessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, monthFocus, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, monthFocus, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, monthFocus, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, monthFocus, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

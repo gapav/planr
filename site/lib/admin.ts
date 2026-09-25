@@ -1,4 +1,5 @@
-import type { AdminAccount, AdminTeam, AdminTeamMember, TeamInvitation, TeamRole } from "./types";
+import { deriveSessionTab } from "./session";
+import type { AdminAccount, AdminTeam, AdminTeamMember, PlannedSession, SessionTab, TeamInvitation, TeamRole } from "./types";
 import { COACH_AVATAR_PEER } from "./team-palette";
 import { initials } from "./utils";
 
@@ -92,4 +93,88 @@ export function canDemoteMember(team: AdminTeam, profileId: string, actorIsGloba
 /** A team with nobody on it cannot plan anything, so the console calls it out. */
 export function teamNeedsAdmin(team: AdminTeam) {
   return teamAdminCount(team) === 0 && !team.invitations.some((invitation) => invitation.role === "admin");
+}
+
+/**
+ * Splits the loaded plans into the coach's own teams and everyone else's.
+ *
+ * Since 202609250001 a global admin reads every team's sessions, so the one
+ * `sessions` query returns plans from teams they are not on. Those must not
+ * reach the coach screens — Today would pick another team's workout, and the
+ * builder would offer edits RLS refuses — so they are handed to the console
+ * instead. `null` means the memberships could not be read; everything then
+ * stays with the coach, as it did before the split existed.
+ */
+export function partitionSessionsByMembership<T extends { teamId: string }>(sessions: readonly T[], memberTeamIds: ReadonlySet<string> | null): { own: T[]; others: T[] } {
+  if (!memberTeamIds) return { own: [...sessions], others: [] };
+  const own: T[] = []; const others: T[] = [];
+  for (const session of sessions) (memberTeamIds.has(session.teamId) ? own : others).push(session);
+  return { own, others };
+}
+
+const nb = (value: string) => value.toLocaleLowerCase("nb-NO");
+
+/** Which teams the console lists: all of them, or only the ones nobody administers yet. */
+export type AdminTeamFilter = "all" | "needs-admin";
+
+/**
+ * The team table's search. A platform owner looks a team up by the squad, the
+ * club, or a coach they were asked about, so the members and pending
+ * invitations are searched too.
+ */
+export function filterAdminTeams(teams: readonly AdminTeam[], query: string, filter: AdminTeamFilter = "all"): AdminTeam[] {
+  const needle = nb(query.trim());
+  return teams.filter((team) => {
+    if (filter === "needs-admin" && !teamNeedsAdmin(team)) return false;
+    if (!needle) return true;
+    return [team.name, team.shortName, ...team.members.flatMap((member) => [member.fullName, member.email]), ...team.invitations.map((invitation) => invitation.email)]
+      .some((value) => nb(value).includes(needle));
+  });
+}
+
+export type SessionTabCounts = Record<SessionTab, number>;
+
+/** How many plans each team has in each calendar tab, for the team table. */
+export function sessionCountsByTeam(sessions: readonly PlannedSession[], now = new Date()): Map<string, SessionTabCounts> {
+  const counts = new Map<string, SessionTabCounts>();
+  for (const session of sessions) {
+    const entry = counts.get(session.teamId) ?? { upcoming: 0, drafts: 0, past: 0 };
+    entry[deriveSessionTab(session, now)] += 1;
+    counts.set(session.teamId, entry);
+  }
+  return counts;
+}
+
+/**
+ * One team's plans in one tab, in the order the coach's own calendar uses:
+ * upcoming soonest first, past most recent first, drafts by last touched.
+ */
+export function teamSessionsInTab(sessions: readonly PlannedSession[], teamId: string, tab: SessionTab, now = new Date()): PlannedSession[] {
+  const start = (session: PlannedSession) => session.startsAt ?? "";
+  return sessions
+    .filter((session) => session.teamId === teamId && deriveSessionTab(session, now) === tab)
+    .sort((a, b) => tab === "upcoming" ? start(a).localeCompare(start(b)) : tab === "past" ? start(b).localeCompare(start(a)) : b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/** Account directory filters: the two states an owner acts on when tidying up. */
+export type AdminAccountFilter = "all" | "no-team" | "never-signed-in";
+
+export function filterAdminAccounts(accounts: readonly AdminAccount[], query: string, filter: AdminAccountFilter = "all"): AdminAccount[] {
+  const needle = nb(query.trim());
+  return accounts.filter((account) => {
+    if (filter === "no-team" && account.memberships.length > 0) return false;
+    if (filter === "never-signed-in" && account.lastSignInAt) return false;
+    if (!needle) return true;
+    return [account.fullName, account.email, ...account.memberships.map((membership) => membership.teamName)].some((value) => nb(value).includes(needle));
+  });
+}
+
+/** The figures across the top of the console. */
+export function adminOverview(teams: readonly AdminTeam[], accounts: readonly AdminAccount[]) {
+  return {
+    teams: teams.length,
+    accounts: accounts.length,
+    pendingInvitations: teams.reduce((sum, team) => sum + team.invitations.length, 0),
+    teamsNeedingAdmin: teams.filter(teamNeedsAdmin).length,
+  };
 }

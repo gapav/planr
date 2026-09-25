@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { demoFixtures, demoMonthFocus, demoSessions, demoWarmupRoutines } from "./demo-data";
-import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewSalutation, overviewSessions } from "./overview";
+import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewHeadlinesAt, overviewSalutation, overviewSessions } from "./overview";
 
 const now = new Date("2026-09-12T10:00:00Z");
 const future = { ...demoSessions[1], id: "future", startsAt: "2026-09-17T14:00:00Z" };
@@ -96,11 +96,25 @@ describe("overview headline", () => {
     expect(overviewHeadlines).toHaveLength(19);
     expect(new Set(overviewHeadlines).size).toBe(19);
   });
+  const noon = new Date(2026, 8, 13, 12);
   it("picks one of them, and stays inside the list at both ends", () => {
-    expect(overviewHeadlines).toContain(overviewHeadline());
-    expect(overviewHeadline(0)).toBe(overviewHeadlines[0]);
-    expect(overviewHeadline(0.999999)).toBe(overviewHeadlines[18]);
-    expect(overviewHeadline(1)).toBe(overviewHeadlines[18]);
+    expect(overviewHeadlines).toContain(overviewHeadline(noon));
+    expect(overviewHeadline(noon, 0)).toBe(overviewHeadlines[0]);
+    expect(overviewHeadline(noon, 0.999999)).toBe(overviewHeadlines[18]);
+    expect(overviewHeadline(noon, 1)).toBe(overviewHeadlines[18]);
+  });
+  it("offers every line at midday", () => {
+    expect(overviewHeadlinesAt(noon)).toEqual([...overviewHeadlines]);
+  });
+  it("keeps lines that assume daylight out of the evening and the night", () => {
+    const at = (hour: number) => overviewHeadlinesAt(new Date(2026, 8, 13, hour));
+    expect(at(8)).toContain("Ny dag, ny økt?");
+    expect(at(20)).not.toContain("Ny dag, ny økt?");
+    expect(at(20)).toContain("Klar for hallen?");
+    expect(at(23)).not.toContain("Ny dag, ny økt?");
+    expect(at(23)).not.toContain("Klar for hallen?");
+    expect(at(2)).not.toContain("Klar for å komme i gang?");
+    expect(at(2).length).toBeGreaterThan(10);
   });
 });
 
@@ -110,13 +124,13 @@ describe("overview salutation", () => {
     expect(at(6)).toBe("God morgen");
     expect(at(13)).toBe("Hei");
     expect(at(20)).toBe("God kveld");
-    expect(at(2)).toBe("God natt");
+    expect(at(2)).toBe("Hei");
   });
   it("turns over on the hour", () => {
-    expect([at(4), at(5)]).toEqual(["God natt", "God morgen"]);
+    expect([at(4), at(5)]).toEqual(["Hei", "God morgen"]);
     expect([at(9), at(10)]).toEqual(["God morgen", "Hei"]);
     expect([at(17), at(18)]).toEqual(["Hei", "God kveld"]);
-    expect([at(22), at(23)]).toEqual(["God kveld", "God natt"]);
+    expect([at(23), at(0)]).toEqual(["God kveld", "Hei"]);
   });
   it("stays neutral before the browser has a clock", () => {
     expect(overviewSalutation(null)).toBe("Hei");

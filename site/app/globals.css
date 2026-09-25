@@ -395,10 +395,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-page-actions { position: relative; z-index: 1; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
 .grep-button { letter-spacing: -.01em; box-shadow: none; }
 .grep-segments { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: #f0ede7; }
-.grep-segments button { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #74647d; }
-.grep-segments button[aria-pressed="true"] { background: var(--grep-lilac); color: var(--ink); }
-.grep-segments button span { display: grid; place-items: center; min-width: 21px; padding: 1px 5px; border-radius: 6px; font-size: 10px; background: #2e1b3d08; }
-.grep-segments button[aria-pressed="true"] span { background: #ffffff80; color: var(--ink-soft); }
+/* Links too: the admin console's sections are routes, so its tabs are anchors
+   marked `aria-current` rather than buttons marked `aria-pressed`. */
+.grep-segments :is(button, a) { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #74647d; }
+.grep-segments :is(button[aria-pressed="true"], a[aria-current="page"]) { background: var(--grep-lilac); color: var(--ink); }
+.grep-segments :is(button, a) span { display: grid; place-items: center; min-width: 21px; padding: 1px 5px; border-radius: 6px; font-size: 10px; background: #2e1b3d08; }
+.grep-segments :is(button[aria-pressed="true"], a[aria-current="page"]) span { background: #ffffff80; color: var(--ink-soft); }
 .grep-calendar-mobile-select { display: none; }
 /* Øktkalender wears Kampkalender's furniture: the same lilac hero with its
    date badge, the same meta line, and one bordered card per month holding its

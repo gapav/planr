@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(221);
+select plan(229);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -331,11 +331,20 @@ select throws_ok($$ select public.accept_team_invitation('50000000-0000-0000-000
 reset role;
 
 -- 202609020018: the platform owner administers every team without joining one,
--- and without reaching the plans or the player data of a team they do not coach.
+-- and without reaching the player data of a team they do not coach.
+-- 202609250001: they do read every team's plans — but only read them.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
 select is((select count(*)::integer from public.teams), 0, 'a global admin reads no team through the membership policies');
-select is((select count(*)::integer from public.sessions), 0, 'a global admin cannot read the sessions of a team they do not coach');
+select is((select count(*)::integer from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 1, 'a global admin reads the session of a team they do not coach');
+select ok(exists(select 1 from public.session_blocks where session_id = '30000000-0000-0000-0000-000000000001'), 'a global admin reads the blocks of that session');
+select ok(exists(select 1 from public.session_items item join public.session_blocks block on block.id = item.block_id where block.session_id = '30000000-0000-0000-0000-000000000001'), 'a global admin reads the activities of that session');
+select lives_ok($$ update public.sessions set title = 'Hijacked by the owner', updated_by = '10000000-0000-0000-0000-000000000004' where id = '30000000-0000-0000-0000-000000000001' $$, 'an update from a global admin outside the team is filtered, not raised');
+select isnt((select title from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'Hijacked by the owner', 'reading a plan does not make it editable');
+select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000001' $$, 'a delete from a global admin outside the team is filtered, not raised');
+select is((select count(*)::integer from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 1, 'reading a plan does not make it deletable');
+select throws_ok($$ insert into public.session_blocks (session_id, title, position, updated_by) values ('30000000-0000-0000-0000-000000000001', 'Owner block', 9, '10000000-0000-0000-0000-000000000004') $$, '42501', null, 'a global admin cannot add a block to a team plan they only read');
+select ok(not public.can_access_session_topic('session:30000000-0000-0000-0000-000000000001'), 'reading a plan does not open its live collaboration topic');
 select is((select count(*)::integer from public.team_players), 0, 'a global admin cannot read the roster of a team they do not coach');
 select is(jsonb_array_length(public.admin_list_teams()), 1, 'the admin console reads every team through its own RPC instead');
 select lives_ok(format($$ insert into public.team_memberships (team_id, profile_id, role) values ('%s', '10000000-0000-0000-0000-000000000003', 'coach') $$, current_setting('plannr.test_team')), 'a global admin can add a trainer to a team they are not on');

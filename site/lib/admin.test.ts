@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COACH_AVATAR_PEER } from "./team-palette";
-import { canDemoteMember, isTeamMemberOf, mapAdminAccount, mapAdminTeam, shortTeamName, sortAdminAccounts, sortAdminTeams, teamAdminCount, teamNeedsAdmin, type AdminAccountRow, type AdminTeamRow } from "./admin";
+import { adminOverview, canDemoteMember, filterAdminAccounts, filterAdminTeams, isTeamMemberOf, mapAdminAccount, mapAdminTeam, partitionSessionsByMembership, sessionCountsByTeam, teamSessionsInTab, shortTeamName, sortAdminAccounts, sortAdminTeams, teamAdminCount, teamNeedsAdmin, type AdminAccountRow, type AdminTeamRow } from "./admin";
+import type { AdminAccount, PlannedSession } from "./types";
 
 function row(overrides: Partial<AdminTeamRow> = {}): AdminTeamRow {
   return {
@@ -97,5 +98,78 @@ describe("admin account directory", () => {
       mapAdminAccount({ ...accountRow, id: "a", email: "a@example.com", full_name: "Ada" }),
     ];
     expect(sortAdminAccounts(accounts).map((account) => account.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("partitionSessionsByMembership", () => {
+  const sessions = [{ id: "s1", teamId: "mine" }, { id: "s2", teamId: "theirs" }, { id: "s3", teamId: "mine" }];
+
+  it("keeps the coach's own teams apart from the plans an admin only reads", () => {
+    expect(partitionSessionsByMembership(sessions, new Set(["mine"]))).toEqual({
+      own: [{ id: "s1", teamId: "mine" }, { id: "s3", teamId: "mine" }],
+      others: [{ id: "s2", teamId: "theirs" }],
+    });
+  });
+
+  it("hands every plan to the console when the admin is on no team", () => {
+    expect(partitionSessionsByMembership(sessions, new Set()).others).toHaveLength(3);
+  });
+
+  it("leaves everything with the coach when the memberships could not be read", () => {
+    expect(partitionSessionsByMembership(sessions, null)).toEqual({ own: sessions, others: [] });
+  });
+});
+
+describe("admin console lists", () => {
+  const needsAdmin = mapAdminTeam(row({ id: "team-2", name: "Fjordvik HK — Gutter 14", members: [{ id: "coach-2", email: "ola@klubb.no", full_name: "Ola Nordmann", role: "coach" }] }));
+  const staffed = mapAdminTeam(row({ invitations: [{ id: "inv-1", email: "ny@klubb.no", role: "coach", token: "t", expires_at: "2026-10-01T10:00:00Z" }] }));
+
+  it("finds a team by squad, coach or pending invitation", () => {
+    expect(filterAdminTeams([staffed, needsAdmin], "gutter")).toEqual([needsAdmin]);
+    expect(filterAdminTeams([staffed, needsAdmin], "ola@")).toEqual([needsAdmin]);
+    expect(filterAdminTeams([staffed, needsAdmin], "ny@klubb")).toEqual([staffed]);
+    expect(filterAdminTeams([staffed, needsAdmin], "  ")).toHaveLength(2);
+  });
+
+  it("narrows the table to teams nobody administers", () => {
+    expect(filterAdminTeams([staffed, needsAdmin], "", "needs-admin")).toEqual([needsAdmin]);
+  });
+
+  it("sums the console figures", () => {
+    expect(adminOverview([staffed, needsAdmin], [])).toEqual({ teams: 2, accounts: 0, pendingInvitations: 1, teamsNeedingAdmin: 1 });
+  });
+
+  const now = new Date("2026-09-25T12:00:00Z");
+  const plan = (id: string, teamId: string, status: PlannedSession["status"], startsAt: string | null, updatedAt = "2026-09-01T00:00:00Z") => ({ id, teamId, status, startsAt, updatedAt, plannedDurationMinutes: 90 }) as PlannedSession;
+  const plans = [
+    plan("later", "a", "published", "2026-10-10T16:00:00Z"),
+    plan("soon", "a", "published", "2026-09-28T16:00:00Z"),
+    plan("old", "a", "completed", "2026-08-01T16:00:00Z"),
+    plan("recent", "a", "published", "2026-09-20T16:00:00Z"),
+    plan("draft-old", "a", "draft", null, "2026-09-01T00:00:00Z"),
+    plan("draft-new", "a", "draft", null, "2026-09-24T00:00:00Z"),
+    plan("elsewhere", "b", "published", "2026-09-28T16:00:00Z"),
+  ];
+
+  it("counts each team's plans per calendar tab", () => {
+    const counts = sessionCountsByTeam(plans, now);
+    expect(counts.get("a")).toEqual({ upcoming: 2, drafts: 2, past: 2 });
+    expect(counts.get("b")).toEqual({ upcoming: 1, drafts: 0, past: 0 });
+  });
+
+  it("orders a team's plans the way the coach calendar does", () => {
+    const ids = (tab: "upcoming" | "drafts" | "past") => teamSessionsInTab(plans, "a", tab, now).map((session) => session.id);
+    expect(ids("upcoming")).toEqual(["soon", "later"]);
+    expect(ids("past")).toEqual(["recent", "old"]);
+    expect(ids("drafts")).toEqual(["draft-new", "draft-old"]);
+  });
+
+  const account = (overrides: Partial<AdminAccount>): AdminAccount => ({ id: "x", email: "x@klubb.no", fullName: "X", initials: "X", isGlobalAdmin: false, createdAt: "", lastSignInAt: "2026-09-01T00:00:00Z", filesOwned: 0, memberships: [], ...overrides });
+
+  it("filters accounts without a team or that never signed in", () => {
+    const idle = account({ id: "idle", lastSignInAt: null, memberships: [{ teamId: "a", teamName: "A", teamRole: "coach" }] });
+    const loose = account({ id: "loose" });
+    expect(filterAdminAccounts([idle, loose], "", "no-team")).toEqual([loose]);
+    expect(filterAdminAccounts([idle, loose], "", "never-signed-in")).toEqual([idle]);
   });
 });

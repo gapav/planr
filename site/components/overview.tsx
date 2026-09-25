@@ -34,7 +34,7 @@ export function Overview() {
   // the first client render disagree about the greeting.
   const [headline, setHeadline] = useState<string>(overviewHeadlines[0]);
   useEffect(() => {
-    const draw = () => setHeadline(overviewHeadline());
+    const draw = () => setHeadline(overviewHeadline(new Date()));
     draw();
   }, []);
   const { next, draft } = overviewSessions(sessions, currentTeam?.id, now ?? new Date(0));
