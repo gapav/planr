@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCalendarMonth, dayKey, fixtureOpponent, fixtureTeamNames, fixturesForTeams, groupFixturesByDay,
-  groupMatchDays, isHomeVenue, joinNames, matchDayStart, matchStartToUtc, monthKey, monthLabel, parseFixtureRows,
-  shiftMonth, teamColor, upcomingFixtures,
+  groupDaysByMonth, groupMatchDays, isHomeVenue, joinNames, matchDayStart, matchStartToUtc, monthKey, monthLabel,
+  parseFixtureRows, shiftMonth, splitMatchDays, teamColor, upcomingFixtures,
 } from "./fixtures";
 import type { TeamFixture } from "./types";
 
@@ -196,6 +196,33 @@ describe("fixture presentation", () => {
     expect(matchDayStart([first, second, other], second)).toBe("2026-09-06T08:00:00.000Z");
     // Another squad playing earlier that morning is not this squad's day.
     expect(matchDayStart([first, second, other], first)).toBe("2026-09-06T08:00:00.000Z");
+  });
+
+  // The morning's match is still the day's business at lunch, so a day stays
+  // ahead until it is over rather than until its first throw-off.
+  it("splits the season on the date, keeping today ahead", () => {
+    const days = groupMatchDays([
+      fixture({ id: "a", startsAt: "2026-08-29T08:00:00.000Z" }),
+      fixture({ id: "b", startsAt: "2026-09-30T06:00:00.000Z" }),
+      fixture({ id: "c", startsAt: "2026-10-10T08:00:00.000Z" }),
+    ], "UTC");
+    const { played, upcoming } = splitMatchDays(days, "2026-09-30");
+    expect(played.map((day) => day.day)).toEqual(["2026-08-29"]);
+    expect(upcoming.map((day) => day.day)).toEqual(["2026-09-30", "2026-10-10"]);
+    expect(splitMatchDays(days, "2026-12-01").upcoming).toEqual([]);
+  });
+
+  it("heads the list's days by the month they fall in", () => {
+    const days = groupMatchDays([
+      fixture({ id: "a", startsAt: "2026-09-06T08:00:00.000Z" }),
+      fixture({ id: "b", startsAt: "2026-09-20T08:00:00.000Z" }),
+      fixture({ id: "c", startsAt: "2026-11-01T08:00:00.000Z" }),
+    ], "UTC");
+    expect(groupDaysByMonth(days).map(({ month, days: inMonth }) => [month, inMonth.map((day) => day.day)])).toEqual([
+      ["2026-09", ["2026-09-06", "2026-09-20"]],
+      // A month with no matches gets no heading rather than an empty one.
+      ["2026-11", ["2026-11-01"]],
+    ]);
   });
 
   it("reads a list of opponents the way it is spoken", () => {

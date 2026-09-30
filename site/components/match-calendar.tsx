@@ -1,8 +1,8 @@
 "use client";
 
-import { Building2, CalendarDays, Clock3, List, ChevronDown, ChevronLeft, ChevronRight, Hash, MapPin, Trash2, Trophy, Upload } from "lucide-react";
-import { useImperativeHandle, useMemo, useState, useSyncExternalStore } from "react";
-import { buildCalendarMonth, dayKey, fixtureOpponent, fixtureTeamNames, groupFixturesByDay, groupMatchDays, isHomeVenue, joinNames, matchDayStart, monthKey, monthLabel, shiftMonth, upcomingFixtures } from "@/lib/fixtures";
+import { Building2, CalendarDays, Clock3, List, ChevronDown, ChevronLeft, ChevronRight, Hash, History, MapPin, Trash2, Trophy, Upload } from "lucide-react";
+import { useId, useImperativeHandle, useMemo, useState, useSyncExternalStore } from "react";
+import { buildCalendarMonth, dayKey, fixtureOpponent, fixtureTeamNames, groupDaysByMonth, groupFixturesByDay, groupMatchDays, isHomeVenue, joinNames, matchDayStart, monthKey, monthLabel, shiftMonth, splitMatchDays, upcomingFixtures } from "@/lib/fixtures";
 import type { MatchDay as MatchDayGroup, MatchDayTeam } from "@/lib/fixtures";
 import { fixturePalette, savedTeamColors, teamPalette } from "@/lib/team-palette";
 import type { Ref } from "react";
@@ -49,8 +49,11 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
   // renders no highlight at all rather than the server's own answer — the
   // browser fills it in on hydration.
   const today = useSyncExternalStore(subscribeToNothing, () => dayKey(new Date()), () => null);
-  const [month, setMonth] = useState(() => monthKey(new Date()));
+  // Null until the coach pages the grid: until then it follows the next match.
+  const [pickedMonth, setPickedMonth] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "calendar">("list");
+  const [showPlayed, setShowPlayed] = useState(false);
+  const playedId = useId();
   const [picked, setPicked] = useState<string | null>(null);
   const [open, setOpen] = useState<TeamFixture | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -68,8 +71,12 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
   const team = picked && teams.includes(picked) ? picked : null;
   const shown = useMemo(() => team ? fixtures.filter((fixture) => fixture.ourTeams.includes(team)) : fixtures, [fixtures, team]);
   const byDay = useMemo(() => groupFixturesByDay(shown), [shown]);
-  const weeks = useMemo(() => buildCalendarMonth(month), [month]);
   const next = useMemo(() => upcomingFixtures(shown)[0] ?? null, [shown]);
+  // The grid opens on the month of the next match rather than today's: at the
+  // end of September the month is spent, and October is what the coach came
+  // for. Today's cell still shows at the edge of that grid when it is close.
+  const month = pickedMonth ?? monthKey(next?.startsAt ?? new Date());
+  const weeks = useMemo(() => buildCalendarMonth(month), [month]);
   // The hero describes what is still ahead, so it is grouped over the upcoming
   // fixtures: once the morning match is played, the card is about the one left.
   const nextDay = useMemo(() => {
@@ -77,8 +84,13 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
     const sameDay = upcomingFixtures(shown).filter((fixture) => dayKey(fixture.startsAt) === dayKey(next.startsAt));
     return groupMatchDays(sameDay)[0]?.teams.find((group) => group.fixtures.some((fixture) => fixture.id === next.id)) ?? null;
   }, [shown, next]);
-  const monthFixtures = useMemo(() => shown.filter((fixture) => monthKey(fixture.startsAt) === month).sort((a, b) => a.startsAt.localeCompare(b.startsAt)), [shown, month]);
-  const monthDays = useMemo(() => groupMatchDays(monthFixtures), [monthFixtures]);
+  // The list is not paged: it runs from today to the last match of the season,
+  // and what has been played waits behind a toggle. Before hydration there is
+  // no "today" to split on, so the server renders the list empty rather than
+  // guessing and handing the browser a different one.
+  const days = useMemo(() => groupMatchDays(shown), [shown]);
+  const season = useMemo(() => today ? splitMatchDays(days, today) : null, [days, today]);
+  const playedCount = season?.played.reduce((total, day) => total + day.count, 0) ?? 0;
 
   // The page header opens the routine itself, with no match bound to it: there
   // is one warm-up for the whole team, and which match it is read against is
@@ -113,13 +125,16 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
     </div>}
 
     <div className="grep-match-toolbar">
-      <h2 className="text-xl font-semibold tracking-[-.03em] first-letter:uppercase sm:text-2xl">{monthLabel(month)}</h2>
-      <div className="grep-match-controls"><div className="grep-match-view grep-segments" role="group" aria-label="Kalendervisning"><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><List size={16} />Liste</button><button type="button" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}><CalendarDays size={16} />Kalender</button></div><div className="flex items-center gap-1.5">
-        <Button variant="secondary" size="sm" onClick={() => setMonth(monthKey(new Date()))}>I dag</Button>
-        <Button variant="secondary" size="sm" className="px-2.5" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Forrige måned"><ChevronLeft size={17} /></Button>
-        <Button variant="secondary" size="sm" className="px-2.5" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Neste måned"><ChevronRight size={17} /></Button>
+      <h2 className="text-xl font-semibold tracking-[-.03em] first-letter:uppercase sm:text-2xl">{view === "calendar" ? monthLabel(month) : "Terminliste"}</h2>
+      <div className="grep-match-controls"><div className="grep-match-view grep-segments" role="group" aria-label="Kalendervisning"><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><List size={16} />Liste</button><button type="button" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}><CalendarDays size={16} />Kalender</button></div>
+        {/* Only the grid is paged; the list already reaches every month. */}
+        {view === "calendar" && <div className="hidden items-center gap-1.5 sm:flex">
+          <Button variant="secondary" size="sm" onClick={() => setPickedMonth(monthKey(new Date()))}>I dag</Button>
+          <Button variant="secondary" size="sm" className="px-2.5" onClick={() => setPickedMonth(shiftMonth(month, -1))} aria-label="Forrige måned"><ChevronLeft size={17} /></Button>
+          <Button variant="secondary" size="sm" className="px-2.5" onClick={() => setPickedMonth(shiftMonth(month, 1))} aria-label="Neste måned"><ChevronRight size={17} /></Button>
+        </div>}
       </div>
-    </div></div>
+    </div>
 
     <div className={cn("grep-match-grid mt-3 overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface)]", view === "calendar" ? "hidden sm:block" : "hidden")}>
       <div className="grid grid-cols-7 border-b border-[var(--line)] bg-[var(--paper)]">{WEEKDAYS.map((day) => <span key={day} className="px-2 py-2 text-center text-[11px] font-black uppercase tracking-[.1em] text-[var(--ink-soft)]">{day}</span>)}</div>
@@ -137,11 +152,21 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
       })}</div>
     </div>
 
-    {/* On a phone the grid cells are too small to read a match in, so the month
-        becomes the list it would have to collapse to anyway. */}
-    <div className={cn("grep-match-agenda mt-4", view === "calendar" && "sm:hidden")} aria-label="Månedens kamper">
-      {monthDays.length ? <ul className="flex flex-col gap-2">{monthDays.map((day) => <li key={day.day}><MatchDay day={day} routine={routine} onOpen={setOpen} onWarmup={(fixture) => setWarmup({ fixture })} /></li>)}</ul>
-        : <p className="rounded-2xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen kamper denne måneden.</p>}
+    {/* On a phone the grid cells are too small to read a match in, so the phone
+        always gets the list. */}
+    <div className={cn("grep-match-agenda mt-4", view === "calendar" && "sm:hidden")} aria-label="Terminliste">
+      {season && <>
+        {playedCount > 0 && <button type="button" className="grep-match-played-toggle" aria-expanded={showPlayed} aria-controls={playedId} onClick={() => setShowPlayed((current) => !current)}>
+          <History size={15} />{showPlayed ? "Skjul spilte kamper" : `Vis ${playedCount === 1 ? "1 spilt kamp" : `${playedCount} spilte kamper`}`}
+        </button>}
+        {showPlayed && <div id={playedId}>
+          <MatchMonths days={season.played} routine={routine} onOpen={setOpen} onWarmup={(fixture) => setWarmup({ fixture })} />
+          {/* Where the season stands: everything above is history. */}
+          <p className="grep-match-today">I dag · {dayHeadFormat.format(new Date())}</p>
+        </div>}
+        {season.upcoming.length ? <MatchMonths days={season.upcoming} routine={routine} onOpen={setOpen} onWarmup={(fixture) => setWarmup({ fixture })} />
+          : <p className="rounded-2xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen flere kamper i terminlisten.</p>}
+      </>}
     </div>
 
     <DayMatches dayKey={dayOpen} matches={dayOpen ? byDay.get(dayOpen) ?? [] : []} routine={routine} onClose={() => setDayOpen(null)} onOpen={(fixture) => { setDayOpen(null); setOpen(fixture); }} onWarmup={(fixture) => { setDayOpen(null); setWarmup({ fixture }); }} />
@@ -234,6 +259,18 @@ function NextUp({ next, group, routine }: { next: TeamFixture; group: MatchDayTe
 
 function matchCount(n: number) {
   return n === 1 ? "1 kamp" : `${n} kamper`;
+}
+
+/**
+ * A season is long, so the list says which month it has reached. A month with
+ * no matches gets no heading: the list is about the days that ask something of
+ * the coach, not about the calendar between them.
+ */
+function MatchMonths({ days, routine, onOpen, onWarmup }: { days: MatchDayGroup[]; routine: WarmupRoutine | null; onOpen(fixture: TeamFixture): void; onWarmup(fixture: TeamFixture): void }) {
+  return <>{groupDaysByMonth(days).map(({ month, days: inMonth }) => <section key={month} className="grep-match-month">
+    <h3 className="grep-match-month-head">{monthLabel(month)}</h3>
+    <ul className="flex flex-col gap-2">{inMonth.map((day) => <li key={day.day}><MatchDay day={day} routine={routine} onOpen={onOpen} onWarmup={onWarmup} /></li>)}</ul>
+  </section>)}</>;
 }
 
 /**

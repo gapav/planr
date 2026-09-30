@@ -8,8 +8,9 @@ const removeFixture = vi.fn();
 
 vi.mock("./app-provider", () => ({ useGrep: mocks.useGrep }));
 
-// The calendar opens on the current month, so the tests pin "now" to the month
-// the demo schedule is played in.
+// The tests pin "now" to the morning of the demo schedule's first September
+// match day: August is played, the 12th is today, and the season runs into
+// October.
 const NOW = new Date("2026-09-12T07:00:00.000Z");
 
 function grid() {
@@ -52,17 +53,17 @@ describe("MatchCalendar", () => {
   it("starts with a scannable list and lets the coach switch to the month grid", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
     expect(screen.getByRole("button", { name: "Liste" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByLabelText("Månedens kamper")).not.toHaveClass("sm:hidden");
+    expect(screen.getByLabelText("Terminliste")).not.toHaveClass("sm:hidden");
     fireEvent.click(screen.getByRole("button", { name: "Kalender" }));
     expect(screen.getByRole("button", { name: "Kalender" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByLabelText("Månedens kamper")).toHaveClass("sm:hidden");
+    expect(screen.getByLabelText("Terminliste")).toHaveClass("sm:hidden");
     fireEvent.click(screen.getByRole("button", { name: "Liste" }));
     expect(screen.getByRole("button", { name: "Liste" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("opens full match details from the agenda", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
-    const agenda = screen.getByLabelText("Månedens kamper");
+    const agenda = screen.getByLabelText("Terminliste");
     fireEvent.click(within(agenda).getByRole("button", { name: /mot Nesodden Gul/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByText("41041006001")).toBeInTheDocument();
@@ -80,10 +81,10 @@ describe("MatchCalendar", () => {
 
   it("gathers a day's matches under one date card", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
-    const agenda = screen.getByLabelText("Månedens kamper");
-    // September holds four matches over two days; the 12th carries three.
+    const agenda = screen.getByLabelText("Terminliste");
+    // What is left of the season is four days; the 12th carries three matches.
     const days = [...agenda.querySelectorAll<HTMLElement>(".grep-match-day")];
-    expect(days).toHaveLength(2);
+    expect(days).toHaveLength(4);
     expect(within(days[0]).getAllByRole("listitem")).toHaveLength(3);
     expect(within(days[0]).getAllByText("12.")).toHaveLength(1);
     // Fjordvik Rød's two matches share a header; Fjordvik Blå's single one does not.
@@ -95,7 +96,7 @@ describe("MatchCalendar", () => {
   // on two different weekends.
   it("cards every squad, on a day holding one as on a day holding two", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
-    const days = [...screen.getByLabelText("Månedens kamper").querySelectorAll<HTMLElement>(".grep-match-day")];
+    const days = [...screen.getByLabelText("Terminliste").querySelectorAll<HTMLElement>(".grep-match-day")];
 
     // The 12th carries Fjordvik Rød's two matches and Fjordvik Blå's one.
     expect(days[0].querySelectorAll(".grep-match-group")).toHaveLength(2);
@@ -117,20 +118,75 @@ describe("MatchCalendar", () => {
     expect(within(head).getByText("Fjordvik Rød")).toBeInTheDocument();
     expect(head.querySelector(".grep-match-group-meta")).toBeNull();
     // Each row still answers for its own hall, since the head no longer does.
-    expect(within(screen.getByLabelText("Månedens kamper")).getAllByText("Bane ikke satt")).toHaveLength(2);
+    expect(within(screen.getByLabelText("Terminliste")).getAllByText("Bane ikke satt")).toHaveLength(2);
   });
 
   it("marks the club's own hall instead of calling every listed match a hjemmekamp", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
-    const agenda = screen.getByLabelText("Månedens kamper");
+    const agenda = screen.getByLabelText("Terminliste");
     // Fjordvik Rød's whole 12 September is in Sofiemyrhallen, so the group says
     // so once rather than on each row; the derby on the 26th says it too.
     expect(within(agenda).getAllByText("Hjemmebane")).toHaveLength(2);
     expect(screen.queryByText(/Hjemmekamp|Bortekamp/)).not.toBeInTheDocument();
   });
 
+  it("runs the list to the end of the season, one heading per month", () => {
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    const agenda = screen.getByLabelText("Terminliste");
+    expect(within(agenda).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual(["september 2026", "oktober 2026"]);
+    // The season's last match is in the list without paging to it.
+    expect(within(agenda).getByText("Nordstrand Rosa")).toBeInTheDocument();
+    // Only the grid pages by month.
+    expect(screen.queryByLabelText("Forrige måned")).not.toBeInTheDocument();
+  });
+
+  it("folds the played matches away until the coach asks for them", () => {
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    const agenda = screen.getByLabelText("Terminliste");
+    expect(within(agenda).queryByText("Bækkelaget Blå")).not.toBeInTheDocument();
+
+    const toggle = within(agenda).getByRole("button", { name: "Vis 1 spilt kamp" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(agenda).getByText("Bækkelaget Blå")).toBeInTheDocument();
+    expect(within(agenda).getByText("22-25")).toBeInTheDocument();
+    // History sits above today, in the order it was played.
+    expect(within(agenda).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual(["august 2026", "september 2026", "oktober 2026"]);
+    expect(within(agenda).getByText(/^I dag ·/)).toBeInTheDocument();
+
+    fireEvent.click(within(agenda).getByRole("button", { name: "Skjul spilte kamper" }));
+    expect(within(agenda).queryByText("Bækkelaget Blå")).not.toBeInTheDocument();
+  });
+
+  it("offers no history toggle before the first match is played", () => {
+    render(<MatchCalendar fixtures={demoFixtures.filter((fixture) => !fixture.result)} canManage={false} canEditWarmup />);
+    expect(screen.queryByRole("button", { name: /spilt/ })).not.toBeInTheDocument();
+  });
+
+  it("says so when the whole season is played", () => {
+    vi.setSystemTime(new Date("2026-11-02T09:00:00.000Z"));
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    const agenda = screen.getByLabelText("Terminliste");
+    expect(within(agenda).getByText("Ingen flere kamper i terminlisten.")).toBeInTheDocument();
+    expect(within(agenda).getByRole("button", { name: "Vis 7 spilte kamper" })).toBeInTheDocument();
+  });
+
+  // At the end of September the month is spent; the grid opens where the next
+  // match is, and «I dag» still brings it back to the current month.
+  it("opens the grid on the next match's month", () => {
+    vi.setSystemTime(new Date("2026-09-30T10:00:00.000Z"));
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    fireEvent.click(screen.getByRole("button", { name: "Kalender" }));
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("oktober 2026");
+    expect(within(grid()).getByText("Nordstrand Rosa")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "I dag" }));
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("september 2026");
+  });
+
   it("pages between months", () => {
     render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    fireEvent.click(screen.getByRole("button", { name: "Kalender" }));
     fireEvent.click(screen.getByLabelText("Forrige måned"));
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("august 2026");
     expect(within(grid()).getByText("Bækkelaget Blå")).toBeInTheDocument();

@@ -579,6 +579,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-match-row-copy > strong { font-weight: 600; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
 .grep-match-home { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: 999px; background: var(--paper-deep); font-size: 11px; font-weight: 650; color: var(--ink); }
 .grep-match-time { font-size: 14px; font-weight: 650; flex-shrink: 0; min-width: 42px; }
+/* The list runs the whole season, so each month is headed where it starts. */
+.grep-match-month + .grep-match-month { margin-top: 26px; }
+.grep-match-month-head { margin: 0 0 10px 4px; font-size: 13px; font-weight: 650; color: var(--ink-soft); }
+.grep-match-month-head::first-letter { text-transform: uppercase; }
+/* Played days are folded away above the season, not paged out of it. */
+.grep-match-played-toggle { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; margin-bottom: 22px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--ink-soft); font-size: 13px; font-weight: 650; transition: border-color .15s, color .15s; }
+.grep-match-played-toggle:hover { border-color: var(--ink); color: var(--ink); }
+.grep-match-today { display: flex; align-items: center; gap: 12px; margin: 26px 0; color: var(--accent); font-size: 12px; font-weight: 700; }
+.grep-match-today::before, .grep-match-today::after { content: ""; flex: 1; height: 1px; background: var(--accent); }
 .grep-calendar-settings { margin-top: 32px; border-top: 1px solid var(--line); padding: 20px 2px; color: var(--ink-soft); font-size: 12px; }
 .grep-calendar-settings summary { cursor: pointer; width: fit-content; padding: 8px 0; }
 .grep-calendar-settings p { margin: 12px 0; max-width: 450px; line-height: 1.6; }

@@ -295,6 +295,29 @@ export function groupMatchDays(fixtures: readonly TeamFixture[], timeZone?: stri
 }
 
 /**
+ * The list is the season, not a month: every match day from today to the last
+ * one in the terminliste, with the days already played kept apart so they can
+ * stay folded away. A day counts as ahead until it is over — the morning's
+ * match is still the day's business at lunch — so the split is on the date,
+ * not on the clock. `today` is a `dayKey`.
+ */
+export function splitMatchDays(days: readonly MatchDay[], today: string) {
+  return { played: days.filter((day) => day.day < today), upcoming: days.filter((day) => day.day >= today) };
+}
+
+/** Consecutive match days under the month they fall in, for the list's month headings. */
+export function groupDaysByMonth(days: readonly MatchDay[]) {
+  const months: Array<{ month: string; days: MatchDay[] }> = [];
+  for (const day of days) {
+    const month = day.day.slice(0, 7);
+    const last = months.at(-1);
+    if (last?.month === month) last.days.push(day);
+    else months.push({ month, days: [day] });
+  }
+  return months;
+}
+
+/**
  * The day's first throw-off for whichever squad plays this fixture. The
  * meet-up and the warm-up are counted back from it, so the second match of an
  * afternoon must not answer with its own kick-off.

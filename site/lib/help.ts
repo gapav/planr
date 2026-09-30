@@ -106,6 +106,7 @@ export const HELP_TOPICS = {
       "Finn terminlisten på handball.no: søk opp laget, åpne det og last ned «Terminliste» som Excel-fil. Lenken ligger i importdialogen.",
       "Last opp regnearket. Kolonnene «Dato», «Tid», «Kampnr», «Hjemmelag», «Bortelag», «Bane», «Arrangør» og «Turnering» leses automatisk.",
       "Huk av for lagene deres — for eksempel Rød, Blå og Grønn. Bare kampene disse lagene spiller, legges i kalenderen.",
+      "Listen viser resten av sesongen, fra neste kamp til den siste i terminlisten. Kampene som er spilt, finner du under «Vis spilte kamper» øverst i listen.",
       "Hvert lag får sin egen farge i kalenderen, og filtrene øverst viser ett lag om gangen.",
       "Klikk på en kamp for å se kampnummer, bane, arrangør og turnering — og kampoppvarmingen.",
       "Laget har én kampoppvarming. Den vises på alle kampene, med oppmøte- og oppvarmingstidspunkt regnet ut fra avkast, og en endring gjelder alle kampene.",
