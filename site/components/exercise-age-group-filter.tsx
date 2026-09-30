@@ -17,9 +17,9 @@ import { cn } from "@/lib/utils";
  * every library card, so the two families have to be told apart at a glance.
  */
 const agePresentation: Record<ExerciseAgeGroup, { pressed: string; idle: string }> = {
-  "6-9": { pressed: "border-[#7f5fa8] bg-[#7f5fa8] text-white", idle: "border-[#dcc9ef] bg-[var(--tag-band-1)] text-[var(--tag-band-1-ink)] hover:border-[#b394d6]" },
-  "10-12": { pressed: "border-[#745295] bg-[#745295] text-white", idle: "border-[#cfb6e8] bg-[var(--tag-band-2)] text-[var(--tag-band-2-ink)] hover:border-[#a37fca]" },
-  "13-15": { pressed: "border-[#5c3f79] bg-[#5c3f79] text-white", idle: "border-[#c0a2e0] bg-[var(--tag-band-3)] text-[var(--tag-band-3-ink)] hover:border-[#9269bd]" },
+  "6-9": { pressed: "border-[var(--tag-band-1-fill)] bg-[var(--tag-band-1-fill)] text-[var(--on-accent)]", idle: "border-[var(--tag-band-1-line)] bg-[var(--tag-band-1)] text-[var(--tag-band-1-ink)] hover:border-[var(--tag-band-1-line-hover)]" },
+  "10-12": { pressed: "border-[var(--tag-band-2-fill)] bg-[var(--tag-band-2-fill)] text-[var(--on-accent)]", idle: "border-[var(--tag-band-2-line)] bg-[var(--tag-band-2)] text-[var(--tag-band-2-ink)] hover:border-[var(--tag-band-2-line-hover)]" },
+  "13-15": { pressed: "border-[var(--tag-band-3-fill)] bg-[var(--tag-band-3-fill)] text-[var(--on-accent)]", idle: "border-[var(--tag-band-3-line)] bg-[var(--tag-band-3)] text-[var(--tag-band-3-ink)] hover:border-[var(--tag-band-3-line-hover)]" },
 };
 
 /**
@@ -70,7 +70,7 @@ export function ExerciseAgeGroupPicker({ value, onChange }: { value: readonly Ex
         aria-pressed={selected}
         onClick={() => onChange(toggleFilterValue(value, group, EXERCISE_AGE_GROUPS))}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)] sm:px-3.5 sm:py-2",
+          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] sm:px-3.5 sm:py-2",
           selected ? agePresentation[group].pressed : agePresentation[group].idle,
         )}
       >{formatAgeGroup(group)}</button>;

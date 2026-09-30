@@ -73,12 +73,12 @@ export function FixtureImport({ open, onClose }: { open: boolean; onClose(): voi
         <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--paper-deep)] text-[11px] font-black text-[var(--ink)]">{index + 1}</span>
         <span>{step}</span>
       </li>)}</ol>
-      <a href={HANDBALL_SEARCH_URL} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-bold transition hover:border-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]">Åpne lagsøket på handball.no<ExternalLink size={15} /></a>
+      <a href={HANDBALL_SEARCH_URL} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-bold transition hover:border-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]">Åpne lagsøket på handball.no<ExternalLink size={15} /></a>
     </section>}
-    {!parsed && <button type="button" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void readFile(file); }} className="grid min-h-52 w-full place-items-center rounded-[22px] border-2 border-dashed border-[#c8c3b7] bg-[var(--paper)] px-6 text-center transition hover:border-[var(--orange)]">
-      <span><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white text-[var(--orange)] shadow-sm"><FileSpreadsheet size={23} /></span><strong className="mt-4 block">{loading ? "Leser terminlisten …" : "Velg eller slipp en .xls- eller .xlsx-fil"}</strong><span className="mt-2 block text-sm leading-6 text-[var(--ink-soft)]">Filen leses lokalt i nettleseren. Kolonnene «Dato», «Tid», «Kampnr», «Hjemmelag», «Bortelag», «Bane», «Arrangør» og «Turnering» gjenkjennes automatisk.</span></span>
+    {!parsed && <button type="button" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void readFile(file); }} className="grid min-h-52 w-full place-items-center rounded-[22px] border-2 border-dashed border-[var(--line-strong)] bg-[var(--paper)] px-6 text-center transition hover:border-[var(--accent)]">
+      <span><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[var(--surface-raised)] text-[var(--accent)] shadow-sm"><FileSpreadsheet size={23} /></span><strong className="mt-4 block">{loading ? "Leser terminlisten …" : "Velg eller slipp en .xls- eller .xlsx-fil"}</strong><span className="mt-2 block text-sm leading-6 text-[var(--ink-soft)]">Filen leses lokalt i nettleseren. Kolonnene «Dato», «Tid», «Kampnr», «Hjemmelag», «Bortelag», «Bane», «Arrangør» og «Turnering» gjenkjennes automatisk.</span></span>
     </button>}
-    {error && <div role="alert" className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-[var(--danger)]">{error}</div>}
+    {error && <div role="alert" className="mt-4 rounded-2xl bg-[var(--danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--danger)]">{error}</div>}
     {parsed && <div>
       <div className="flex flex-wrap items-center gap-2"><Tag tone="green"><CheckCircle2 size={13} className="mr-1" />Terminlisten er lest</Tag><span className="text-sm font-bold">{fileName}</span><span className="text-sm text-[var(--ink-soft)]">· {parsed.fixtures.length} kamper · {parsed.teams.length} lag</span></div>
       {step === "teams" && <><div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -87,7 +87,7 @@ export function FixtureImport({ open, onClose }: { open: boolean; onClose(): voi
       </div>
       <div className="mt-3 max-h-72 overflow-y-auto rounded-2xl border border-[var(--line)]">
         {listed.length ? listed.map((team) => { const on = picked.includes(team.name); return <label key={team.name} className={cn("flex cursor-pointer items-center gap-3 border-b border-[var(--line)] px-4 py-3 text-sm last:border-b-0", on && "bg-[var(--paper)]")}>
-          <input type="checkbox" className="h-4 w-4 accent-[var(--orange)]" checked={on} onChange={() => setPicked((current) => on ? current.filter((name) => name !== team.name) : [...current, team.name])} />
+          <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={on} onChange={() => setPicked((current) => on ? current.filter((name) => name !== team.name) : [...current, team.name])} />
           <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: teamColor(team.name) }} aria-hidden />
           <span className="min-w-0 flex-1 truncate font-bold">{team.name}</span>
           <span className="text-xs text-[var(--ink-soft)]">{team.matchCount} kamper</span>

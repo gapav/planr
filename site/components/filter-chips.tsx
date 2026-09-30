@@ -15,7 +15,7 @@ export interface FilterChip {
 }
 
 /** Colour is `.grep-filter-chips` in `globals.css`; this is only the geometry. */
-const chipClass = "inline-flex select-none items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)] sm:px-3.5 sm:py-2";
+const chipClass = "inline-flex select-none items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] sm:px-3.5 sm:py-2";
 
 /**
  * A wrapping row of filter chips. It is a toolbar rather than a plain group so

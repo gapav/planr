@@ -32,5 +32,5 @@ export default function TodayPage() {
     router.replace(session ? `/sessions/${session.id}/live` : "/sessions");
   }, [authLoading, currentTeam, router, sessions, user, workspaceLoaded]);
 
-  return <div className="grid min-h-screen place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--orange)]" aria-label="Laster" /></div>;
+  return <div className="grid min-h-screen place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--accent)]" aria-label="Laster" /></div>;
 }

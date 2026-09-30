@@ -45,12 +45,12 @@ export function SessionDigestCard() {
         onClick={() => void toggle()}
         className={cn(
           "relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-60",
-          enabled ? "bg-[var(--orange)]" : "bg-[#cfccc2]",
+          enabled ? "bg-[var(--accent-fill)]" : "bg-[var(--line-strong)]",
         )}
       >
-        <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all", enabled ? "left-6" : "left-1")} />
+        <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-[var(--on-accent)] shadow transition-all", enabled ? "left-6" : "left-1")} />
       </button>
     </div>
-    {error && <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
+    {error && <p role="alert" className="mt-3 rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
   </section>;
 }

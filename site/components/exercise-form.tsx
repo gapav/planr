@@ -71,7 +71,7 @@ export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exerc
                 where the file is chosen rather than buried in the terms. */}
             <p className="mt-0.5 flex items-start gap-2.5 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-xs font-normal leading-5 text-[var(--ink-soft)]"><ShieldCheck size={15} className="mt-px shrink-0 text-[var(--ink)]" aria-hidden /><span><strong className="font-bold text-[var(--ink)]">Husk!</strong> Last bare opp bilder og video du har laget selv eller har lov til å dele. Filen blir synlig for alle trenere i Grep.</span></p></>}
       </div>
-      {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
+      {error && <p role="alert" className="rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
       <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Avbryt</Button><Button type="submit" disabled={submitting}>{submitting ? "Lagrer…" : exercise ? "Lagre endringer" : "Legg til i øvelsesbanken"}</Button></div>
     </form>
   </Modal>;

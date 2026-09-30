@@ -25,5 +25,5 @@ export function TeamCrest({ team, size = "md", className }: { team: CrestSubject
   // A logo the browser cannot load would otherwise leave a broken box in the
   // sidebar on every page, so fall back to the initials for good.
   if (!team.logoUrl || team.logoUrl === failedUrl) return <span aria-hidden="true" className={shell}>{initials(team.shortName) || "?"}</span>;
-  return <span aria-hidden="true" className={cn(shell, "bg-white")}><img src={team.logoUrl} alt="" className="h-full w-full object-contain" onError={() => setFailedUrl(team.logoUrl)} /></span>;
+  return <span aria-hidden="true" className={cn(shell, "bg-[var(--logo-plate)]")}><img src={team.logoUrl} alt="" className="h-full w-full object-contain" onError={() => setFailedUrl(team.logoUrl)} /></span>;
 }

@@ -112,7 +112,7 @@ export function GroupingBoard({ groups, players, onMove }: { groups: PlayerGroup
   return <div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{groups.map((group) => {
       const isTarget = Boolean(drag?.active) && overGroupId === group.id && drag?.fromGroupId !== group.id;
-      return <article key={group.id} data-group-id={group.id} className={cn("rounded-2xl border bg-white p-4 transition", isTarget ? "border-[var(--orange)] bg-[#fff6f1] shadow-[0_8px_24px_rgba(240,100,46,.15)]" : "border-[var(--line)]")}>
+      return <article key={group.id} data-group-id={group.id} className={cn("rounded-2xl border bg-[var(--surface-raised)] p-4 transition", isTarget ? "border-[var(--accent)] bg-[var(--warn-bg)] shadow-[0_8px_24px_rgba(240,100,46,.15)]" : "border-[var(--line)]")}>
         <div className="flex items-baseline justify-between gap-2"><p className="text-xs font-black uppercase tracking-[.09em] text-[var(--ink-soft)]">{group.label}</p><span className="text-xs font-bold text-[var(--ink-soft)]">{group.playerIds.length} spillere</span></div>
         <ul className="mt-2.5 grid gap-1.5">
           {group.playerIds.map((playerId) => <li key={playerId}>
@@ -124,18 +124,18 @@ export function GroupingBoard({ groups, players, onMove }: { groups: PlayerGroup
               onPointerUp={endPointer}
               onPointerCancel={reset}
               onClick={() => openMenu(playerId, group.id)}
-              className={cn("flex w-full select-none items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-sm font-bold transition", drag?.active && drag.playerId === playerId ? "border-dashed border-[#c8c3b7] bg-[var(--paper)] opacity-45" : "border-transparent hover:border-[var(--line)] hover:bg-[var(--paper)]")}
+              className={cn("flex w-full select-none items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-sm font-bold transition", drag?.active && drag.playerId === playerId ? "border-dashed border-[var(--line-strong)] bg-[var(--paper)] opacity-45" : "border-transparent hover:border-[var(--line)] hover:bg-[var(--paper)]")}
             >
               <GripVertical size={15} className="shrink-0 text-[var(--ink-soft)]" />
               <span className="min-w-0 flex-1 truncate">{playerName(playerId)}</span>
             </button>
           </li>)}
-          {!group.playerIds.length && <li className="rounded-xl border border-dashed border-[#c8c3b7] px-3 py-5 text-center text-xs font-semibold text-[var(--ink-soft)]">Ingen spillere her ennå</li>}
+          {!group.playerIds.length && <li className="rounded-xl border border-dashed border-[var(--line-strong)] px-3 py-5 text-center text-xs font-semibold text-[var(--ink-soft)]">Ingen spillere her ennå</li>}
         </ul>
       </article>;
     })}</div>
 
-    {drag?.active && <div aria-hidden className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--ink)] bg-white px-3 py-2 text-sm font-bold shadow-[0_14px_34px_rgba(16,32,29,.28)]" style={{ left: drag.x, top: drag.y }}>{playerName(drag.playerId)}</div>}
+    {drag?.active && <div aria-hidden className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--ink)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-bold shadow-[0_14px_34px_rgba(16,32,29,.28)]" style={{ left: drag.x, top: drag.y }}>{playerName(drag.playerId)}</div>}
 
     <Modal open={Boolean(menuFor)} onClose={() => setMenuFor(null)} title="Flytt spiller" description={menuFor ? `Velg hvor ${playerName(menuFor.playerId)} skal være.` : undefined} size="sm">
       <div className="grid gap-2">{groups.map((group) => <Button key={group.id} variant="secondary" className="justify-between" disabled={group.id === menuFor?.groupId} onClick={() => moveTo(group.id)}>

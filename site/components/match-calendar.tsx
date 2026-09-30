@@ -128,10 +128,10 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
         const overflowing = matches.length > LINES_PER_DAY;
         const listed = overflowing ? matches.slice(0, LINES_PER_DAY - 1) : matches;
         return <div key={day.key} className={cn("min-h-[116px] border-b border-r border-[var(--line)] p-1.5", index % 7 === 6 && "border-r-0", index >= 35 && "border-b-0", !day.inMonth && "bg-[var(--paper)]/60")}>
-          <div className="flex h-6 items-center"><span className={cn("ml-1 grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs font-black", day.inMonth ? "text-[var(--ink)]" : "text-[var(--ink-soft)]/60", day.key === today && "bg-[var(--orange)] text-white")}>{day.dayOfMonth}</span></div>
+          <div className="flex h-6 items-center"><span className={cn("ml-1 grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs font-black", day.inMonth ? "text-[var(--ink)]" : "text-[var(--ink-soft)]/60", day.key === today && "bg-[var(--accent-fill)] text-[var(--on-accent)]")}>{day.dayOfMonth}</span></div>
           <div className="mt-1 flex flex-col gap-0.5">
             {listed.map((fixture) => <MatchChip key={fixture.id} fixture={fixture} onOpen={() => setOpen(fixture)} />)}
-            {overflowing && <button type="button" onClick={() => setDayOpen(day.key)} className="flex w-full items-center gap-1 rounded-md bg-[#fdece3] px-1.5 py-0.5 text-left text-[11px] font-black leading-5 text-[#9c3913] transition hover:bg-[#f8d3c0]">+{matches.length - listed.length} til<ChevronDown className="ml-auto shrink-0" size={12} strokeWidth={3} /></button>}
+            {overflowing && <button type="button" onClick={() => setDayOpen(day.key)} className="flex w-full items-center gap-1 rounded-md bg-[var(--warn-bg)] px-1.5 py-0.5 text-left text-[11px] font-black leading-5 text-[var(--warn-ink)] transition hover:bg-[var(--warn-bg-strong)]">+{matches.length - listed.length} til<ChevronDown className="ml-auto shrink-0" size={12} strokeWidth={3} /></button>}
           </div>
         </div>;
       })}</div>
@@ -141,7 +141,7 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
         becomes the list it would have to collapse to anyway. */}
     <div className={cn("grep-match-agenda mt-4", view === "calendar" && "sm:hidden")} aria-label="Månedens kamper">
       {monthDays.length ? <ul className="flex flex-col gap-2">{monthDays.map((day) => <li key={day.day}><MatchDay day={day} routine={routine} onOpen={setOpen} onWarmup={(fixture) => setWarmup({ fixture })} /></li>)}</ul>
-        : <p className="rounded-2xl border border-dashed border-[#c8c3b7] px-4 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen kamper denne måneden.</p>}
+        : <p className="rounded-2xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen kamper denne måneden.</p>}
     </div>
 
     <DayMatches dayKey={dayOpen} matches={dayOpen ? byDay.get(dayOpen) ?? [] : []} routine={routine} onClose={() => setDayOpen(null)} onOpen={(fixture) => { setDayOpen(null); setOpen(fixture); }} onWarmup={(fixture) => { setDayOpen(null); setWarmup({ fixture }); }} />
@@ -151,7 +151,7 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
 }
 
 function FilterChip({ active, color, onClick, children }: { active: boolean; color?: string; onClick(): void; children: React.ReactNode }) {
-  return <button type="button" onClick={onClick} aria-pressed={active} className={cn("inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-bold transition", active ? "border-[#eac8b6] bg-[#fff0e7] text-[var(--ink)]" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]")}>
+  return <button type="button" onClick={onClick} aria-pressed={active} className={cn("inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-bold transition", active ? "border-[var(--warn-line)] bg-[var(--warn-bg)] text-[var(--ink)]" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]")}>
     {color && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} aria-hidden />}{children}
   </button>;
 }
@@ -327,9 +327,9 @@ function MatchDetails({ fixture, dayStartsAt, canManage, removing, routine, onCl
   return <Modal open onClose={onClose} title={`${fixture.homeTeam} — ${fixture.awayTeam}`} description={`${longDate(fixture.startsAt)} kl. ${time(fixture.startsAt)}`}>
     <div className="grid gap-4">
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-2xl bg-[var(--paper)] p-4 text-center">
-        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[var(--ink-soft)]">Hjemmelag</p><p className={cn("mt-1 break-words font-black", ours(fixture.homeTeam) && "text-[var(--orange)]")}>{fixture.homeTeam}</p></div>
+        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[var(--ink-soft)]">Hjemmelag</p><p className={cn("mt-1 break-words font-black", ours(fixture.homeTeam) && "text-[var(--accent)]")}>{fixture.homeTeam}</p></div>
         <p className="text-lg font-black text-[var(--ink-soft)]">{fixture.result || "–"}</p>
-        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[var(--ink-soft)]">Bortelag</p><p className={cn("mt-1 break-words font-black", ours(fixture.awayTeam) && "text-[var(--orange)]")}>{fixture.awayTeam}</p></div>
+        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[var(--ink-soft)]">Bortelag</p><p className={cn("mt-1 break-words font-black", ours(fixture.awayTeam) && "text-[var(--accent)]")}>{fixture.awayTeam}</p></div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {fixture.ourTeams.map((name) => <span key={name} className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-[var(--line)] px-3 text-xs font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: teamPalette(name, fixture.ourTeamColors?.[name]).accent }} aria-hidden />{name}</span>)}

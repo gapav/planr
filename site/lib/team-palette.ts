@@ -1,13 +1,18 @@
 import type { TeamFixture } from "./types";
 
-/** Curated identities: accents identify teams, tints support dark readable text. */
+/**
+ * Curated identities: accents identify teams, tints support readable text.
+ * Accents are mid tones that read on either theme's ground, so they stay hex
+ * (the importer stores them); a tint sits under body text and has to follow
+ * the theme, so it is a CSS variable defined in `globals.css`.
+ */
 export const TEAM_PALETTE = [
-  { id: "apricot", name: "Aprikos", accent: "#E89B74", tint: "#FFF0E7" },
-  { id: "lilac", name: "Syrin", accent: "#AD8CC8", tint: "#F1EAF8" },
-  { id: "sage", name: "Salvie", accent: "#7F9E8B", tint: "#EAF2ED" },
-  { id: "blue", name: "Disblå", accent: "#819DB9", tint: "#EDF2F8" },
-  { id: "rose", name: "Rose", accent: "#C88E9E", tint: "#FAEDF1" },
-  { id: "honey", name: "Honning", accent: "#C3A35C", tint: "#F8F2E3" },
+  { id: "apricot", name: "Aprikos", accent: "#E89B74", tint: "var(--team-apricot-tint)" },
+  { id: "lilac", name: "Syrin", accent: "#AD8CC8", tint: "var(--team-lilac-tint)" },
+  { id: "sage", name: "Salvie", accent: "#7F9E8B", tint: "var(--team-sage-tint)" },
+  { id: "blue", name: "Disblå", accent: "#819DB9", tint: "var(--team-blue-tint)" },
+  { id: "rose", name: "Rose", accent: "#C88E9E", tint: "var(--team-rose-tint)" },
+  { id: "honey", name: "Honning", accent: "#C3A35C", tint: "var(--team-honey-tint)" },
 ] as const;
 
 /**

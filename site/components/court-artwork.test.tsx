@@ -14,6 +14,6 @@ describe("CourtArtwork", () => {
     expect(paths[0]).toHaveAttribute("d", "M-12 103 C98 137 242 211 307 291 C340 331 351 392 338 462");
     expect(paths[1]).toHaveAttribute("stroke-dasharray", "15 21");
     expect(container.querySelector("g")).toHaveAttribute("transform", "translate(664 0) scale(-1 1)");
-    expect(container.querySelector('path[fill="var(--grep-apricot)"]')).toHaveAttribute("d", "M-12 103 C98 137 242 211 307 291 C340 331 351 392 338 462 L-12 462Z");
+    expect(container.querySelector('path[fill="var(--court-apricot)"]')).toHaveAttribute("d", "M-12 103 C98 137 242 211 307 291 C340 331 351 392 338 462 L-12 462Z");
   });
 });

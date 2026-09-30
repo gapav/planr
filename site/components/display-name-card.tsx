@@ -73,6 +73,6 @@ export function DisplayNameCard() {
         {saved && unchanged && <span className="flex items-center gap-1 text-sm font-semibold text-[var(--green)]"><Check size={16} />Lagret</span>}
       </div>
     </form>
-    {error && <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
+    {error && <p role="alert" className="mt-3 rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
   </section>;
 }

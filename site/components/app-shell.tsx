@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useGrep } from "./app-provider";
 import { Logo } from "./logo";
 import { TeamCrest } from "./team-crest";
+import { ThemeSwitch } from "./theme-switch";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -72,6 +73,7 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
       <div className="grep-sidebar-footer">
         {(!sidebarCollapsed || mobile) && <>
           {isDemoMode && <p className="grep-demo-label"><span />Demomodus · ingen data lagres</p>}
+          <div className="grep-theme-row"><span>Utseende</span><ThemeSwitch compact /></div>
           <div className="grep-profile"><span className="overview-avatar">{user?.initials ?? "T"}</span><div><strong>{user?.fullName}</strong><small>{isGlobalAdmin ? "Systemadministrator" : currentTeam?.role === "admin" ? "Lagadministrator" : "Trener"}</small></div><button className="grep-icon-button" onClick={() => void signOut()} aria-label="Logg ut"><LogOut size={17} /></button></div>
         </>}
       </div>

@@ -10,12 +10,12 @@ import { cn } from "@/lib/utils";
 
 /** The icon and the tag tone come from the filter chips so a category reads the same everywhere; only the placeholder's own colours live here, one wash of the same hue its tag wears. */
 const categoryPlaceholder: Record<ExerciseCategory, { background: string; tint: string }> = {
-  Forsvar: { background: "bg-[#eaf5fb]", tint: "text-[#7aa8c4]" },
-  Angrep: { background: "bg-[#fff0e8]", tint: "text-[#dd9270]" },
-  Skuddferdigheter: { background: "bg-[#fceef4]", tint: "text-[#d08faa]" },
-  Målvakt: { background: "bg-[#e8f5f2]", tint: "text-[#79b3ab]" },
-  Fysisk: { background: "bg-[#edf7f0]", tint: "text-[#88b89b]" },
-  Leker: { background: "bg-[#fff7dc]", tint: "text-[#cdac60]" },
+  Forsvar: { background: "bg-[var(--tile-sky)]", tint: "text-[var(--tile-sky-ink)]" },
+  Angrep: { background: "bg-[var(--tile-apricot)]", tint: "text-[var(--tile-apricot-ink)]" },
+  Skuddferdigheter: { background: "bg-[var(--tile-rose)]", tint: "text-[var(--tile-rose-ink)]" },
+  Målvakt: { background: "bg-[var(--tile-teal)]", tint: "text-[var(--tile-teal-ink)]" },
+  Fysisk: { background: "bg-[var(--tile-sage)]", tint: "text-[var(--tile-sage-ink)]" },
+  Leker: { background: "bg-[var(--tile-gold)]", tint: "text-[var(--tile-gold-ink)]" },
 };
 const genericPlaceholder = { background: "bg-[var(--paper-deep)]", tint: "text-[var(--ink-soft)]" };
 
@@ -25,11 +25,11 @@ export type ThumbnailSubject = Pick<Exercise, "mediaUrl" | "mediaKind" | "thumbn
 export function ExerciseThumbnail({ exercise, className, iconClassName }: { exercise: ThumbnailSubject; className?: string; iconClassName?: string }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const failed = exercise.thumbnailUrl === failedUrl;
-  if (exercise.mediaKind === "video" && exercise.mediaUrl) return <div className={cn("relative overflow-hidden bg-[#dfe4df]", className)}><video src={exercise.mediaUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" /><span className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-white/90"><Play size={16} fill="currentColor" /></span></div>;
+  if (exercise.mediaKind === "video" && exercise.mediaUrl) return <div className={cn("relative overflow-hidden bg-[var(--paper-deep)]", className)}><video src={exercise.mediaUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" /><span className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Play size={16} fill="currentColor" /></span></div>;
   if (failed || !exercise.thumbnailUrl) {
     return <ThumbnailPlaceholder category={exercise.category ?? null} className={className} iconClassName={iconClassName} />;
   }
-  return <div className={cn("relative overflow-hidden bg-[#dfe4df]", className)}><img src={exercise.thumbnailUrl} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" onError={() => setFailedUrl(exercise.thumbnailUrl)} /><span className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />{exercise.mediaKind && exercise.mediaKind !== "image" && <span className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-white/90"><Play size={16} fill="currentColor" /></span>}</div>;
+  return <div className={cn("relative overflow-hidden bg-[var(--paper-deep)]", className)}><img src={exercise.thumbnailUrl} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" onError={() => setFailedUrl(exercise.thumbnailUrl)} /><span className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />{exercise.mediaKind && exercise.mediaKind !== "image" && <span className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Play size={16} fill="currentColor" /></span>}</div>;
 }
 
 /** The wash and icon a thumbnail shows when there is no picture to show. */

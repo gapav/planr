@@ -7,7 +7,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn, readableInk } from "@/lib/utils";
 
 export function Button({ className, variant = "primary", size = "md", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger"; size?: "sm" | "md" | "lg" }) {
-  return <button className={cn("grep-button inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-45", size === "sm" && "min-h-9 px-3 text-sm", size === "md" && "min-h-11 px-4 text-sm", size === "lg" && "min-h-12 px-5", variant === "primary" && "bg-[var(--grep-apricot)] text-[var(--grep-ink)] enabled:hover:bg-[#ffa77c]", variant === "secondary" && "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] enabled:hover:border-[var(--ink)]", variant === "ghost" && "text-[var(--ink-soft)] enabled:hover:bg-black/5 enabled:hover:text-[var(--ink)]", variant === "danger" && "bg-red-50 text-[var(--danger)] enabled:hover:bg-red-100", className)} {...props} />;
+  return <button className={cn("grep-button inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-45", size === "sm" && "min-h-9 px-3 text-sm", size === "md" && "min-h-11 px-4 text-sm", size === "lg" && "min-h-12 px-5", variant === "primary" && "bg-[var(--grep-apricot)] text-[var(--on-bright)] enabled:hover:bg-[var(--apricot-hover)]", variant === "secondary" && "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] enabled:hover:border-[var(--ink)]", variant === "ghost" && "text-[var(--ink-soft)] enabled:hover:bg-[var(--hover-wash-strong)] enabled:hover:text-[var(--ink)]", variant === "danger" && "bg-[var(--danger-bg)] text-[var(--danger)] enabled:hover:bg-[var(--danger-bg-hover)]", className)} {...props} />;
 }
 
 // Modals stack: the exercise picker and the warm-up dialog each render a
@@ -61,7 +61,7 @@ export function Modal({ open, title, description, children, onClose, size = "md"
   // and nothing to portal either: a dialog is opened by a click, so `open` is
   // false in every render the server makes and in the one the browser hydrates.
   if (!open || typeof document === "undefined") return null;
-  return createPortal(<div className="fixed inset-0 z-50 grid place-items-end bg-[#10201d]/45 p-0 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onPointerDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+  return createPortal(<div className="fixed inset-0 z-50 grid place-items-end bg-[var(--scrim)] p-0 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onPointerDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className={cn("max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-[var(--surface)] p-5 pt-0 shadow-2xl soft-in sm:rounded-[28px] sm:p-7 sm:pt-0", size === "sm" && "sm:max-w-md", size === "md" && "sm:max-w-xl", size === "lg" && "sm:max-w-3xl")}>
       <div className="sticky top-0 z-10 -mx-5 mb-6 flex items-start justify-between gap-5 border-b border-[var(--line)] bg-[var(--surface)] px-5 pb-4 pt-5 sm:-mx-7 sm:px-7 sm:pt-7"><div><h2 id="modal-title" className="text-2xl font-black tracking-[-.04em]">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">{description}</p>}</div><Button variant="ghost" size="sm" aria-label="Lukk dialogboksen" onClick={onClose} className="-mr-2 h-11 w-11 shrink-0 px-0"><X size={19} /></Button></div>
       {children}
@@ -78,7 +78,7 @@ export function Field({ label, hint, help, htmlFor, children }: { label: string;
   return <label className="grid min-w-0 gap-2 text-sm font-semibold"><span>{label}</span>{children}{trailing}</label>;
 }
 
-export const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3.5 text-[15px] text-[var(--ink)] shadow-sm transition placeholder:text-[#8b9692] hover:border-[#aaa69b] focus:border-[var(--ink)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--ink)]";
+export const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] px-3.5 text-[15px] text-[var(--ink)] shadow-sm transition placeholder:text-[var(--ink-faint)] hover:border-[var(--line-stronger)] focus:border-[var(--ink)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--ink)]";
 export const textareaClass = `${inputClass} min-h-28 resize-y py-3 leading-6`;
 
 /**
@@ -98,9 +98,9 @@ export const textareaClass = `${inputClass} min-h-28 resize-y py-3 leading-6`;
  * not, and `categoryPresentation` / `bandTone` for which value wears which.
  */
 export const tagTones = {
-  neutral: { tint: "rgb(0 0 0 / .05)", ink: "var(--ink-soft)" },
+  neutral: { tint: "var(--hover-wash-strong)", ink: "var(--ink-soft)" },
   orange: { tint: "var(--tag-apricot)", ink: "var(--tag-apricot-ink)" },
-  green: { tint: "#e9ddf7", ink: "#59416b" },
+  green: { tint: "var(--tag-band-1)", ink: "var(--tag-band-1-ink)" },
   blue: { tint: "var(--tag-sky)", ink: "var(--tag-sky-ink)" },
   sky: { tint: "var(--tag-sky)", ink: "var(--tag-sky-ink)" },
   apricot: { tint: "var(--tag-apricot)", ink: "var(--tag-apricot-ink)" },
@@ -125,5 +125,5 @@ export function Avatar({ name, initials, color, size = "md" }: { name: string; i
 }
 
 export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) {
-  return <div className="grid min-h-72 place-items-center rounded-[24px] border border-dashed border-[#c8c3b7] bg-white/45 px-6 text-center"><div className="max-w-sm"><div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-[var(--paper-deep)]">{icon}</div><h3 className="text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{body}</p>{action && <div className="mt-5">{action}</div>}</div></div>;
+  return <div className="grid min-h-72 place-items-center rounded-[24px] border border-dashed border-[var(--line-strong)] bg-[var(--surface-raised)]/45 px-6 text-center"><div className="max-w-sm"><div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-[var(--paper-deep)]">{icon}</div><h3 className="text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{body}</p>{action && <div className="mt-5">{action}</div>}</div></div>;
 }

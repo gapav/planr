@@ -25,7 +25,7 @@ export function AccountMenu() {
   const entry = "flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-[var(--ink)] transition hover:bg-[var(--paper)]";
   return <div ref={ref} className="overview-account relative">
     <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label="Kontomeny" title={user?.fullName} onClick={() => setOpen(!open)} className={cn("overview-avatar cursor-pointer transition hover:ring-4 hover:ring-[var(--grep-lilac)]", open && "ring-4 ring-[var(--grep-lilac)]")}>{user?.initials ?? "T"}</button>
-    {open && <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-30 w-64 rounded-xl border border-[var(--line)] bg-white p-1.5 text-sm font-semibold shadow-xl">
+    {open && <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-30 w-64 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] p-1.5 text-sm font-semibold shadow-xl">
       <div className="px-3 pb-2 pt-1.5"><p className="truncate font-bold">{user?.fullName}</p><p className="truncate text-xs font-normal text-[var(--ink-soft)]">{user?.email}</p></div>
       <div className="my-1 h-px bg-[var(--line)]" />
       <Link href="/team" role="menuitem" autoFocus onClick={() => setOpen(false)} className={entry}><Settings size={16} />Innstillinger</Link>

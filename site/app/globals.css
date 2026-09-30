@@ -1,26 +1,74 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
+  /* Every colour on screen comes from this block, and `[data-theme="dark"]`
+     below redefines the same names — so a component never asks which theme is
+     on. A literal in a component is a colour that will be wrong in one of them.
+     Ink runs from full strength down: body text, a step back (card labels, nav),
+     secondary copy, icons and counts, and switched-off rows. */
   --ink: #2e1b3d;
+  --ink-mid: #63526e;
   --ink-soft: #74647d;
+  --ink-faint: #8d7f97;
+  --ink-disabled: #a79dae;
   --paper: #faf8f4;
   --paper-deep: #f0ede7;
+  --paper-deep-hover: #e9e5de;
   --surface: #fffefd;
+  /* One step above a surface: inputs, the cards inside a card, open menus. */
+  --surface-raised: #ffffff;
+  /* Frosted chips laid over a tinted hero, like the date badge. */
+  --glass: #ffffffb8;
+  --glass-soft: #ffffff80;
   --line: #e7e3dd;
-  /* Legacy accent remains dark enough for white labels. Primary buttons use
-     the dedicated apricot token with dark text. */
-  --orange: #67467e;
-  --orange-dark: #4b2f60;
+  --line-dashed: #d3cdd7;
+  --line-strong: #c8c3b7;
+  --line-stronger: #aaa69b;
+  --line-hover: #cdbbd9;
+  --line-hover-strong: #b3a5bd;
+  /* Hover and pressed tints. Ink-coloured, so they darken paper and lighten
+     the dark theme's grounds without either needing its own rule. */
+  --hover-wash: #2e1b3d08;
+  --hover-wash-strong: #2e1b3d0d;
+  --scrim: rgb(28 18 36 / .45);
+  /* The brand purple, split by job: `--accent` is read as text, borders and
+     focus rings, `--accent-fill` sits under a white label. They are the same
+     colour here and part ways in the dark theme, where text wants a lighter
+     purple and a fill under white wants a deeper one. */
+  --accent: #67467e;
+  --accent-fill: #67467e;
+  --accent-fill-hover: #4b2f60;
+  --on-accent: #ffffff;
   --mint: #bfe0cf;
   --lime: #dbea9c;
   --blue: #bdd8ec;
   --danger: #b93232;
+  --danger-ink: #7f1d1d;
+  --danger-bg: #fef2f2;
+  --danger-bg-hover: #fee2e2;
+  --danger-line: #fecaca;
   /* Success marks — checks, «Lagret» — in the rebrand's sage, dark enough to
      read as text on paper. */
   --green: #4c7a63;
+  --success-bg: #e8f3eb;
+  --success-line: #83ad9c;
+  --success-fill: #34745f;
+  --success-ink: #285546;
+  /* Stikkord, "publiser først" and every other peach note. */
+  --warn-bg: #fff0e8;
+  --warn-bg-strong: #fde1d5;
+  --warn-line: #eac8b6;
+  --warn-ink: #9c3913;
+  /* Bands that stay dark in both themes: the live session's header, the
+     builder's time check, the sign-in hero. Being dark is what they say. */
+  --chrome: #2e1b3d;
+  --on-chrome: #ffffff;
+  --on-chrome-soft: #e5d9ed;
   /* Coach avatars. The signed-in coach wears the brand purple; team-mates wear
      the lilac the sidebar avatar already uses. `readableInk` picks the label
-     colour, so these two are the only values to change. */
+     colour, so these two are the only values to change. Each chip carries its
+     own label colour, so both read on either theme's ground unchanged. */
   --avatar-self: #67467e;
   --avatar-peer: #e9ddf7;
   /* Exercise-library tags. A topic wears a hue of its own — the same one its
@@ -47,15 +95,179 @@
   --tag-band-2-ink: #4f3766;
   --tag-band-3: #cbafe6;
   --tag-band-3-ink: #412d59;
+  /* The age filter's chips: an edge a shade deeper than the band, and a solid
+     fill under white once pressed. */
+  --tag-band-1-line: #dcc9ef;
+  --tag-band-1-line-hover: #b394d6;
+  --tag-band-1-fill: #7f5fa8;
+  --tag-band-2-line: #cfb6e8;
+  --tag-band-2-line-hover: #a37fca;
+  --tag-band-2-fill: #745295;
+  --tag-band-3-line: #c0a2e0;
+  --tag-band-3-line-hover: #9269bd;
+  --tag-band-3-fill: #5c3f79;
+  /* A card with no media of its own: a paler wash of its topic's hue, and the
+     topic's icon drawn in a mid tone of it. */
+  --tile-sky: #eaf5fb;
+  --tile-sky-ink: #7aa8c4;
+  --tile-apricot: #fff0e8;
+  --tile-apricot-ink: #dd9270;
+  --tile-rose: #fceef4;
+  --tile-rose-ink: #d08faa;
+  --tile-teal: #e8f5f2;
+  --tile-teal-ink: #79b3ab;
+  --tile-sage: #edf7f0;
+  --tile-sage-ink: #88b89b;
+  --tile-gold: #fff7dc;
+  --tile-gold-ink: #cdac60;
+  /* Team colours in the match calendar. The accents live in
+     `lib/team-palette.ts` and read on both grounds; the tints behind a match
+     do not, so they are here. */
+  --team-apricot-tint: #fff0e7;
+  --team-lilac-tint: #f1eaf8;
+  --team-sage-tint: #eaf2ed;
+  --team-blue-tint: #edf2f8;
+  --team-rose-tint: #faedf1;
+  --team-honey-tint: #f8f2e3;
+  /* Månedens fokus on the overview. */
+  --focus-wash: #fff7f1;
+  --focus-line: #e3d9d1;
+  --court-apricot: #ffb28a;
+  /* Uploaded club logos are drawn for white paper, so they keep a white plate
+     in the dark theme too. Deliberately not redefined below. */
+  --logo-plate: #ffffff;
+  --court-line: #fffefd;
   --shadow: 0 18px 50px rgba(16, 32, 29, 0.08);
   --font-sans-stack: var(--font-grep), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --grep-ink: #2e1b3d;
-  --grep-muted: #766b7d;
-  --grep-paper: #faf8f4;
+  /* The brand set the rebrand introduced. Where it repeats a token above it is
+     an alias, so the dark theme defines each colour once. */
+  --grep-ink: var(--ink);
+  --grep-muted: var(--ink-soft);
+  --grep-paper: var(--paper);
   --grep-line: #ebe6e8;
   --grep-apricot: #ffb28a;
+  --apricot-hover: #ffa77c;
+  --apricot-wash: #ffb28a33;
+  --apricot-wash-strong: #ffb28a38;
+  /* Ink for labels on apricot and lime, which are bright in both themes. */
+  --on-bright: #2e1b3d;
   --grep-lilac: #e9ddf7;
+  --lilac-hover: #ded0ef;
+  --lilac-wash: #f4edf9;
+  --lilac-line: #c2a7d6;
+  --lilac-edge: #b493cb;
+  --lilac-ink: #40244f;
+  --lilac-ink-soft: #715287;
 }
+
+/* Screen only: «Skriv ut» on a session is read on white paper whatever the
+   coach's screen looks like, so print keeps the light values above. Grounds
+   step *up* in lightness as they rise — paper, surface, raised — because a
+   shadow barely shows on dark, and the step is what separates a card from the
+   page. Colours that are bright in both themes (apricot, lime, the avatars,
+   the pressed age chips) are not repeated here. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ink: #f2ecf5;
+    --ink-mid: #cdc1d6;
+    --ink-soft: #b1a4bb;
+    --ink-faint: #93869d;
+    --ink-disabled: #6f6379;
+    --paper: #16111b;
+    --paper-deep: #1e1724;
+    --paper-deep-hover: #282030;
+    --surface: #221a29;
+    --surface-raised: #2a2132;
+    --glass: #ffffff14;
+    --glass-soft: #ffffff12;
+    --line: #372c40;
+    --line-dashed: #4a3e55;
+    --line-strong: #52455d;
+    --line-stronger: #6d6178;
+    --line-hover: #5d4b6d;
+    --line-hover-strong: #735f86;
+    --hover-wash: #f2ecf50d;
+    --hover-wash-strong: #f2ecf514;
+    --scrim: rgb(6 3 9 / .66);
+    --accent: #c8a6e4;
+    --accent-fill: #7b5a97;
+    --accent-fill-hover: #8d6aa9;
+    --mint: #1f3a2e;
+    --blue: #1d3140;
+    --danger: #ff8f86;
+    --danger-ink: #ffb4ae;
+    --danger-bg: #3b1a1d;
+    --danger-bg-hover: #4a2024;
+    --danger-line: #6b2c30;
+    --green: #8cc3a4;
+    --success-bg: #1a2f25;
+    --success-line: #3e6d57;
+    --success-fill: #3f8a6b;
+    --success-ink: #9fd3b8;
+    --warn-bg: #3a2219;
+    --warn-bg-strong: #4a2a1d;
+    --warn-line: #6b3e2a;
+    --warn-ink: #ffb28a;
+    --chrome: #2b2036;
+    --on-chrome: #f2ecf5;
+    --on-chrome-soft: #d9cde2;
+    --tag-sky: #1d3140;
+    --tag-sky-ink: #a8cfe6;
+    --tag-apricot: #3b2419;
+    --tag-apricot-ink: #ffc4a5;
+    --tag-rose: #3a1f2c;
+    --tag-rose-ink: #f3b2c9;
+    --tag-teal: #173330;
+    --tag-teal-ink: #9ad5c9;
+    --tag-sage: #1b3226;
+    --tag-sage-ink: #a6d3b4;
+    --tag-gold: #352c14;
+    --tag-gold-ink: #ebcf85;
+    --tag-band-1: #2b2238;
+    --tag-band-1-ink: #d6c3ee;
+    --tag-band-2: #372849;
+    --tag-band-2-ink: #e0cff5;
+    --tag-band-3: #46325f;
+    --tag-band-3-ink: #efe2fb;
+    --tag-band-1-line: #4a3a60;
+    --tag-band-1-line-hover: #6d5690;
+    --tag-band-2-line: #54406c;
+    --tag-band-2-line-hover: #7a5f9c;
+    --tag-band-3-line: #5e467a;
+    --tag-band-3-line-hover: #8567a8;
+    --tile-sky: #1b2c38;
+    --tile-apricot: #33221a;
+    --tile-rose: #33202a;
+    --tile-teal: #172d2a;
+    --tile-sage: #1a2c21;
+    --tile-gold: #312914;
+    --team-apricot-tint: #35231b;
+    --team-lilac-tint: #2c2338;
+    --team-sage-tint: #1e2d24;
+    --team-blue-tint: #1e2835;
+    --team-rose-tint: #33222a;
+    --team-honey-tint: #302817;
+    --focus-wash: #2a1e20;
+    --focus-line: #4a3a3a;
+    --court-apricot: #c98567;
+    --court-line: #e9ddf7;
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+    --grep-line: #372c40;
+    --apricot-wash: #ffb28a24;
+    --apricot-wash-strong: #ffb28a2e;
+    --grep-lilac: #3a2d4a;
+    --lilac-hover: #45365a;
+    --lilac-wash: #2a2037;
+    --lilac-line: #5f4a78;
+    --lilac-edge: #7b5f99;
+    --lilac-ink: #e0cff5;
+    --lilac-ink-soft: #c8a6e4;
+  }
+}
+
+/* For the rare rule a token cannot express. Prefer a token. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
   --color-background: var(--paper);
@@ -80,11 +292,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
-::selection { background: var(--lime); color: var(--ink); }
+::selection { background: var(--lime); color: var(--on-bright); }
 .app-grid {
   background: var(--paper);
 }
-.thin-scrollbar { scrollbar-color: #bdb8aa transparent; scrollbar-width: thin; }
+.thin-scrollbar { scrollbar-color: var(--line-strong) transparent; scrollbar-width: thin; }
 .hide-scrollbar { scrollbar-width: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
@@ -120,14 +332,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-main { min-height: 100dvh; outline: none; }
 .grep-main-with-mobile-nav { padding-bottom: 86px; }
 .grep-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; color: inherit; }
-.grep-icon-button:hover { background: #2e1b3d08; }
+.grep-icon-button:hover { background: var(--hover-wash); }
 .grep-shell :is(button, a, select):focus-visible, .grep-auth-gate :is(button, a):focus-visible { outline: 2px solid var(--grep-ink); outline-offset: 4px; }
 .grep-mobile-header { position: sticky; z-index: 30; top: 0; display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 22px; border-bottom: 1px solid var(--grep-line); background: var(--grep-paper); }
 .grep-mobile-header .grep-logo-lockup { width: 96px; height: 32px; }
-.grep-mobile-nav { position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border-top: 1px solid var(--grep-line); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: #faf9f5f5; backdrop-filter: blur(12px); }
+.grep-mobile-nav { position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border-top: 1px solid var(--grep-line); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(12px); }
 .grep-mobile-nav :is(a,button) { display: flex; min-height: 48px; align-items: center; justify-content: center; flex-direction: column; gap: 4px; border-radius: 12px; font-size: 10px; font-weight: 600; color: var(--grep-muted); }
-.grep-mobile-nav [aria-current="page"] { color: var(--grep-ink); background: #ffb28a33; }
-.grep-drawer-overlay { position: fixed; inset: 0; z-index: 60; background: #2e1b3d45; backdrop-filter: blur(3px); }
+.grep-mobile-nav [aria-current="page"] { color: var(--grep-ink); background: var(--apricot-wash); }
+.grep-drawer-overlay { position: fixed; inset: 0; z-index: 60; background: var(--scrim); backdrop-filter: blur(3px); }
 .grep-drawer { display: flex; flex-direction: column; width: min(320px,90vw); height: 100dvh; padding: 24px 16px; overflow-y: auto; background: var(--grep-paper); }
 .grep-sidebar-brand { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; }
 .grep-team-switcher { margin: 32px 8px 20px; }
@@ -136,10 +348,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-team-control select { width: 100%; min-width: 0; min-height: 44px; appearance: none; padding: 0 20px 0 0; font-size: 13px; font-weight: 600; background: transparent; }
 .grep-team-control > svg { position: absolute; right: 0; pointer-events: none; }
 .grep-nav { display: grid; gap: 5px; }
-.grep-nav a, .grep-admin-link { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 14px; border-radius: 11px; color: #685d71; font-size: 13px; font-weight: 500; }
-.grep-nav a:hover, .grep-admin-link:hover { background: #2e1b3d06; color: var(--grep-ink); }
-.grep-nav a[aria-current="page"] { background: #ffb28a33; color: var(--grep-ink); font-weight: 650; }
-.grep-nav a[aria-current="page"] svg { fill: #2e1b3d18; }
+.grep-nav a, .grep-admin-link { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 14px; border-radius: 11px; color: var(--ink-mid); font-size: 13px; font-weight: 500; }
+.grep-nav a:hover, .grep-admin-link:hover { background: var(--hover-wash); color: var(--grep-ink); }
+.grep-nav a[aria-current="page"] { background: var(--apricot-wash); color: var(--grep-ink); font-weight: 650; }
+.grep-nav a[aria-current="page"] svg { fill: var(--hover-wash-strong); }
 .grep-sidebar-footer { margin-top: auto; padding-top: 48px; }
 .grep-admin-link { font-size: 12px; }
 .grep-admin-link[aria-current="page"] { background: var(--grep-lilac); color: var(--grep-ink); }
@@ -151,9 +363,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-profile small { display: block; color: var(--grep-muted); font-size: 10px; }
 .grep-profile .grep-icon-button { width: 32px; }
 .grep-profile .overview-avatar { width: 32px; height: 32px; font-size: 11px; }
-.grep-skip-link { position: fixed; z-index: 100; left: 16px; top: -100px; padding: 12px 20px; background: var(--grep-ink); color: white; border-radius: 8px; }
+/* Lys / mørk. The same control twice: icon-only above the profile, where it is
+   one click from every page, and labelled under «For deg». */
+.grep-theme-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 12px; font-size: 11px; font-weight: 600; color: var(--grep-muted); }
+.grep-theme-switch { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--paper-deep); }
+.grep-theme-switch button { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--ink-soft); transition: background .15s, color .15s; }
+.grep-theme-switch button:hover { color: var(--ink); }
+.grep-theme-switch button[aria-pressed="true"] { background: var(--surface-raised); color: var(--ink); box-shadow: 0 1px 2px #2e1b3d14; }
+.grep-theme-switch.is-compact { display: inline-flex; }
+.grep-theme-switch.is-compact button { flex: none; width: 32px; min-height: 30px; padding: 0; }
+/* A finger needs more than a cursor does. */
+.grep-drawer .grep-theme-switch.is-compact button { width: 44px; min-height: 40px; }
+.grep-skip-link { position: fixed; z-index: 100; left: 16px; top: -100px; padding: 12px 20px; background: var(--chrome); color: var(--on-chrome); border-radius: 8px; }
 .grep-skip-link:focus { top: 16px; }
-.grep-notice { position: fixed; bottom: 94px; left: 50%; transform: translateX(-50%); z-index: 80; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: calc(100% - 32px); max-width: 460px; padding: 8px 12px 8px 20px; border-radius: 14px; background: var(--grep-ink); color: white; box-shadow: 0 8px 24px #2e1b3d20; font-size: 14px; }
+.grep-notice { position: fixed; bottom: 94px; left: 50%; transform: translateX(-50%); z-index: 80; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: calc(100% - 32px); max-width: 460px; padding: 8px 12px 8px 20px; border-radius: 14px; background: var(--ink); color: var(--paper); box-shadow: 0 8px 24px #2e1b3d20; font-size: 14px; }
 .grep-auth-gate { display: grid; place-items: center; min-height: 100dvh; padding: 24px; background: var(--grep-paper); color: var(--grep-ink); }
 .grep-auth-gate section { max-width: 440px; padding: 36px; }
 .grep-auth-gate h1 { margin-top: 28px; font-size: 30px; font-weight: 650; letter-spacing: -.04em; line-height: 1.15; }
@@ -165,32 +388,32 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-team { margin-right: auto; font-size: 12px; color: var(--grep-muted); }
 .overview-search { display: none; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; color: var(--grep-muted); }
 .overview-search:hover { background: var(--grep-lilac); }
-.overview-avatar { display: inline-flex; width: 38px; height: 38px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; background: var(--grep-lilac); color: #715287; font-size: 13px; font-weight: 500; }
+.overview-avatar { display: inline-flex; width: 38px; height: 38px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; background: var(--grep-lilac); color: var(--lilac-ink-soft); font-size: 13px; font-weight: 500; }
 .overview-topbar .overview-account { display: none; }
 .overview-greeting { color: var(--grep-muted); font-size: 16px; }
-.grep-action { display: inline-flex; align-items: center; justify-content: center; gap: 18px; min-height: 48px; padding: 12px 22px; border-radius: 13px; background: var(--grep-apricot); color: var(--grep-ink); font-size: 14px; font-weight: 600; transition: background .15s; }
-.grep-action:hover { background: #ffa77c; }
+.grep-action { display: inline-flex; align-items: center; justify-content: center; gap: 18px; min-height: 48px; padding: 12px 22px; border-radius: 13px; background: var(--grep-apricot); color: var(--on-bright); font-size: 14px; font-weight: 600; transition: background .15s; }
+.grep-action:hover { background: var(--apricot-hover); }
 .grep-action:disabled { opacity: .55; cursor: not-allowed; }
-.grep-action-secondary { background: var(--grep-lilac); gap: 14px; }
-.grep-action-secondary:hover { background: #ded0ef; }
+.grep-action-secondary { background: var(--grep-lilac); color: var(--ink); gap: 14px; }
+.grep-action-secondary:hover { background: var(--lilac-hover); }
 .overview-cards { position: relative; display: grid; gap: var(--overview-gap); }
-.overview-card { border: 1px solid var(--grep-line); background: #ffffffa8; border-radius: 17px; box-shadow: 0 3px 12px #2e1b3d02; }
+.overview-card { border: 1px solid var(--grep-line); background: var(--surface); border-radius: 17px; box-shadow: 0 3px 12px #2e1b3d02; }
 .overview-next { padding: 26px; display: flex; align-items: flex-start; flex-direction: column; }
 .overview-match { display: flex; align-items: center; gap: 18px; padding: 24px 22px 24px 26px; transition: border-color .15s, background .15s; }
-.overview-match:hover { border-color: #cdbbd9; background: white; }
+.overview-match:hover { border-color: var(--line-hover); background: var(--surface-raised); }
 .overview-match-body { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .overview-match .overview-session-meta { display: flex; margin: 14px 0 0; }
 .overview-match .overview-empty-copy { margin: 8px 0 0; }
-.overview-match > svg { flex-shrink: 0; color: #897a94; }
-.overview-card-label { display: flex; align-items: center; justify-content: space-between; width: 100%; color: #63526e; font-size: 13px; font-weight: 500; }
-.overview-card-label svg { color: #998ca2; }
+.overview-match > svg { flex-shrink: 0; color: var(--ink-faint); }
+.overview-card-label { display: flex; align-items: center; justify-content: space-between; width: 100%; color: var(--ink-mid); font-size: 13px; font-weight: 500; }
+.overview-card-label svg { color: var(--ink-faint); }
 /* The calendar glyph is the way into the session calendar, so it takes a
    touch target of its own rather than sitting flush in the label row. */
-.overview-card-icon { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; margin: -8px 3px -8px 0; border-radius: 10px; color: #998ca2; transition: background .15s, color .15s; }
+.overview-card-icon { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; margin: -8px 3px -8px 0; border-radius: 10px; color: var(--ink-faint); transition: background .15s, color .15s; }
 .overview-card-icon:hover { background: var(--grep-lilac); color: var(--grep-ink); }
 .overview-next h2, .overview-match-date { display: block; margin: 17px 0 9px; font-size: 25px; line-height: 1.2; letter-spacing: -.035em; font-weight: 600; }
 .overview-date::first-letter { text-transform: uppercase; }
-.overview-session-title { font-size: 14px; color: #62546d; overflow-wrap: anywhere; }
+.overview-session-title { font-size: 14px; color: var(--ink-mid); overflow-wrap: anywhere; }
 .overview-session-meta { display: flex; flex-wrap: wrap; gap: 9px 18px; margin: 18px 0 27px; color: var(--grep-muted); font-size: 13px; }
 .overview-session-meta span { display: inline-flex; gap: 6px; align-items: center; }
 .overview-session-meta svg { flex-shrink: 0; }
@@ -198,12 +421,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-empty-copy { margin: 6px 0 24px; max-width: 320px; font-size: 14px; line-height: 1.7; color: var(--grep-muted); }
 .overview-shortcuts { display: grid; gap: var(--overview-gap); }
 .overview-shortcut { display: flex; align-items: center; gap: 18px; min-height: 112px; padding: 22px; transition: border-color .15s, background .15s; }
-.overview-shortcut:hover { border-color: #cdbbd9; background: white; }
+.overview-shortcut:hover { border-color: var(--line-hover); background: var(--surface-raised); }
 .overview-shortcut-icon { display: grid; place-items: center; height: 52px; width: 52px; flex-shrink: 0; border-radius: 15px; background: var(--grep-lilac); }
-.overview-shortcut-icon.peach { background: #ffb28a38; }
+.overview-shortcut-icon.peach { background: var(--apricot-wash-strong); }
 .overview-shortcut strong { display: block; font-size: 15px; font-weight: 600; }
 .overview-shortcut small { display: block; margin-top: 5px; font-size: 12px; color: var(--grep-muted); }
-.overview-shortcut > svg { margin-left: auto; flex-shrink: 0; color: #897a94; }
+.overview-shortcut > svg { margin-left: auto; flex-shrink: 0; color: var(--ink-faint); }
 /* Månedens fokus closes the page under the cards, so it is the one surface that
    is neither a card nor a rule: a peach wash that fades into paper, no border
    to draw a second box under two real ones. The warmth is the brand's, the
@@ -211,24 +434,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    there is nothing to press here. It is written in the session calendar, under
    the month it belongs to. A month with nothing written turns the band to paper
    and a dashed edge, the same grammar the calendar's empty focus row uses. */
-.overview-focus { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: start; gap: 14px 16px; margin: var(--overview-gap) 0 0; padding: 20px; border: 0; border-radius: 18px; background: linear-gradient(180deg,#fff7f1,#fffefd); }
-.overview-focus-unset { border: 1px dashed #e3d9d1; background: #fffefd; }
+.overview-focus { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: start; gap: 14px 16px; margin: var(--overview-gap) 0 0; padding: 20px; border: 0; border-radius: 18px; background: linear-gradient(180deg,var(--focus-wash),var(--surface)); }
+.overview-focus-unset { border: 1px dashed var(--focus-line); background: var(--surface); }
 /* Type, weight and colour are the cards' own: the label is the card label, the
    note is set like a card's session title, and the peach tile is the one the
    shortcut wears. Only the wash behind it is new. */
-.overview-focus-mark { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; border-radius: 15px; background: #ffb28a38; color: var(--grep-ink); }
+.overview-focus-mark { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; border-radius: 15px; background: var(--apricot-wash-strong); color: var(--grep-ink); }
 .overview-focus-copy { min-width: 0; }
 /* Small, but set like the date that leads a card: same weight, same tightness,
    same ink at full strength — the month included. */
 .overview-focus-eyebrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; color: var(--grep-ink); font-size: 13px; font-weight: 600; line-height: 1.2; letter-spacing: -.035em; }
-.overview-focus-note { max-width: 62ch; margin: 8px 0 0; font-size: 14px; font-weight: 400; line-height: 1.65; color: #62546d; white-space: pre-line; overflow-wrap: anywhere; }
+.overview-focus-note { max-width: 62ch; margin: 8px 0 0; font-size: 14px; font-weight: 400; line-height: 1.65; color: var(--ink-mid); white-space: pre-line; overflow-wrap: anywhere; }
 .overview-focus-invite { max-width: 46ch; font-size: 14px; font-weight: 400; line-height: 1.7; letter-spacing: 0; color: var(--grep-muted); }
 .overview-focus-invite a { text-decoration: underline; text-underline-offset: 3px; color: var(--grep-ink); }
-.overview-footnote { margin: 32px 0 0; font-size: 12px; color: #817389; }
+.overview-footnote { margin: 32px 0 0; font-size: 12px; color: var(--ink-faint); }
 .overview-no-team { padding: 32px; }
 .overview-no-team h2 { margin: 18px 0 12px; font-size: 24px; font-weight: 600; }
 .overview-no-team p { margin-bottom: 24px; max-width: 400px; line-height: 1.65; color: var(--grep-muted); }
-.overview-error { padding: 14px 18px; margin-bottom: var(--overview-gap); border: 1px solid #e5b4b4; border-radius: 12px; color: #9d2525; background: #fff4f4; }
+.overview-error { padding: 14px 18px; margin-bottom: var(--overview-gap); border: 1px solid var(--danger-line); border-radius: 12px; color: var(--danger-ink); background: var(--danger-bg); }
 .overview-loading { min-height: 260px; padding: 32px; border: 1px solid var(--grep-line); border-radius: 17px; color: var(--grep-muted); }
 .grep-text-link { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
 @media (min-width: 640px) {
@@ -239,7 +462,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .grep-shell { display: grid; grid-template-columns: 244px minmax(0,1fr); }
   .grep-shell-collapsed { grid-template-columns: 76px minmax(0,1fr); }
   .grep-sidebar { position: sticky; top: 0; display: flex; flex-direction: column; height: 100dvh; padding: 28px 12px 20px; border-right: 1px solid var(--grep-line); }
-  .grep-sidebar-toggle { position: absolute; top: 35px; right: -13px; width: 26px; height: 26px; background: var(--grep-paper); border: 1px solid var(--grep-line); border-radius: 50%; color: #8c7e97; z-index: 5; }
+  .grep-sidebar-toggle { position: absolute; top: 35px; right: -13px; width: 26px; height: 26px; background: var(--grep-paper); border: 1px solid var(--grep-line); border-radius: 50%; color: var(--ink-faint); z-index: 5; }
   .grep-shell-collapsed .grep-sidebar-brand { padding: 7px; }
   .grep-shell-collapsed .grep-nav a, .grep-shell-collapsed .grep-admin-link { justify-content: center; padding: 0; }
   .grep-collapsed-team { display: flex; justify-content: center; margin: 34px 0 26px; }
@@ -267,11 +490,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 /* Brand rollout: colour and the turned-paper detail are repeated deliberately,
    without introducing decoration inside dense data or editing controls. */
-.grep-sidebar { background: #fffefd; }
+.grep-sidebar { background: var(--surface); }
 .grep-sidebar-brand { position: relative; }
 .grep-sidebar-brand::after { display: none; }
 .grep-drawer .grep-sidebar-brand::after, .grep-shell-collapsed .grep-sidebar-brand::after { display: none; }
-.grep-nav a[aria-current="page"] { background: #ffb28a30; color: var(--grep-ink); }
+.grep-nav a[aria-current="page"] { background: var(--apricot-wash); color: var(--grep-ink); }
 .grep-nav a[aria-current="page"] svg { fill: transparent; }
 .grep-nav a[aria-current="page"]::after { display: none; }
 .grep-shell-collapsed .grep-nav a::after { display: none; }
@@ -279,11 +502,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-admin-link { font-weight: 600; }
 .grep-sidebar-footer { padding-top: 28px; }
 .grep-nav, .grep-team-switcher, .grep-sidebar-brand { flex-shrink: 0; }
-.grep-drawer { background: #fffefd; }
-.grep-mobile-header { background: #fffefd; }
-.grep-mobile-nav { background: #fffefdf5; }
-.grep-mobile-nav [aria-current="page"] { background: #ffb28a30; }
-.grep-eyebrow { display: flex; align-items: center; gap: 9px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: #746d78; }
+.grep-drawer { background: var(--surface); }
+.grep-mobile-header { background: var(--surface); }
+.grep-mobile-nav { background: color-mix(in srgb, var(--surface) 96%, transparent); }
+.grep-mobile-nav [aria-current="page"] { background: var(--apricot-wash); }
+.grep-eyebrow { display: flex; align-items: center; gap: 9px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
 .grep-eyebrow > .grep-logo-mark { width: 16px; height: 18px; color: var(--grep-ink); flex-shrink: 0; }
 .overview-next, .overview-match { position: relative; border-color: var(--grep-line); border-radius: 20px; }
 .overview-match .overview-session-title { display: block; margin-top: -2px; }
@@ -292,11 +515,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 /* The glyph is centred inside its own hit area instead, which carries the inset. */
 .overview-card-icon svg { margin-right: 0; }
 .grep-page { width: 100%; max-width: 1264px; margin: 0 auto; padding: 36px 24px 64px; }
-.grep-match-featured { display: flex; align-items: center; gap: 22px; width: 100%; padding: 26px; text-align: left; background: white; border: 1px solid var(--line); border-radius: 20px; background: #f4edf9; }
+.grep-match-featured { display: flex; align-items: center; gap: 22px; width: 100%; padding: 26px; text-align: left; border: 1px solid var(--line); border-radius: 20px; background: var(--lilac-wash); }
 .grep-match-date { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 62px; min-height: 70px; border-radius: 14px; background: var(--surface); }
 .grep-match-date > span { font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; }
 .grep-match-date strong { font-size: 27px; line-height: 1.2; letter-spacing: -.05em; }
-.grep-match-featured .grep-match-date { background: #ffffffb8; color: var(--ink); width: 74px; height: 84px; }
+.grep-match-featured .grep-match-date { background: var(--glass); color: var(--ink); width: 74px; height: 84px; }
 .grep-match-featured-copy, .grep-match-row-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 7px; }
 .grep-match-featured-copy > strong { font-size: 23px; font-weight: 650; line-height: 1.3; letter-spacing: -.035em; overflow-wrap: anywhere; }
 .grep-match-versus { color: var(--ink-soft); font-size: .7em; font-weight: 450; padding: 0 2px; }
@@ -317,7 +540,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    squad carded on a white day was a box inside a box, and the beige filled the
    card it sat in until the card read as a frame around it. */
 .grep-match-day { display: flex; align-items: flex-start; gap: 18px; width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper-deep); }
-.grep-match-day:hover { border-color: #d6cdda; }
+.grep-match-day:hover { border-color: var(--line-hover); }
 .grep-match-day-list { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
 /* Team colour is a mark, never a surface: the dot in the title is the only
    place it appears, and it is the same token the team filter uses. A tint
@@ -346,13 +569,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-match-group-meta { margin: 7px 0 0; }
 /* The rows sit on the card, inset to where the head starts. */
 .grep-match-group .grep-match-entry { padding-left: 10px; padding-right: 10px; }
-.grep-match-meetup { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 1px 9px; border-radius: 999px; background: var(--grep-lilac); color: #4f3a63; font-size: 12px; font-weight: 650; }
-.grep-match-meetup:hover { background: #ded0ef; }
+.grep-match-meetup { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 1px 9px; border-radius: 999px; background: var(--grep-lilac); color: var(--lilac-ink); font-size: 12px; font-weight: 650; }
+.grep-match-meetup:hover { background: var(--lilac-hover); }
 .grep-match-group .grep-match-day-list { margin-top: 8px; }
 .grep-match-opponents { font-size: 15px; color: var(--ink-soft); }
 /* The phone's replacement for the date badge, and the date every reader hears. */
 .grep-match-dayhead { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.grep-match-featured:hover { border-color: #b3a5bd; }
+.grep-match-featured:hover { border-color: var(--line-hover-strong); }
 .grep-match-row-copy > strong { font-weight: 600; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
 .grep-match-home { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: 999px; background: var(--paper-deep); font-size: 11px; font-weight: 650; color: var(--ink); }
 .grep-match-time { font-size: 14px; font-weight: 650; flex-shrink: 0; min-width: 42px; }
@@ -388,19 +611,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .grep-match-date { width: 45px; min-height: 60px; }
   .grep-match-controls { gap: 6px; }
 }
-.grep-page-heading { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px 30px; margin-bottom: 28px; border-radius: 20px; border: 1px solid var(--grep-line); background: #fffefd; }
+.grep-page-heading { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px 30px; margin-bottom: 28px; border-radius: 20px; border: 1px solid var(--grep-line); background: var(--surface); }
 .grep-heading-copy { position: relative; z-index: 1; min-width: 0; }
 .grep-page-heading h1 { margin: 10px 0 8px; font-size: 36px; font-weight: 650; letter-spacing: -.045em; line-height: 1.1; }
-.grep-page-description { color: #74647d; font-size: 15px; line-height: 1.5; }
+.grep-page-description { color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
 .grep-page-actions { position: relative; z-index: 1; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
 .grep-button { letter-spacing: -.01em; box-shadow: none; }
-.grep-segments { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: #f0ede7; }
+.grep-segments { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper-deep); }
 /* Links too: the admin console's sections are routes, so its tabs are anchors
    marked `aria-current` rather than buttons marked `aria-pressed`. */
-.grep-segments :is(button, a) { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #74647d; }
+.grep-segments :is(button, a) { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
 .grep-segments :is(button[aria-pressed="true"], a[aria-current="page"]) { background: var(--grep-lilac); color: var(--ink); }
-.grep-segments :is(button, a) span { display: grid; place-items: center; min-width: 21px; padding: 1px 5px; border-radius: 6px; font-size: 10px; background: #2e1b3d08; }
-.grep-segments :is(button[aria-pressed="true"], a[aria-current="page"]) span { background: #ffffff80; color: var(--ink-soft); }
+.grep-segments :is(button, a) span { display: grid; place-items: center; min-width: 21px; padding: 1px 5px; border-radius: 6px; font-size: 10px; background: var(--hover-wash); }
+.grep-segments :is(button[aria-pressed="true"], a[aria-current="page"]) span { background: var(--glass-soft); color: var(--ink-soft); }
 .grep-calendar-mobile-select { display: none; }
 /* Øktkalender wears Kampkalender's furniture: the same lilac hero with its
    date badge, the same meta line, and one bordered card per month holding its
@@ -408,9 +631,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    and accents of its own, which read as a page from another product. */
 .grep-calendar-controls { margin-bottom: 28px; }
 .grep-session-sections { display: flex; flex-direction: column; gap: 30px; }
-.grep-session-featured { position: relative; display: flex; align-items: center; gap: 22px; width: 100%; padding: 24px 22px 24px 26px; border: 1px solid var(--grep-line); border-radius: 20px; background: #f4edf9; transition: border-color .15s; }
-.grep-session-featured:hover { border-color: #b3a5bd; }
-.grep-session-featured .grep-match-date { width: 74px; height: 84px; background: #ffffffb8; }
+.grep-session-featured { position: relative; display: flex; align-items: center; gap: 22px; width: 100%; padding: 24px 22px 24px 26px; border: 1px solid var(--grep-line); border-radius: 20px; background: var(--lilac-wash); transition: border-color .15s; }
+.grep-session-featured:hover { border-color: var(--line-hover-strong); }
+.grep-session-featured .grep-match-date { width: 74px; height: 84px; background: var(--glass); }
 .grep-session-featured .grep-session-headline h3 { font-size: 23px; font-weight: 650; line-height: 1.25; letter-spacing: -.035em; }
 .grep-session-featured .grep-match-meta { font-size: 13px; }
 .grep-session-hit { position: absolute; inset: 0; z-index: 0; border-radius: inherit; }
@@ -422,9 +645,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    the overlaid link and opens the session instead. */
 .grep-session-row > .grep-session-actions, .grep-session-featured > .grep-session-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; pointer-events: auto; }
 .grep-session-open { z-index: 20; }
-.grep-match-date.grep-session-live { background: var(--grep-apricot); color: var(--grep-ink); }
+.grep-match-date.grep-session-live { background: var(--grep-apricot); color: var(--on-bright); }
 .grep-match-date > strong + span { font-weight: 600; color: var(--ink-soft); }
-.grep-session-featured .grep-match-date > span { color: #6a5c74; }
+.grep-session-featured .grep-match-date > span { color: var(--ink-mid); }
 
 .grep-session-month { display: flex; flex-direction: column; margin-top: 8px; border: 1px solid var(--grep-line); border-radius: 18px; background: var(--surface); }
 .grep-session-month > * + * { border-top: 1px solid var(--grep-line); }
@@ -467,14 +690,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    header. The band belongs to a focus that exists — washing the invitation to
    write one would put the card's weight on the row with nothing in it. */
 .grep-session-focus { display: block; width: 100%; padding: 17px 20px; text-align: left; background: var(--paper-deep); transition: background .15s; }
-button.grep-session-focus:hover { background: #e9e5de; }
+button.grep-session-focus:hover { background: var(--paper-deep-hover); }
 .grep-session-focus small { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
 .grep-session-focus p { margin: 9px 0 0; font-size: 14px; font-weight: 500; line-height: 1.6; white-space: pre-line; }
 .grep-session-focus-by { display: flex; align-items: center; gap: 8px; margin-top: 11px; font-size: 12px; color: var(--ink-soft); }
 .grep-session-focus-empty { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 52px; padding: 0 20px; font-size: 13px; font-weight: 500; color: var(--ink-soft); transition: background .15s, color .15s, border-color .15s; }
 .grep-session-focus-empty:hover { color: var(--ink); background: var(--paper); }
-.grep-session-focus-offer { margin-top: 8px; border: 1px dashed #d3cdd7; border-radius: 14px; }
-.grep-session-focus-offer:hover { border-color: #b3a5bd; }
+.grep-session-focus-offer { margin-top: 8px; border: 1px dashed var(--line-dashed); border-radius: 14px; }
+.grep-session-focus-offer:hover { border-color: var(--line-hover-strong); }
 @media (max-width: 639px) {
   .grep-session-featured { gap: 14px; padding: 18px 16px; }
   .grep-session-featured .grep-match-date { width: 56px; height: 70px; }
@@ -503,62 +726,62 @@ button.grep-session-focus:hover { background: #e9e5de; }
 .grep-rail-section { display: flex; flex-direction: column; gap: 6px; }
 .grep-rail-heading { padding: 0 12px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
 .grep-rail-list { display: flex; flex-direction: column; gap: 1px; }
-.grep-rail-option { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 38px; padding: 6px 10px 6px 12px; border-radius: 10px; text-align: left; font-size: 13px; font-weight: 500; color: #5f5368; transition: background .15s, color .15s; }
-.grep-rail-option:hover { background: #2e1b3d08; color: var(--grep-ink); }
+.grep-rail-option { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 38px; padding: 6px 10px 6px 12px; border-radius: 10px; text-align: left; font-size: 13px; font-weight: 500; color: var(--ink-mid); transition: background .15s, color .15s; }
+.grep-rail-option:hover { background: var(--hover-wash); color: var(--grep-ink); }
 /* A selected row wears the tone of the thing it filters for — the same hue that
    value's tag wears on a card — so the rail and the grid agree at a glance.
    `--rail-tint` is set per row in `exercise-filter-rail.tsx` and read from the
    one tone table in `ui.tsx`; a row with no tone of its own ("Alle tema") keeps
    the brand lilac, which is what "no choice made" has always looked like. */
-.grep-rail-option.is-on { background: var(--rail-tint, var(--grep-lilac)); color: var(--rail-tint-ink, #40244f); font-weight: 600; }
+.grep-rail-option.is-on { background: var(--rail-tint, var(--grep-lilac)); color: var(--rail-tint-ink, var(--lilac-ink)); font-weight: 600; }
 /* A row worth nothing keeps its count and its place in the reading order, and
    stops behaving like a control: no hover, no pointer. */
-.grep-rail-option.is-empty { color: #9b91a2; cursor: default; }
-.grep-rail-option.is-empty:hover { background: none; color: #9b91a2; }
+.grep-rail-option.is-empty { color: var(--ink-disabled); cursor: default; }
+.grep-rail-option.is-empty:hover { background: none; color: var(--ink-disabled); }
 /* A chosen samling is shown whole, so the axes below it are switched off rather
    than taken away — the taxonomy stays visible, the rail keeps its height, and
    nothing lights up to suggest a choice is still being made. `is-on` survives
    on the «Alle» row it lands on, greyed, so the row still reads as "everything,
    and not yours to change right now". */
-.grep-rail-section.is-off .grep-rail-heading { color: #b3a9b9; }
-.grep-rail-option:disabled { color: #a79dae; cursor: default; }
-.grep-rail-option:disabled:hover { background: none; color: #a79dae; }
-.grep-rail-option:disabled.is-on { background: #2e1b3d0a; color: #8d7f97; }
+.grep-rail-section.is-off .grep-rail-heading { color: var(--ink-disabled); }
+.grep-rail-option:disabled { color: var(--ink-disabled); cursor: default; }
+.grep-rail-option:disabled:hover { background: none; color: var(--ink-disabled); }
+.grep-rail-option:disabled.is-on { background: var(--hover-wash-strong); color: var(--ink-faint); }
 .grep-rail-option:disabled .grep-rail-icon,
-.grep-rail-option:disabled .grep-rail-count { color: #bcb3c1; }
-.grep-rail-note { padding: 6px 12px 0; font-size: 12px; line-height: 1.5; color: #8d7f97; }
-.grep-rail-icon { flex-shrink: 0; color: #8d7f97; }
-.grep-rail-option.is-on .grep-rail-icon { color: color-mix(in srgb, var(--rail-tint-ink, #6b4d84) 80%, transparent); }
+.grep-rail-option:disabled .grep-rail-count { color: var(--ink-disabled); }
+.grep-rail-note { padding: 6px 12px 0; font-size: 12px; line-height: 1.5; color: var(--ink-faint); }
+.grep-rail-icon { flex-shrink: 0; color: var(--ink-faint); }
+.grep-rail-option.is-on .grep-rail-icon { color: color-mix(in srgb, var(--rail-tint-ink, var(--lilac-ink-soft)) 80%, transparent); }
 .grep-rail-label { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.grep-rail-label small { display: block; margin-top: 1px; font-size: 11px; font-weight: 450; color: #8d7f97; }
-.grep-rail-count { flex-shrink: 0; font-size: 11px; font-variant-numeric: tabular-nums; color: #8d7f97; }
-.grep-rail-option.is-on .grep-rail-count { color: color-mix(in srgb, var(--rail-tint-ink, #6b4d84) 75%, transparent); }
-.grep-rail-favorites { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid var(--grep-line); border-radius: 12px; background: var(--surface); font-size: 13px; font-weight: 550; color: #5f5368; transition: border-color .15s, background .15s, color .15s; }
-.grep-rail-favorites:hover { border-color: #cdbbd9; color: var(--grep-ink); }
-.grep-rail-favorites.is-empty { color: #9b91a2; cursor: default; }
-.grep-rail-favorites.is-empty:hover { border-color: var(--grep-line); color: #9b91a2; }
-.grep-rail-favorites.is-on { border-color: #e9b79c; background: #ffb28a26; color: #7a3f1c; }
+.grep-rail-label small { display: block; margin-top: 1px; font-size: 11px; font-weight: 450; color: var(--ink-faint); }
+.grep-rail-count { flex-shrink: 0; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+.grep-rail-option.is-on .grep-rail-count { color: color-mix(in srgb, var(--rail-tint-ink, var(--lilac-ink-soft)) 75%, transparent); }
+.grep-rail-favorites { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid var(--grep-line); border-radius: 12px; background: var(--surface); font-size: 13px; font-weight: 550; color: var(--ink-mid); transition: border-color .15s, background .15s, color .15s; }
+.grep-rail-favorites:hover { border-color: var(--line-hover); color: var(--grep-ink); }
+.grep-rail-favorites.is-empty { color: var(--ink-disabled); cursor: default; }
+.grep-rail-favorites.is-empty:hover { border-color: var(--grep-line); color: var(--ink-disabled); }
+.grep-rail-favorites.is-on { border-color: var(--warn-line); background: var(--apricot-wash); color: var(--warn-ink); }
 .grep-rail-favorites .grep-rail-count { margin-left: auto; }
 
 /* Starting a samling is an offer, not an option in the list above it: the same
    row geometry so the column stays even, but dashed and quiet until hovered. */
-.grep-rail-new { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 36px; padding: 6px 10px 6px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; color: #8d7f97; transition: background .15s, color .15s; }
-.grep-rail-new:hover { background: #2e1b3d08; color: var(--grep-ink); }
+.grep-rail-new { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 36px; padding: 6px 10px 6px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; color: var(--ink-faint); transition: background .15s, color .15s; }
+.grep-rail-new:hover { background: var(--hover-wash); color: var(--grep-ink); }
 .grep-rail-new svg { flex-shrink: 0; }
-.grep-rail-empty { padding: 2px 12px 4px; font-size: 12px; line-height: 1.5; color: #9b91a2; }
+.grep-rail-empty { padding: 2px 12px 4px; font-size: 12px; line-height: 1.5; color: var(--ink-disabled); }
 
 .grep-library-toolbar { display: flex; align-items: center; gap: 10px; }
 .grep-library-search { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
 .grep-library-search > svg { position: absolute; left: 14px; color: var(--ink-soft); pointer-events: none; }
 .grep-library-search input { padding-left: 40px; padding-right: 44px; }
 .grep-library-search > button { position: absolute; right: 6px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--ink-soft); transition: background .15s, color .15s; }
-.grep-library-search > button:hover { background: #2e1b3d0d; color: var(--ink); }
+.grep-library-search > button:hover { background: var(--hover-wash-strong); color: var(--ink); }
 .grep-rail-open { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 48px; padding: 0 16px; border: 1px solid var(--grep-line); border-radius: 12px; background: var(--surface); font-size: 13px; font-weight: 600; }
-.grep-rail-open:hover { border-color: #cdbbd9; }
-.grep-rail-open span { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--grep-lilac); font-size: 11px; color: #40244f; }
+.grep-rail-open:hover { border-color: var(--line-hover); }
+.grep-rail-open span { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--grep-lilac); font-size: 11px; color: var(--lilac-ink); }
 .grep-active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 14px; }
-.grep-active-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border-radius: 999px; background: var(--grep-lilac); font-size: 12px; font-weight: 550; color: #40244f; transition: background .15s; }
-.grep-active-chip:hover { background: #ded0ef; }
+.grep-active-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border-radius: 999px; background: var(--grep-lilac); font-size: 12px; font-weight: 550; color: var(--lilac-ink); transition: background .15s; }
+.grep-active-chip:hover { background: var(--lilac-hover); }
 .grep-active-chip svg { flex-shrink: 0; opacity: .65; }
 .grep-active-reset { min-height: 30px; padding: 0 6px; font-size: 12px; font-weight: 550; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 4px; }
 .grep-active-reset:hover { color: var(--grep-ink); }
@@ -571,20 +794,20 @@ button.grep-session-focus:hover { background: #e9e5de; }
   /* The rail is sticky so a long grid never scrolls the filters away — the one
      thing the panel above the results could never do. */
   .grep-library-layout { grid-template-columns: 224px minmax(0, 1fr); gap: 32px; }
-  .grep-rail { display: block; position: sticky; top: 28px; max-height: calc(100dvh - 56px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #d7d1cb transparent; }
+  .grep-rail { display: block; position: sticky; top: 28px; max-height: calc(100dvh - 56px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   .grep-rail-open { display: none; }
 }
 @media (min-width: 1440px) {
   .grep-library-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-.grep-filter-chips button { min-height: 40px; font-size: 12px; font-weight: 550; border-radius: 10px; background: #fffefd; border-color: var(--line); color: #75667e; box-shadow: none; }
-.grep-filter-chips button:hover:not(:disabled):not([aria-disabled="true"]) { border-color: #a68abb; }
+.grep-filter-chips button { min-height: 40px; font-size: 12px; font-weight: 550; border-radius: 10px; background: var(--surface); border-color: var(--line); color: var(--ink-soft); box-shadow: none; }
+.grep-filter-chips button:hover:not(:disabled):not([aria-disabled="true"]) { border-color: var(--line-hover-strong); }
 .grep-filter-chips button[aria-disabled="true"] { cursor: default; }
-.grep-filter-chips button[aria-pressed="true"] { background: #e9ddf7; border-color: #c2a7d6; color: #40244f; box-shadow: inset 0 -2px #b493cb; }
-.grep-filter-chips button[aria-pressed="true"] svg { color: #5a3673; }
+.grep-filter-chips button[aria-pressed="true"] { background: var(--grep-lilac); border-color: var(--lilac-line); color: var(--lilac-ink); box-shadow: inset 0 -2px var(--lilac-edge); }
+.grep-filter-chips button[aria-pressed="true"] svg { color: var(--lilac-ink); }
 .grep-exercise-card { border-radius: 18px 6px 18px 18px; box-shadow: 0 4px 16px #2e1b3d03; }
-.grep-exercise-card:hover { border-color: #bb9ecb; box-shadow: 0 6px 22px #2e1b3d09; }
+.grep-exercise-card:hover { border-color: var(--line-hover-strong); box-shadow: 0 6px 22px #2e1b3d09; }
 /* The card used to clip itself, which is what kept the thumbnail square-cornered
    — and what cut the menu in its corner off at the card's edge. So the media
    clips itself instead (one pixel tighter, the way a border-box clip lands),
@@ -593,7 +816,7 @@ button.grep-session-focus:hover { background: #e9e5de; }
 .grep-exercise-card:has([aria-expanded="true"]) { z-index: 20; }
 .grep-exercise-card h2 { font-size: 19px; font-weight: 650; line-height: 1.3; }
 .grep-team-content { margin-top: 24px; }
-.grep-context-note { display: flex; align-items: flex-start; gap: 12px; padding: 17px 20px; background: #f0ede7; border-radius: 12px; color: #665e69; font-size: 13px; line-height: 1.6; }
+.grep-context-note { display: flex; align-items: flex-start; gap: 12px; padding: 17px 20px; background: var(--paper-deep); border-radius: 12px; color: var(--ink-mid); font-size: 13px; line-height: 1.6; }
 .grep-context-note svg { flex-shrink: 0; margin-top: 2px; }
 .grep-team-roster, .grep-other-teams { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); overflow: hidden; }
 .grep-section-heading { display: flex; align-items: center; justify-content: space-between; padding: 24px; border-bottom: 1px solid var(--line); }
@@ -608,13 +831,13 @@ button.grep-session-focus:hover { background: #e9e5de; }
 .grep-other-teams { padding: 24px; margin-top: 24px; }
 .grep-other-teams h3 { font-weight: 650; font-size: 18px; }
 .grep-settings-hint { margin: 12px 4px 26px; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
-.grep-privacy-note { padding: 28px; border-radius: 18px 6px 18px 18px; background: var(--ink); color: white; }
-.grep-privacy-note .grep-logo-lockup { color: white; width: 88px; height: 28px; }
+.grep-privacy-note { padding: 28px; border-radius: 18px 6px 18px 18px; background: var(--chrome); color: var(--on-chrome); }
+.grep-privacy-note .grep-logo-lockup { color: var(--on-chrome); width: 88px; height: 28px; }
 .grep-privacy-note h3 { margin: 18px 0 10px; font-weight: 600; font-size: 22px; letter-spacing: -.03em; }
-.grep-privacy-note p { max-width: 340px; font-size: 14px; line-height: 1.7; color: #e5d9ed; }
+.grep-privacy-note p { max-width: 340px; font-size: 14px; line-height: 1.7; color: var(--on-chrome-soft); }
 @media (min-width:1024px) {
   .grep-page { padding: 46px 48px 64px; }
-  .grep-sidebar { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #d7d1cb transparent; }
+  .grep-sidebar { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   .grep-sidebar-toggle { position: fixed; left: 223px; right: auto; }
   .grep-shell-collapsed .grep-sidebar-toggle { left: 55px; }
   .grep-sidebar-footer { flex-shrink: 0; }
@@ -629,7 +852,7 @@ button.grep-session-focus:hover { background: #e9e5de; }
 @media (max-width:639px) {
   .grep-calendar-desktop-tabs { display: none; }
   .grep-calendar-mobile-select { display: grid; gap: 6px; font-size: 12px; color: var(--ink-soft); }
-  .grep-calendar-mobile-select select { min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: white; color: var(--ink); padding: 0 14px; font-size: 15px; font-weight: 600; }
+  .grep-calendar-mobile-select select { min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-raised); color: var(--ink); padding: 0 14px; font-size: 15px; font-weight: 600; }
   .grep-team-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); width: 100%; gap: 2px; }
   .grep-team-tabs button { padding: 10px 4px; font-size: 11px; gap: 4px; }
   .grep-coach-row { padding: 18px; gap: 10px; }
@@ -648,7 +871,7 @@ button.grep-session-focus:hover { background: #e9e5de; }
 .overview-court-crop { position: absolute; z-index: 0; pointer-events: none; right: 0; bottom: 0; width: 39%; height: 248px; overflow: hidden; border-radius: 160px 20px 20px 20px; }
 .overview-court-art { position: absolute; left: 0; bottom: 0; width: 100%; min-width: 442.667px; height: auto; aspect-ratio: 664 / 450; max-width: none; }
 .overview-shortcut small { display: none; }
-.overview-card { background: #fffefd; border-color: #ebe6e1; }
+.overview-card { background: var(--surface); border-color: var(--grep-line); }
 .overview-next, .overview-match { border-radius: 18px; }
 @media (min-width: 1024px) {
   .overview-card-label { font-size: 17px; }

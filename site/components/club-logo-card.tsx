@@ -40,6 +40,6 @@ export function ClubLogoCard({ team, canManage }: { team: Team; canManage: boole
       </div>
       <p className="mt-3 text-xs leading-5 text-[var(--ink-soft)]">JPG, PNG eller WebP, opptil 2 MB. En kvadratisk fil ser best ut.</p>
     </> : <p className="mt-4 text-xs leading-5 text-[var(--ink-soft)]">Bare en lagadministrator kan endre klubblogoen.</p>}
-    {error && <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
+    {error && <p role="alert" className="mt-3 rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
   </section>;
 }

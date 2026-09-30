@@ -74,7 +74,7 @@ function AdminTeams() {
       <form className="grid gap-5" onSubmit={submit}>
         <Field label="Lagnavn" hint="Skriv «Klubb — Lag» for å få klubbnavnet med i lagoversikten."><input required minLength={3} className={inputClass} value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Fjordvik HK — Gutter 18" autoFocus /></Field>
         <Field label="Lagadministratorens e-postadresse" hint="Kan stå tom hvis du vil invitere treneren senere."><div className="relative"><Mail className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={17} /><input type="email" className={`${inputClass} pl-10`} value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="trener@klubb.no" /></div></Field>
-        {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
+        {error && <p role="alert" className="rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={closeCreate}>Avbryt</Button><Button disabled={saving}>{saving ? "Oppretter…" : "Opprett lag"}</Button></div>
       </form>
     </Modal>
@@ -82,7 +82,7 @@ function AdminTeams() {
 }
 
 function Stat({ label, value, href, warn = false, active = false, onClick }: { label: string; value: number; href?: string; warn?: boolean; active?: boolean; onClick?: () => void }) {
-  const body = <><dt className="text-xs font-bold text-[var(--ink-soft)]">{label}</dt><dd className={cn("mt-1 text-2xl font-black tracking-[-.04em]", warn && "text-[var(--orange-dark)]")}>{value}</dd></>;
+  const body = <><dt className="text-xs font-bold text-[var(--ink-soft)]">{label}</dt><dd className={cn("mt-1 text-2xl font-black tracking-[-.04em]", warn && "text-[var(--accent)]")}>{value}</dd></>;
   const shell = cn("block rounded-2xl border bg-[var(--surface)] px-4 py-3 text-left", active ? "border-[var(--ink)]" : "border-[var(--line)]", (href || onClick) && "transition hover:border-[var(--ink)]");
   if (href) return <Link href={href} className={shell}>{body}</Link>;
   if (onClick) return <button type="button" onClick={onClick} aria-pressed={active} className={shell}>{body}</button>;
@@ -100,7 +100,7 @@ function TeamRow({ team, counts, youAreOnTeam, selfId }: { team: AdminTeam; coun
     <ChevronRight size={18} className="row-span-3 self-center text-[var(--ink-soft)] md:order-last md:row-span-1" aria-hidden />
     <span className="flex min-w-0 items-center gap-2.5 pl-[52px] md:pl-0">
       {team.members.length === 0
-        ? <span className="flex items-center gap-1.5 text-sm text-[var(--ink-soft)]"><TriangleAlert size={15} className="text-[var(--orange)]" />Ingen trenere</span>
+        ? <span className="flex items-center gap-1.5 text-sm text-[var(--ink-soft)]"><TriangleAlert size={15} className="text-[var(--accent)]" />Ingen trenere</span>
         : <><span className="flex -space-x-2">{faces.map((member) => <Avatar key={member.id} name={member.fullName} initials={member.initials} color={member.id === selfId ? COACH_AVATAR_SELF : member.color} size="sm" />)}</span><span className="text-sm font-semibold">{team.members.length}{team.members.length > MAX_FACES && <span className="sr-only"> trenere</span>}</span></>}
       {team.invitations.length > 0 && <span className="text-xs font-semibold text-[var(--ink-soft)]">+{team.invitations.length} invitert</span>}
     </span>

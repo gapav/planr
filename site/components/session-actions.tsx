@@ -40,14 +40,14 @@ export function SessionMenu({ session, open, onOpenChange, onCopy, onPrint, onRe
   const entry = "flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left transition";
   return <div ref={ref} className="relative">
     <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={`Flere valg for ${session.title}`} onClick={() => onOpenChange(!open)} className={cn("grid h-11 w-11 place-items-center rounded-xl border border-transparent text-[var(--ink-soft)] transition hover:border-[var(--line)] hover:bg-[var(--paper)] hover:text-[var(--ink)]", open && "border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]")}><MoreHorizontal size={19} /></button>
-    {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-30 w-56 rounded-xl border border-[var(--line)] bg-white p-1.5 text-sm font-semibold shadow-xl">
+    {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-30 w-56 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] p-1.5 text-sm font-semibold shadow-xl">
       {editHref && <Link href={editHref} role="menuitem" autoFocus onClick={() => onOpenChange(false)} className={cn(entry, "text-[var(--ink)] hover:bg-[var(--paper)]")}><Pencil size={16} />Rediger</Link>}
       <button type="button" role="menuitem" autoFocus={!editHref} onClick={() => { onOpenChange(false); onCopy(); }} className={cn(entry, "text-[var(--ink)] hover:bg-[var(--paper)]")}><Copy size={16} />Kopier økt</button>
       {onPrint && <button type="button" role="menuitem" onClick={() => { onOpenChange(false); onPrint(); }} className={cn(entry, "text-[var(--ink)] hover:bg-[var(--paper)]")}><Printer size={16} />Skriv ut</button>}
       {reopenable && <button type="button" role="menuitem" onClick={() => { onOpenChange(false); onReopen?.(); }} className={cn(entry, "text-[var(--ink)] hover:bg-[var(--paper)]")}><RotateCcw size={16} />Gjenåpne økt</button>}
       {onDelete && <>
         <div className="my-1.5 h-px bg-[var(--line)]" />
-        <button type="button" role="menuitem" disabled={inProgress} onClick={() => { onOpenChange(false); onDelete(); }} className={cn(entry, "text-[var(--danger)] enabled:hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45")}><Trash2 size={16} />Slett økt</button>
+        <button type="button" role="menuitem" disabled={inProgress} onClick={() => { onOpenChange(false); onDelete(); }} className={cn(entry, "text-[var(--danger)] enabled:hover:bg-[var(--danger-bg)] disabled:cursor-not-allowed disabled:opacity-45")}><Trash2 size={16} />Slett økt</button>
         {inProgress && <p className="px-3 pb-1 pt-1.5 text-xs font-normal leading-5 text-[var(--ink-soft)]">Avslutt økten før den kan slettes.</p>}
       </>}
     </div>}
@@ -95,7 +95,7 @@ export function CopySessionDialog({ session, onClose }: { session: PlannedSessio
   }
 
   return <Modal open onClose={() => { if (!busy) onClose(); }} title="Kopier økt" description="Bolker, aktiviteter og notater følger med til et nytt utkast. Oppmøte og grupper blir igjen hos den opprinnelige økten." size="sm">
-    {error && <p role="alert" className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">{error}</p>}
+    {error && <p role="alert" className="mb-4 rounded-2xl bg-[var(--danger-bg)] px-4 py-3 text-sm font-bold text-[var(--danger)]">{error}</p>}
     <div className="grid gap-5">
       <Field label="Tittel"><input className={inputClass} value={title} autoFocus onChange={(event) => setTitle(event.target.value)} /></Field>
       <Field label="Dato og klokkeslett" hint="Kan stå tom — kopien er et utkast du kan datere senere."><SessionStartFields date={date} time={time} onChange={changeStart} /></Field>
@@ -132,7 +132,7 @@ export function ReopenSessionDialog({ session, onClose }: { session: PlannedSess
   }
 
   return <Modal open onClose={() => { if (!busy) onClose(); }} title="Vil du gjenåpne økten?" description="Økten går tilbake til «Klar til start» og kan redigeres igjen. Oppmøtet og gruppene beholdes, slik at den kan rettes opp og kjøres på nytt." size="sm">
-    {error && <p role="alert" className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">{error}</p>}
+    {error && <p role="alert" className="mb-4 rounded-2xl bg-[var(--danger-bg)] px-4 py-3 text-sm font-bold text-[var(--danger)]">{error}</p>}
     <p className="rounded-xl bg-[var(--paper)] px-4 py-3 text-sm font-bold">{session.title}</p>
     {staysInPast && <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">Økten var satt til {formatSessionDate(session.startsAt)}, så den blir liggende under «Gjennomførte» til du gir den en ny dato.</p>}
     <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

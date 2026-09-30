@@ -102,16 +102,16 @@ export function AdminAccountDirectory({ accounts, loaded, currentUserId, onDelet
     <Modal open={renaming !== null} onClose={() => { if (!busy) { setRenaming(null); setError(null); } }} title="Endre visningsnavn" description={renaming ? `Navnet ${renaming.email} vises med på økter, aktiviteter og i e-postene. Innloggingen er fortsatt e-postadressen.` : ""}>
       {renaming && <form className="grid gap-5" onSubmit={rename}>
         <label className="grid gap-2 text-sm font-semibold"><span>Visningsnavn</span><input required minLength={DISPLAY_NAME_MIN_LENGTH} maxLength={DISPLAY_NAME_MAX_LENGTH} className={inputClass} value={name} onChange={(event) => setName(event.target.value)} autoComplete="off" autoFocus /></label>
-        {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
+        {error && <p role="alert" className="rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={() => { setRenaming(null); setError(null); }}>Avbryt</Button><Button type="submit" disabled={busy}>{busy ? "Lagrer…" : "Lagre navn"}</Button></div>
       </form>}
     </Modal>
 
     <Modal open={selected !== null} onClose={close} title="Slett konto permanent" description={selected ? `${selected.fullName} mister hele Grep-kontoen, ikke bare tilgangen til ett lag.` : ""}>
       {selected && <form className="grid gap-5" onSubmit={remove}>
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-[#7f1d1d]"><div className="flex items-center gap-2 font-black"><ShieldCheck size={18} />Dette kan ikke angres</div><p className="mt-2">Innloggingen, alle lagmedlemskap og private favoritter slettes. Økter, øvelser og revisjonshistorikk beholdes med «Slettet bruker» som avsender.</p>{selected.filesOwned > 0 && <p className="mt-2 font-bold">Kontoen eier {selected.filesOwned} {selected.filesOwned === 1 ? "fil" : "filer"} i Storage. De må flyttes eller fjernes før slettingen kan fullføres.</p>}</div>
+        <div className="rounded-xl border border-[var(--danger-line)] bg-[var(--danger-bg)] p-4 text-sm leading-6 text-[var(--danger-ink)]"><div className="flex items-center gap-2 font-black"><ShieldCheck size={18} />Dette kan ikke angres</div><p className="mt-2">Innloggingen, alle lagmedlemskap og private favoritter slettes. Økter, øvelser og revisjonshistorikk beholdes med «Slettet bruker» som avsender.</p>{selected.filesOwned > 0 && <p className="mt-2 font-bold">Kontoen eier {selected.filesOwned} {selected.filesOwned === 1 ? "fil" : "filer"} i Storage. De må flyttes eller fjernes før slettingen kan fullføres.</p>}</div>
         <label className="grid gap-2 text-sm font-semibold"><span>Skriv <strong>{selected.email}</strong> for å bekrefte</span><input type="email" className={inputClass} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" autoFocus /></label>
-        {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
+        {error && <p role="alert" className="rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">{error}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={close}>Avbryt</Button><Button type="submit" variant="danger" disabled={busy || selected.filesOwned > 0 || confirmation.trim().toLowerCase() !== selected.email.toLowerCase()}>{busy ? "Sletter …" : "Slett konto permanent"}</Button></div>
       </form>}
     </Modal>

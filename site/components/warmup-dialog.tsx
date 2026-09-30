@@ -73,8 +73,8 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
 }) {
   const { exercises } = useGrep();
   if (!routine || !routine.items.length) return <div className="grid grid-cols-1 gap-5 text-center">
-    <div className="rounded-[22px] border border-dashed border-[#c8c3b7] bg-[var(--paper)] px-6 py-10">
-      <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white text-[var(--orange)] shadow-sm"><Timer size={23} /></span>
+    <div className="rounded-[22px] border border-dashed border-[var(--line-strong)] bg-[var(--paper)] px-6 py-10">
+      <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[var(--surface-raised)] text-[var(--accent)] shadow-sm"><Timer size={23} /></span>
       <p className="mt-4 font-black">Ingen kampoppvarming ennå</p>
       <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--ink-soft)]">Sett opp rutinen én gang. Den vises på alle kampene i kalenderen, med klokkeslett regnet ut fra avkast.</p>
       {canEdit && <Button className="mt-5" onClick={onStart} disabled={busy}><Plus size={17} />{busy ? "Oppretter…" : "Lag oppvarmingen"}</Button>}
@@ -94,7 +94,7 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
         </>}
       </div>
       {!schedule && <p className="mt-2 text-xs leading-5 text-[var(--ink-soft)]">Klokkeslettene regnes ut fra avkast. Åpne en kamp i kalenderen for å se oppmøte og avkast for den kampen.</p>}
-      {duration > routine.meetMinutesBefore && <p className="mt-2 flex items-start gap-2 rounded-xl bg-[#fdf1e6] px-3 py-2 text-xs font-semibold leading-5 text-[#9c3913]"><TriangleAlert size={14} className="mt-0.5 shrink-0" />Oppvarmingen er {minutesLabel(duration)} lang, men laget møtes bare {minutesLabel(routine.meetMinutesBefore)} før avkast. Kort ned rutinen eller flytt oppmøtet.</p>}
+      {duration > routine.meetMinutesBefore && <p className="mt-2 flex items-start gap-2 rounded-xl bg-[var(--warn-bg)] px-3 py-2 text-xs font-semibold leading-5 text-[var(--warn-ink)]"><TriangleAlert size={14} className="mt-0.5 shrink-0" />Oppvarmingen er {minutesLabel(duration)} lang, men laget møtes bare {minutesLabel(routine.meetMinutesBefore)} før avkast. Kort ned rutinen eller flytt oppmøtet.</p>}
     </div>
 
     <ol className="grid grid-cols-1 gap-2">{scheduled.map(({ item, startsAt }, index) => {
@@ -120,8 +120,8 @@ function ViewPane({ routine, scheduled, schedule, duration, canEdit, busy, onEdi
 }
 
 function TimeCell({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: boolean }) {
-  return <div className={cn("px-2 py-3", accent ? "bg-[var(--ink)] text-white" : "bg-[var(--surface)]")}>
-    <p className={cn("flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-[.1em]", accent ? "text-white/60" : "text-[var(--ink-soft)]")}>{icon}{label}</p>
+  return <div className={cn("px-2 py-3", accent ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--surface)]")}>
+    <p className={cn("flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-[.1em]", accent ? "text-[var(--paper)]/60" : "text-[var(--ink-soft)]")}>{icon}{label}</p>
     <p className="mt-1 text-xl font-black tracking-[-.03em]">{value}</p>
   </div>;
 }
@@ -209,9 +209,9 @@ function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDo
     <ExerciseCategoryFilter value={categories} onChange={setCategories} counts={counts} disabled={shortlist !== null} />
     <ExerciseAgeGroupFilter value={ageGroups} onChange={setAgeGroups} counts={counts} disabled={shortlist !== null} />
     <p className="text-xs font-semibold text-[var(--ink-soft)]">{filtered.length} øvelser</p>
-    {filtered.length ? <div className="grid max-h-[50vh] grid-cols-1 gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-white p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]">
-      <button type="button" className="group/media relative h-20 w-24 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]" aria-label={`Vis detaljer for ${exercise.name}`} onClick={() => onPreview(exercise)}><ExerciseThumbnail exercise={exercise} className="h-full w-full" /><span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-8 w-8 place-items-center rounded-full bg-white/90"><Eye size={15} /></span></span></button>
-      <button type="button" className="min-w-0 flex-1 text-left" aria-label={`Legg ${exercise.name} til i oppvarmingen`} onClick={() => void add(exercise)}><span className="text-[10px] font-black uppercase tracking-[.08em] text-[var(--orange)]">{exercise.category}</span><strong className="mt-1 block text-sm">{exercise.name}</strong><span className="clamp-2 mt-1 text-xs leading-5 text-[var(--ink-soft)]">{exercise.description}</span></button>
+    {filtered.length ? <div className="grid max-h-[50vh] grid-cols-1 gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]">
+      <button type="button" className="group/media relative h-20 w-24 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]" aria-label={`Vis detaljer for ${exercise.name}`} onClick={() => onPreview(exercise)}><ExerciseThumbnail exercise={exercise} className="h-full w-full" /><span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={15} /></span></span></button>
+      <button type="button" className="min-w-0 flex-1 text-left" aria-label={`Legg ${exercise.name} til i oppvarmingen`} onClick={() => void add(exercise)}><span className="text-[10px] font-black uppercase tracking-[.08em] text-[var(--accent)]">{exercise.category}</span><strong className="mt-1 block text-sm">{exercise.name}</strong><span className="clamp-2 mt-1 text-xs leading-5 text-[var(--ink-soft)]">{exercise.description}</span></button>
     </div>)}</div> : <div className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv en annen kategori eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Nullstill filtre</Button></div>}
     <div className="flex justify-between"><Button variant="ghost" onClick={onDone}>Tilbake</Button><span className="self-center text-xs text-[var(--ink-soft)]">Aktiviteten legges nederst, med fem minutter som varighet</span></div>
   </div>;
@@ -222,7 +222,7 @@ export function WarmupSummaryButton({ routine, startsAt, onOpen }: { routine: Wa
   const schedule = routine ? warmupSchedule(startsAt, routine) : null;
   const count = routine?.items.length ?? 0;
   return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-left transition hover:border-[var(--ink)]">
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-[var(--orange)] shadow-sm"><Timer size={18} /></span>
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--surface-raised)] text-[var(--accent)] shadow-sm"><Timer size={18} /></span>
     <span className="min-w-0 flex-1"><span className="block text-sm font-black">{routine?.name ?? "Kampoppvarming"}</span>
       <span className="block truncate text-xs text-[var(--ink-soft)]">{count ? `${activityLabel(count)} · ${minutesLabel(schedule?.durationMinutes ?? 0)} · start kl. ${clock(schedule?.warmupAt ?? null)}` : "Ikke satt opp ennå"}</span></span>
     {schedule?.startsBeforeMeetUp && <Tag tone="orange">For lang</Tag>}

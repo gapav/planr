@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
  * bolk and which one belongs to the one øvelse.
  */
 export function BlockNote({ notes, className }: { notes: string; className?: string }) {
-  return <aside className={cn("border-b border-b-[var(--line)] border-l-[3px] border-l-[var(--orange)] bg-[var(--grep-lilac)]/40 px-4 py-3.5 sm:px-5", className)}>
-    <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.11em] text-[var(--orange)]"><StickyNote size={13} aria-hidden />Notat for bolken</p>
+  return <aside className={cn("border-b border-b-[var(--line)] border-l-[3px] border-l-[var(--accent)] bg-[var(--grep-lilac)]/40 px-4 py-3.5 sm:px-5", className)}>
+    <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.11em] text-[var(--accent)]"><StickyNote size={13} aria-hidden />Notat for bolken</p>
     <p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-[var(--ink)]">{notes}</p>
   </aside>;
 }

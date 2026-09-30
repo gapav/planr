@@ -153,11 +153,11 @@ export function ShortlistMenu({ exerciseId, exerciseName, labelled = false, clas
       aria-haspopup="true"
       aria-label={keptIn ? `${exerciseName} er lagret i ${keptIn}. Endre favoritter og samlinger` : `Lagre ${exerciseName} i favoritter eller en samling`}
       onClick={() => open ? close() : setOpen(true)}
-      className={cn("transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--orange)]",
+      className={cn("transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
         labelled
-          ? "inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-white px-4 text-sm font-bold hover:border-[var(--ink)]"
-          : "grid h-10 w-10 place-items-center rounded-full bg-white/90 shadow-md backdrop-blur hover:scale-105 hover:bg-white",
-        kept ? "text-[var(--orange)]" : "text-[var(--ink-soft)]")}
+          ? "inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-raised)] px-4 text-sm font-bold hover:border-[var(--ink)]"
+          : "grid h-10 w-10 place-items-center rounded-full bg-[var(--surface-raised)]/90 shadow-md backdrop-blur hover:scale-105 hover:bg-[var(--surface-raised)]",
+        kept ? "text-[var(--accent)]" : "text-[var(--ink-soft)]")}
     >
       <ShortlistGlyph favorited={favorited} collected={collected} />
       {labelled && <span>{kept ? "Lagret" : "Lagre øvelsen"}</span>}
@@ -166,7 +166,7 @@ export function ShortlistMenu({ exerciseId, exerciseName, labelled = false, clas
     {open && <div
       role="menu"
       aria-label={`Lagre ${exerciseName}`}
-      className={cn("grep-pop absolute z-20 w-64 rounded-2xl border border-[var(--line)] bg-white p-1.5 text-left shadow-xl",
+      className={cn("grep-pop absolute z-20 w-64 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-1.5 text-left shadow-xl",
         closing && "is-closing", labelled ? "grep-pop-left left-0 top-[52px]" : "right-0 top-12")}
     >
       <ShortlistRow
@@ -193,7 +193,7 @@ export function ShortlistMenu({ exerciseId, exerciseName, labelled = false, clas
           /></li>)}
         </ul>}
         {!collections.length && <p className="grep-pop-row px-2.5 pb-1 text-sm leading-5 text-[var(--ink-soft)]" style={staggered()}>Ingen samlinger ennå. Lag én for det dere jobber med nå.</p>}
-        <button type="button" role="menuitem" onClick={() => setCreating(true)} className="grep-pop-row mt-0.5 flex w-full items-center gap-2 rounded-xl px-2.5 py-2.5 text-left text-sm font-black hover:bg-black/5" style={staggered()}>
+        <button type="button" role="menuitem" onClick={() => setCreating(true)} className="grep-pop-row mt-0.5 flex w-full items-center gap-2 rounded-xl px-2.5 py-2.5 text-left text-sm font-black hover:bg-[var(--hover-wash-strong)]" style={staggered()}>
           <Plus size={15} />Ny samling
         </button>
       </div>}
@@ -229,12 +229,12 @@ function ShortlistRow({ label, note, icon: Icon, checked, style, onToggle }: {
     aria-label={note ? `${label} — ${note}` : label}
     onClick={onToggle}
     style={style}
-    className="grep-pop-row flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-semibold hover:bg-black/5"
+    className="grep-pop-row flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-semibold hover:bg-[var(--hover-wash-strong)]"
   >
-    <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-md border transition", checked ? "border-[var(--orange)] bg-[var(--orange)] text-white" : "border-[var(--line)] bg-white")}>
+    <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-md border transition", checked ? "border-[var(--accent)] bg-[var(--accent-fill)] text-[var(--on-accent)]" : "border-[var(--line)] bg-[var(--surface-raised)]")}>
       {checked && <Check size={13} strokeWidth={3} />}
     </span>
-    <Icon size={15} className={cn("shrink-0", checked ? "text-[var(--orange)]" : "text-[var(--ink-soft)]")} fill={checked && Icon === Heart ? "currentColor" : "none"} />
+    <Icon size={15} className={cn("shrink-0", checked ? "text-[var(--accent)]" : "text-[var(--ink-soft)]")} fill={checked && Icon === Heart ? "currentColor" : "none"} />
     <span className="min-w-0 flex-1 truncate">{label}</span>
     {note && <span className="shrink-0 text-[10px] font-bold uppercase tracking-[.06em] text-[var(--ink-soft)]">{note}</span>}
   </button>;
@@ -321,18 +321,18 @@ export function SelectedCollectionBar({ collection, onDeleted }: { collection: E
 
   const size = collection.exerciseIds.length;
   return <div className="mt-4 flex items-center gap-4 rounded-[20px] border border-[var(--line)] bg-[var(--paper)] px-5 py-4">
-    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-[var(--orange)] shadow-sm"><Bookmark size={20} /></span>
+    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[var(--surface-raised)] text-[var(--accent)] shadow-sm"><Bookmark size={20} /></span>
     <div className="min-w-0 flex-1">
       <p className="truncate text-[15px] font-black">{collection.name}</p>
       <p className="mt-1 text-xs leading-5 text-[var(--ink-soft)]">{size} {size === 1 ? "øvelse" : "øvelser"} · hele trenerteamet ser samlingen</p>
     </div>
     <span data-collection-manage className="relative shrink-0">
       <Button variant="ghost" size="sm" className="px-2" id="collection-manage" aria-expanded={menuOpen} aria-label={`Valg for ${collection.name}`} onClick={() => setMenuOpen(!menuOpen)}><MoreHorizontal size={19} /></Button>
-      {menuOpen && <div className="absolute right-0 z-10 w-44 rounded-xl border border-[var(--line)] bg-white p-1.5 text-sm font-semibold shadow-xl">
-        <button type="button" className="w-full rounded-lg px-3 py-2 text-left hover:bg-black/5" onClick={() => { setMenuOpen(false); setRenaming(true); }}>Gi nytt navn</button>
+      {menuOpen && <div className="absolute right-0 z-10 w-44 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] p-1.5 text-sm font-semibold shadow-xl">
+        <button type="button" className="w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover-wash-strong)]" onClick={() => { setMenuOpen(false); setRenaming(true); }}>Gi nytt navn</button>
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[var(--danger)] hover:bg-red-50"
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[var(--danger)] hover:bg-[var(--danger-bg)]"
           onClick={() => {
             // Only the samling goes: the exercises in it are the shared library
             // and are not touched, which is what the wording has to promise

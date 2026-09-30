@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { AppProvider } from "@/components/app-provider";
+import { ThemeAttribute } from "@/components/theme-switch";
+import { themeScript } from "@/lib/theme";
 import "./globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://grep.team";
@@ -31,14 +33,25 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#2e1b3d",
-  colorScheme: "light",
+  // The OS bar follows the device. A coach who overrides the device in Grep
+  // gets the bar of the device's scheme, which is ink-dark in both.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#2e1b3d" },
+    { media: "(prefers-color-scheme: dark)", color: "#16111b" },
+  ],
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="nb" className={dmSans.variable}>
+    // `data-theme` is written by the script below before the first paint, so
+    // the server's <html> never matches the browser's — hence the suppression.
+    <html lang="nb" className={dmSans.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
+        <ThemeAttribute />
         <AppProvider>{children}</AppProvider>
       </body>
     </html>

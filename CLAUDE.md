@@ -126,7 +126,14 @@ toggled from `/team`.
 
 ### Styling
 
-Tailwind v4 (`@import "tailwindcss"` in `app/globals.css`) with the palette as CSS custom properties on `:root` (`--ink`, `--paper`, `--orange`, …). Use those variables rather than hard-coded hexes. Classes are composed with `cn()` (clsx + tailwind-merge) from `lib/utils.ts`. Shared primitives are in `components/ui.tsx`; the app is light-mode only (`colorScheme: "light"`) and honors `prefers-reduced-motion`.
+Tailwind v4 (`@import "tailwindcss"` in `app/globals.css`) with the palette as CSS custom properties on `:root` (`--ink`, `--paper`, `--accent`, …). Classes are composed with `cn()` (clsx + tailwind-merge) from `lib/utils.ts`. Shared primitives are in `components/ui.tsx`; the app honors `prefers-reduced-motion`.
+
+**Light and dark.** `<html data-theme>` always holds the *resolved* theme (`light`/`dark`, never `system`), set before first paint by the inline `themeScript` in the root layout and afterwards by `saveThemePreference` (`lib/theme.ts`). The choice is per device (localStorage `grep-theme`), not per account; the switch sits in the sidebar footer and under *For deg* on /team. `globals.css` has exactly one dark block, `@media screen { :root[data-theme="dark"] }`, which redefines tokens and nothing else — `screen` so printing stays light. Rules that follow from it:
+
+- **Never write a colour in a component.** No `[#hex]`, `bg-white`, `text-white`, `bg-red-50`: use a token (`--surface-raised`, `--on-accent`, `--danger-bg`, …). `lib/theme-tokens.test.ts` fails on literals; only `bg-black` (video letterbox) and white/black *with an opacity* (overlays on photos and on `--chrome`) are allowed. A new colour is a new token on `:root` **and** in the dark block — the same test checks that and runs contrast on the key pairs in both themes.
+- **Pair fills with their label token.** `--ink` flips, so text on an ink fill is `--paper`, not white. Fills that are bright in both themes (apricot, lime) take `--on-bright`; `--accent-fill` takes `--on-accent`. Bands meant to stay dark in both themes (live-session header, Tidskontroll, sign-in hero) use `--chrome`/`--on-chrome`.
+- `--accent` is the purple as text/borders/rings; `--accent-fill` is the purple under a white label. They differ in dark.
+- Colours that stay hex on purpose: team accents in `lib/team-palette.ts` (stored by the importer; their tints are `--team-*-tint` variables), coach avatar colours (`readableInk` measures them), and the emails (`lib/email-shell.ts`, `lib/session-email.ts`), which are always light.
 
 The `@media print` block at the foot of `globals.css` is how a plan reaches
 someone with no account — «Skriv ut» in the session menu is just `window.print()`
