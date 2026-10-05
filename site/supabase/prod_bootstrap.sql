@@ -11,6 +11,7 @@
 -- transaction; everything after it runs in a fresh implicit one.
 --   202609020006
 --   202609020009
+--   202610050001
 
 -- ============================================================
 -- 202609020001_initial.sql
@@ -2764,6 +2765,24 @@ create policy blocks_read_global_admin on public.session_blocks for select to au
   using (public.is_global_admin());
 create policy items_read_global_admin on public.session_items for select to authenticated
   using (public.is_global_admin());
+
+-- ============================================================
+-- 202610050001_exercise_link_media.sql
+-- ============================================================
+-- An exercise can point at a page Grep cannot show — an Instagram reel, a
+-- TikTok, a club's drill page — which the app offers as a link to open rather
+-- than drawing it as a picture. Session items copy only the url and the
+-- thumbnail, so they need nothing new: an image is saved as its own thumbnail
+-- and a link never is, which is how the app tells the two apart there.
+alter type public.exercise_media_kind add value if not exists 'link';
+
+-- Make the new value available to PostgREST when run in the SQL editor.
+notify pgrst, 'reload schema';
+
+-- ============================================================
+-- Commit the enum addition from 202610050001 before it is used below.
+-- ============================================================
+commit;
 
 -- Make the new schema visible to PostgREST immediately after a manual SQL Editor run.
 notify pgrst, 'reload schema';

@@ -58,7 +58,74 @@ export function parseExerciseMedia(rawUrl: string): ParsedMedia {
   }
   if (host === "vimeo.com" || host.endsWith(".vimeo.com")) return { kind: "vimeo", thumbnailUrl: null };
   if (/\.(mp4|webm|mov)$/.test(url.pathname.toLowerCase())) return { kind: "video", thumbnailUrl: null };
-  return { kind: "image", thumbnailUrl: rawUrl };
+  if (/\.(jpe?g|png|webp|gif|avif)$/.test(url.pathname.toLowerCase())) return { kind: "image", thumbnailUrl: rawUrl };
+  // Anything else may still be a picture — a CDN rarely names its files — but
+  // the address alone cannot say so. `resolveExerciseMedia` asks the browser
+  // when the exercise is saved.
+  return { kind: "link", thumbnailUrl: null };
+}
+
+/**
+ * The kind a saved link renders as. An image is always saved as its own
+ * thumbnail and a link with none, so the pair tells them apart without a stored
+ * kind — which a session item, copying only the url and the thumbnail, does not
+ * have. That also keeps every image saved before links existed an image.
+ */
+export function mediaKindOf(media: { mediaUrl: string | null; thumbnailUrl: string | null }): ExerciseMediaKind | null {
+  if (!media.mediaUrl) return null;
+  let kind: ExerciseMediaKind;
+  try { kind = parseExerciseMedia(media.mediaUrl).kind; } catch { return null; }
+  return kind === "link" && media.thumbnailUrl === media.mediaUrl ? "image" : kind;
+}
+
+/** The word a tag shows for an exercise's media. */
+export function mediaKindLabel(kind: ExerciseMediaKind | null): string {
+  if (!kind) return "Uten medier";
+  if (kind === "image") return "Bilde";
+  if (kind === "link") return "Lenke";
+  return "Video";
+}
+
+/** Sites a coach is likely to link to, named the way they name themselves. */
+const linkSites: Record<string, string> = {
+  "instagram.com": "Instagram", "tiktok.com": "TikTok", "facebook.com": "Facebook", "fb.watch": "Facebook",
+  "x.com": "X", "twitter.com": "X",
+};
+
+/**
+ * How a link reads on its button: who hosts it, the address without the scheme
+ * or the share-tracking query a phone appends to everything it copies, and
+ * whether it is plainly a video — a reel or a TikTok — which is the reason a
+ * coach would open it, so the button can say so.
+ */
+export function describeMediaLink(rawUrl: string): { site: string; address: string; video: boolean } | null {
+  try {
+    const url = new URL(rawUrl);
+    const host = url.hostname.replace(/^www\./, "");
+    const site = Object.entries(linkSites).find(([domain]) => host === domain || host.endsWith(`.${domain}`))?.[1] ?? host;
+    const video = site === "TikTok" || (site === "Instagram" && /^\/(reels?|tv)\//.test(url.pathname));
+    return { site, address: `${host}${url.pathname.replace(/\/$/, "")}`, video };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether the browser can draw the url as a picture. A page on another origin
+ * cannot be read, so loading it as an image is the one way to tell an image
+ * without an extension from a web page; one that has not answered in time is
+ * taken for a page, since a link opens either way and a broken picture does not.
+ */
+export function loadsAsImage(rawUrl: string, timeoutMs = 6000): Promise<boolean> {
+  if (typeof Image === "undefined") return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const image = new Image();
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    function finish(loaded: boolean) { clearTimeout(timer); image.onload = null; image.onerror = null; resolve(loaded); }
+    image.onload = () => finish(image.naturalWidth > 0);
+    image.onerror = () => finish(false);
+    image.src = rawUrl;
+  });
 }
 
 /**
@@ -141,6 +208,7 @@ async function requestMediaInfo(rawUrl: string): Promise<MediaInfo> {
 
 export async function resolveExerciseMedia(rawUrl: string): Promise<ParsedMedia> {
   const media = parseExerciseMedia(rawUrl);
+  if (media.kind === "link") return await loadsAsImage(rawUrl) ? { kind: "image", thumbnailUrl: rawUrl } : media;
   if (media.kind !== "vimeo") return media;
   const { thumbnailUrl } = await fetchMediaInfo(rawUrl);
   return { ...media, thumbnailUrl };

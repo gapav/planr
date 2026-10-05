@@ -14,7 +14,7 @@ function open() {
   return store;
 }
 
-const linkField = () => screen.queryByLabelText("Lenke til bilde eller video");
+const linkField = () => screen.queryByLabelText("Lenke til bilde, video eller innlegg");
 const uploadField = () => screen.queryByLabelText("Last opp et bilde eller en MP4-video");
 const tab = (name: RegExp) => screen.getByRole("button", { name });
 

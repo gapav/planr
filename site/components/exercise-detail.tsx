@@ -8,8 +8,9 @@ import { categoryPresentation } from "./exercise-category-filter";
 import { ShortlistMenu } from "./collections";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { MediaCreditLine } from "./media-credit";
+import { MediaLinkCard } from "./media-link";
 import { Modal, Tag } from "./ui";
-import { getExerciseEmbedUrl, parseExerciseMedia } from "@/lib/media";
+import { getExerciseEmbedUrl, mediaKindLabel, mediaKindOf } from "@/lib/media";
 import { formatAgeGroup } from "@/lib/exercises";
 import type { Exercise, ExerciseAgeGroup, ExerciseCategory, SessionItem } from "@/lib/types";
 
@@ -28,9 +29,7 @@ export interface ExerciseDetailSubject {
  * a plan renders from itself rather than from the library.
  */
 export function sessionItemDetailSubject(item: Pick<SessionItem, "title" | "description" | "mediaUrl" | "thumbnailUrl">): ExerciseDetailSubject {
-  let mediaKind: ExerciseDetailSubject["mediaKind"] = null;
-  if (item.mediaUrl) { try { mediaKind = parseExerciseMedia(item.mediaUrl).kind; } catch { mediaKind = null; } }
-  return { name: item.title, description: item.description, mediaUrl: item.mediaUrl, mediaKind, thumbnailUrl: item.thumbnailUrl };
+  return { name: item.title, description: item.description, mediaUrl: item.mediaUrl, mediaKind: mediaKindOf(item), thumbnailUrl: item.thumbnailUrl };
 }
 
 function withAutoplay(embedUrl: string) {
@@ -53,17 +52,10 @@ export function ExerciseDetail({ exercise, exerciseId, onClose }: {
   const [playing, setPlaying] = useState(false);
   if (!exercise) return null;
 
-  let mediaKind: ReturnType<typeof parseExerciseMedia>["kind"] | null = null;
-  let embedUrl: string | null = null;
-  if (exercise.mediaUrl) {
-    try {
-      mediaKind = parseExerciseMedia(exercise.mediaUrl).kind;
-      embedUrl = getExerciseEmbedUrl(exercise.mediaUrl);
-    } catch {
-      mediaKind = null;
-    }
-  }
-  const hasMedia = Boolean(exercise.mediaUrl && mediaKind);
+  // A kind means the url parsed, so the embed lookup cannot throw.
+  const mediaKind = mediaKindOf(exercise);
+  const embedUrl = exercise.mediaUrl && mediaKind ? getExerciseEmbedUrl(exercise.mediaUrl) : null;
+  const hasMedia = Boolean(exercise.mediaUrl && mediaKind && mediaKind !== "link");
 
   function close() { setPlaying(false); onClose(); }
 
@@ -72,6 +64,7 @@ export function ExerciseDetail({ exercise, exerciseId, onClose }: {
       {playing && exercise.mediaUrl && embedUrl ? <div className="aspect-video overflow-hidden rounded-[20px] bg-black"><iframe src={withAutoplay(embedUrl)} title={`${exercise.name} video`} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div>
         : playing && exercise.mediaUrl && mediaKind === "video" ? <video src={exercise.mediaUrl} controls autoPlay playsInline preload="metadata" className="aspect-video w-full rounded-[20px] bg-black object-contain" />
         : playing && exercise.mediaUrl && mediaKind === "image" ? <img src={exercise.mediaUrl} alt={exercise.name} className="max-h-[60vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" />
+        : mediaKind === "link" && exercise.mediaUrl ? <MediaLinkCard mediaUrl={exercise.mediaUrl} />
         : hasMedia ? <button type="button" onClick={() => setPlaying(true)} className="group relative block w-full overflow-hidden rounded-[20px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]" aria-label={mediaKind === "image" ? `Vis bildet for ${exercise.name}` : `Spill av videoen for ${exercise.name}`}>
             <ExerciseThumbnail exercise={exercise} className="aspect-[16/9] w-full" />
             <span className="absolute inset-0 grid place-items-center bg-black/15 transition group-hover:bg-black/25"><span className="grid h-14 w-14 place-items-center rounded-full bg-[var(--surface-raised)]/90 shadow-lg">{mediaKind === "image" ? <ZoomIn size={22} /> : <Play size={22} fill="currentColor" />}</span></span>
@@ -83,7 +76,7 @@ export function ExerciseDetail({ exercise, exerciseId, onClose }: {
       <div className="flex flex-wrap items-center gap-2">
         {exercise.category && <Tag tone={categoryPresentation[exercise.category].tone}>{exercise.category}</Tag>}
         {exercise.ageGroups?.map((group) => <Tag key={group} tone={bandTone[group]}>{formatAgeGroup(group)}</Tag>)}
-        {exercise.mediaKind ? <Tag>{exercise.mediaKind === "image" ? "Bilde" : "Video"}</Tag> : <Tag>Uten medier</Tag>}
+        <Tag>{mediaKindLabel(mediaKind)}</Tag>
         {exercise.createdByName && <span className="text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}</span>}
       </div>
 
@@ -94,7 +87,7 @@ export function ExerciseDetail({ exercise, exerciseId, onClose }: {
           so the bookmark is here as well as on the card. */}
       {exerciseId && <div><ShortlistMenu exerciseId={exerciseId} exerciseName={exercise.name} labelled /></div>}
 
-      {exercise.mediaUrl && <a href={exercise.mediaUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--accent)] underline underline-offset-4">Åpne mediet i ny fane</a>}
+      {exercise.mediaUrl && mediaKind !== "link" && <a href={exercise.mediaUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--accent)] underline underline-offset-4">Åpne mediet i ny fane</a>}
     </div>
   </Modal>;
 }

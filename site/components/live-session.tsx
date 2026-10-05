@@ -23,7 +23,7 @@ import {
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { makePairs, makeTeams } from "@/lib/grouping";
-import { getExerciseEmbedUrl, parseExerciseMedia } from "@/lib/media";
+import { getExerciseEmbedUrl, mediaKindOf } from "@/lib/media";
 import { assignedCoach, blockClock, blockDuration, isStationBlock, sessionSchedule, stationRotation, suggestedGroupCount } from "@/lib/session";
 import type { PlayerGroup, Profile, SessionGroupingKind, SessionItem, TeamPlayer } from "@/lib/types";
 import { clockTime, cn, formatSessionDate, minutesLabel } from "@/lib/utils";
@@ -33,6 +33,7 @@ import { BlockNote } from "./block-note";
 import { GroupingBoard } from "./grouping-board";
 import { HelpTip } from "./help-tip";
 import { MediaCreditLine } from "./media-credit";
+import { MediaLinkCard } from "./media-link";
 import { CopySessionDialog, ReopenSessionDialog } from "./session-actions";
 import { TeamCrest } from "./team-crest";
 import { Avatar, Button, EmptyState, Modal, Tag } from "./ui";
@@ -337,19 +338,12 @@ function ItemCoach({ item, members }: { item: SessionItem; members: Profile[] })
 }
 
 function ExerciseDetail({ item }: { item: SessionItem }) {
-  let mediaKind: ReturnType<typeof parseExerciseMedia>["kind"] | null = null;
-  let embedUrl: string | null = null;
-  if (item.mediaUrl) {
-    try {
-      mediaKind = parseExerciseMedia(item.mediaUrl).kind;
-      embedUrl = getExerciseEmbedUrl(item.mediaUrl);
-    } catch {
-      mediaKind = null;
-    }
-  }
+  // A kind means the url parsed, so the embed lookup cannot throw.
+  const mediaKind = mediaKindOf(item);
+  const embedUrl = item.mediaUrl && mediaKind ? getExerciseEmbedUrl(item.mediaUrl) : null;
 
   return <div className="grid gap-5">
-    {item.mediaUrl && embedUrl ? <div className="aspect-video overflow-hidden rounded-[20px] bg-black"><iframe src={embedUrl} title={`${item.title} video`} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div> : item.mediaUrl && mediaKind === "video" ? <video src={item.mediaUrl} controls playsInline preload="metadata" className="aspect-video w-full rounded-[20px] bg-black object-contain" /> : item.mediaUrl && mediaKind === "image" ? <img src={item.mediaUrl} alt={item.title} className="max-h-[55vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" /> : item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="max-h-[45vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" /> : null}
+    {item.mediaUrl && embedUrl ? <div className="aspect-video overflow-hidden rounded-[20px] bg-black"><iframe src={embedUrl} title={`${item.title} video`} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div> : item.mediaUrl && mediaKind === "video" ? <video src={item.mediaUrl} controls playsInline preload="metadata" className="aspect-video w-full rounded-[20px] bg-black object-contain" /> : item.mediaUrl && mediaKind === "image" ? <img src={item.mediaUrl} alt={item.title} className="max-h-[55vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" /> : item.mediaUrl && mediaKind === "link" ? <MediaLinkCard mediaUrl={item.mediaUrl} /> : item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="max-h-[45vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" /> : null}
     <MediaCreditLine mediaUrl={item.mediaUrl} />
     {item.description && <section><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--accent)]">Instruksjoner</p><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{item.description}</p></section>}
     {item.coachingNotes && <section className="rounded-2xl bg-[var(--warn-bg)] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--warn-ink)]">Stikkord</p><p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6">{item.coachingNotes}</p></section>}

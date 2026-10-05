@@ -2,7 +2,11 @@ export type TeamRole = "admin" | "coach";
 export type SessionStatus = "draft" | "published" | "in_progress" | "completed";
 export type SessionTab = "drafts" | "upcoming" | "past";
 export type SessionItemKind = "exercise" | "custom";
-export type ExerciseMediaKind = "image" | "youtube" | "vimeo" | "video";
+/**
+ * `link` is a page Grep cannot show — an Instagram reel, a TikTok, a club's
+ * drill page — so it is offered as a link to open rather than drawn.
+ */
+export type ExerciseMediaKind = "image" | "youtube" | "vimeo" | "video" | "link";
 export const EXERCISE_CATEGORIES = ["Forsvar", "Angrep", "Skuddferdigheter", "Målvakt", "Fysisk", "Leker"] as const;
 export type ExerciseCategory = (typeof EXERCISE_CATEGORIES)[number];
 /** Stable keys, not labels — the UI renders them as "6-9 år". */

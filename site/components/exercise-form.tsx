@@ -10,7 +10,7 @@ import { validateExerciseMediaUpload } from "@/lib/media";
 import { ExerciseAgeGroupPicker } from "./exercise-age-group-filter";
 import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type Exercise, type ExerciseAgeGroup } from "@/lib/types";
 
-const schema = z.object({ name: z.string().trim().min(3, "Bruk minst 3 tegn"), category: z.enum(EXERCISE_CATEGORIES), ageGroups: z.array(z.enum(EXERCISE_AGE_GROUPS)), description: z.string().trim().min(10, "Legg til litt mer informasjon"), mediaUrl: z.string().trim().refine((url) => !url || (z.url().safeParse(url).success && url.startsWith("https://")), "Skriv inn en gyldig og sikker HTTPS-lenke til et bilde eller en video").transform((url) => url || null) });
+const schema = z.object({ name: z.string().trim().min(3, "Bruk minst 3 tegn"), category: z.enum(EXERCISE_CATEGORIES), ageGroups: z.array(z.enum(EXERCISE_AGE_GROUPS)), description: z.string().trim().min(10, "Legg til litt mer informasjon"), mediaUrl: z.string().trim().refine((url) => !url || (z.url().safeParse(url).success && url.startsWith("https://")), "Skriv inn en gyldig og sikker HTTPS-lenke").transform((url) => url || null) });
 
 export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exercise?: Exercise | null; onClose(): void }) {
   const { addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia } = useGrep();
@@ -55,8 +55,8 @@ export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exerc
           submitted, so the hidden one survives a stray click without leaking
           into the saved exercise. */}
       <div className="grid min-w-0 gap-2.5 text-sm font-semibold">
-        <span className="flex items-center gap-1.5">Bilde eller video <span className="font-normal text-[var(--ink-soft)]">(valgfritt)</span><HelpHint topic="media-link" /></span>
-        <div className="grep-segments" role="group" aria-label="Velg hvordan du legger ved bilde eller video">
+        <span className="flex items-center gap-1.5">Bilde, video eller lenke <span className="font-normal text-[var(--ink-soft)]">(valgfritt)</span><HelpHint topic="media-link" /></span>
+        <div className="grep-segments" role="group" aria-label="Velg hvordan du legger ved bilde, video eller lenke">
           <button type="button" className="flex-1" aria-pressed={source === "link"} onClick={() => { setSource("link"); setMediaFile(null); setError(null); }}><LinkIcon size={15} />Lim inn lenke<span>Anbefalt</span></button>
           <button type="button" className="flex-1" aria-pressed={source === "upload"} onClick={() => { setSource("upload"); setError(null); }}><Upload size={15} />Last opp fil</button>
         </div>
@@ -64,7 +64,7 @@ export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exerc
             branches put an <input> in the same slot, and without a key the
             controlled url field is reused as the uncontrolled file field. */}
         {source === "link"
-          ? <><input key="link" id="exercise-media-url" aria-label="Lenke til bilde eller video" className={inputClass} type="url" value={values.mediaUrl} onChange={(event) => setValues({ ...values, mediaUrl: event.target.value })} placeholder="https://..." /><span className="text-xs font-normal text-[var(--ink-soft)]">HTTPS-bilder, YouTube, Vimeo og direkte videolenker støttes. Videoen blir stående hos den som har laget den.</span></>
+          ? <><input key="link" id="exercise-media-url" aria-label="Lenke til bilde, video eller innlegg" className={inputClass} type="url" value={values.mediaUrl} onChange={(event) => setValues({ ...values, mediaUrl: event.target.value })} placeholder="https://..." /><span className="text-xs font-normal text-[var(--ink-soft)]">YouTube, Vimeo, bilder og videofiler vises rett i Grep. Andre lenker, som et innlegg på Instagram eller TikTok, blir en knapp som åpner dem. Videoen blir stående hos den som har laget den.</span></>
           : <><input key="upload" aria-label="Last opp et bilde eller en MP4-video" className={`${inputClass} cursor-pointer py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--paper-deep)] file:px-3 file:py-1.5 file:text-xs file:font-bold`} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,.jpg,.jpeg,.png,.webp,.mp4" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (!file) { setMediaFile(null); return; } try { validateExerciseMediaUpload(file); setMediaFile(file); setError(null); } catch (caught) { event.target.value = ""; setMediaFile(null); setError(caught instanceof Error ? caught.message : "Velg et gyldig bilde eller en MP4-video"); } }} /><span className="text-xs font-normal text-[var(--ink-soft)]">JPG, PNG, WebP og MP4 støttes. Maksimal filstørrelse er 5 MB.</span>
             {/* The upload leaves the coach's own phone and becomes part of a
                 library every trener can open, so the rights question is asked

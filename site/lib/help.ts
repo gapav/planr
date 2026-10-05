@@ -41,7 +41,7 @@ export const HELP_TOPICS = {
     intro: "En økt består av bolker, og hver bolk inneholder aktiviteter med hver sin varighet.",
     points: [
       "«Legg til bolk» gir deg ferdige navn som oppvarming og hoveddel, eller et navn du skriver selv.",
-      "«Legg til øvelse» henter fra øvelsesbanken. «Egendefinert aktivitet» lager en tom aktivitet du fyller ut på stedet.",
+      "«Legg til øvelse» henter fra øvelsesbanken. «Egendefinert aktivitet» lager en tom aktivitet du fyller ut på stedet. Vil du bruke den igjen, eller lenke til en video, legger du den i øvelsesbanken i stedet.",
       "Dra i håndtaket til venstre for å endre rekkefølgen på både bolker og aktiviteter.",
       "Tidskontrollen summerer aktivitetene og viser hvor mange minutter du har igjen av den planlagte varigheten.",
     ],
@@ -62,7 +62,7 @@ export const HELP_TOPICS = {
     ordered: true,
     points: [
       "Trykk «Legg til øvelse» og gi den et navn, en kategori og en beskrivelse av organisering og trenermomenter.",
-      "Legg ved bilde eller video: enten en HTTPS-lenke til YouTube, Vimeo eller en videofil, eller last opp JPG, PNG, WebP eller MP4 på inntil 5 MB.",
+      "Legg ved bilde eller video: enten en HTTPS-lenke til YouTube, Vimeo, en videofil eller et innlegg på Instagram eller TikTok, eller last opp JPG, PNG, WebP eller MP4 på inntil 5 MB.",
       "Øvelsen kan brukes i økter med én gang. Dine egne øvelser kan du redigere eller arkivere senere.",
     ],
   },
