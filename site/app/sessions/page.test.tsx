@@ -94,17 +94,15 @@ describe("session calendar rows", () => {
     expect(within(rowFor("Om en måned")).getByRole("button", { name: "Flere valg for Om en måned" })).toBeInTheDocument();
   });
 
-  // A generated title is the date over again, and the row already has a date
-  // column — so a session nobody has named is named by what is in it.
-  it("names a far-out session by its blocks instead of repeating its date", () => {
+  it("names a far-out session by its title, not by its blocks", () => {
     renderPage([
       upcoming("a", "Denne uka", "2026-09-04T13:45:00.000Z"),
-      upcoming("b", "Uke 40 - torsdag", "2026-10-01T13:45:00.000Z", { blocks: demoSessions[0].blocks }),
+      upcoming("b", "Torsdag - Uke 40", "2026-10-01T13:45:00.000Z", { blocks: demoSessions[0].blocks }),
     ]);
 
-    const row = rowFor("Uke 40 - torsdag");
-    expect(within(row).queryByText("Uke 40 - torsdag")).toBeNull();
-    expect(within(row).getByRole("heading", { name: "Oppvarming · Stasjoner · Spill" })).toBeInTheDocument();
+    const row = rowFor("Torsdag - Uke 40");
+    expect(within(row).getByRole("heading", { name: "Torsdag - Uke 40" })).toBeInTheDocument();
+    expect(within(row).queryByText("Oppvarming · Stasjoner · Spill")).toBeNull();
     expect(within(row).getByText("3 bolker · 1 t 30 min")).toBeInTheDocument();
   });
 

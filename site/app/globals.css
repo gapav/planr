@@ -674,15 +674,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-session-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 7px; }
 .grep-session-headline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
 .grep-session-headline h3 { font-size: 16px; font-weight: 600; line-height: 1.4; letter-spacing: -.02em; overflow-wrap: anywhere; }
-/* A row naming its blocks instead of repeating its date is content, not a title:
-   a shade lighter than a name a coach chose, and clipped rather than wrapped so
-   the compact row stays the one line it exists to be. */
-.grep-session-derived { min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The compact row's right-hand end. It answers «which of these still need work»,
    and it gives the row a second anchor: a title alone leaves one word floating a
    thousand pixels from the menu, which is what makes a workout read as a table
    row. Tabular figures so the counts line up down the month. */
-.grep-session-plan { flex-shrink: 0; font-size: 12px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.grep-session-plan { display: flex; align-items: center; gap: 10px; flex-shrink: 0; font-size: 12px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.grep-session-plan .grep-session-bar { flex-shrink: 0; width: 72px; }
 .grep-session-venue { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grep-session-blocks { font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grep-session-progress { display: flex; align-items: center; gap: 12px; }

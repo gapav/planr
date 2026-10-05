@@ -4,7 +4,7 @@ import { demoSessions } from "./demo-data";
 import { clockTime } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile } from "./types";
-import { assignedCoach, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanSummary, sessionRowHeadline, splitSessionStart, splitSessionTime, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
+import { assignedCoach, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanProgress, sessionPlanSummary, splitSessionStart, splitSessionTime, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -275,37 +275,28 @@ describe("automatic session titles", () => {
     expect(isoWeekNumber(new Date("2026-12-31T12:00:00.000Z"), "UTC")).toBe(53);
   });
   it("names a plan by its week and weekday", () => {
-    expect(autoSessionTitle("2026-09-18T16:00:00.000Z", "UTC")).toBe("Uke 38 - fredag");
-    expect(autoSessionTitle("2026-09-14T16:00:00.000Z", "UTC")).toBe("Uke 38 - mandag");
+    expect(autoSessionTitle("2026-09-18T16:00:00.000Z", "UTC")).toBe("Fredag - Uke 38");
+    expect(autoSessionTitle("2026-09-14T16:00:00.000Z", "UTC")).toBe("Mandag - Uke 38");
+    expect(autoSessionTitle("2026-10-10T09:15:00.000Z", "UTC")).toBe("Lørdag - Uke 41");
   });
   it("treats a blank, placeholder or generated title as unnamed", () => {
     expect(isAutoSessionTitle("")).toBe(true);
     expect(isAutoSessionTitle(UNTITLED_SESSION_TITLE)).toBe(true);
+    expect(isAutoSessionTitle("Fredag - Uke 38")).toBe(true);
+  });
+  it("still recognises titles generated in the earlier week-first order", () => {
     expect(isAutoSessionTitle("Uke 38 - fredag")).toBe(true);
   });
   it("leaves a title the coach wrote alone", () => {
+    expect(isAutoSessionTitle("Fredag - Uke 38: avslutningsspill")).toBe(false);
     expect(isAutoSessionTitle("Uke 38 - fredag: avslutningsspill")).toBe(false);
     expect(isAutoSessionTitle("Keepertrening")).toBe(false);
   });
 });
 
 // What one line of the calendar has to say about a workout four weeks out.
-describe("a calendar row's headline and plan", () => {
+describe("a calendar row's plan", () => {
   const empty = { ...demoSessions[1], blocks: [] };
-
-  it("names a session by its blocks when nobody has titled it", () => {
-    // The row's own date column already says «fre. 4.», so the generated title
-    // would be the same information twice and the workout nowhere.
-    expect(sessionRowHeadline({ ...demoSessions[0], title: "Uke 38 - fredag" })).toEqual({ text: "Oppvarming · Stasjoner · Spill", fromBlocks: true });
-    expect(sessionRowHeadline({ ...demoSessions[0], title: "" })).toEqual({ text: "Oppvarming · Stasjoner · Spill", fromBlocks: true });
-  });
-  it("keeps a name the coach chose", () => {
-    expect(sessionRowHeadline(demoSessions[0])).toEqual({ text: "Fredag — kontring og press", fromBlocks: false });
-  });
-  it("falls back to the generated name when there are no blocks to name it by", () => {
-    expect(sessionRowHeadline({ ...empty, title: "Uke 38 - fredag" })).toEqual({ text: "Uke 38 - fredag", fromBlocks: false });
-    expect(sessionRowHeadline({ ...empty, title: "" })).toEqual({ text: UNTITLED_SESSION_TITLE, fromBlocks: false });
-  });
 
   it("says how much of the plan is there", () => {
     expect(sessionPlanSummary({ ...demoSessions[0], plannedDurationMinutes: 90 })).toBe("3 bolker · 1 t 30 min");
@@ -318,6 +309,12 @@ describe("a calendar row's headline and plan", () => {
   });
   it("says an emptied plan is empty, in a tense that suits a finished session too", () => {
     expect(sessionPlanSummary(empty)).toBe("Ingen bolker");
+  });
+  it("measures the built minutes against the planned ones for the progress bar", () => {
+    expect(sessionPlanProgress({ ...demoSessions[0], plannedDurationMinutes: 120 })).toBe(75);
+    expect(sessionPlanProgress({ ...demoSessions[0], plannedDurationMinutes: 60 })).toBe(100);
+    expect(sessionPlanProgress(empty)).toBe(0);
+    expect(sessionPlanProgress({ ...demoSessions[0], plannedDurationMinutes: 0 })).toBe(0);
   });
 });
 
@@ -359,8 +356,8 @@ describe("copying a session", () => {
     expect(sessionCopyDefaults({ ...demoSessions[0], startsAt: null }, new Date(2026, 8, 18))).toEqual({ title: demoSessions[0].title, date: "", time: DEFAULT_SESSION_TIME });
   });
   it("renames a copy the coach never named, and leaves a chosen title alone", () => {
-    expect(sessionCopyDefaults({ ...dated(2026, 9, 18), title: "Uke 38 - fredag" }, new Date(2026, 8, 18)).title).toBe("Uke 39 - fredag");
-    expect(sessionCopyDefaults({ ...dated(2026, 9, 18), title: UNTITLED_SESSION_TITLE }, new Date(2026, 8, 18)).title).toBe("Uke 39 - fredag");
+    expect(sessionCopyDefaults({ ...dated(2026, 9, 18), title: "Uke 38 - fredag" }, new Date(2026, 8, 18)).title).toBe("Fredag - Uke 39");
+    expect(sessionCopyDefaults({ ...dated(2026, 9, 18), title: UNTITLED_SESSION_TITLE }, new Date(2026, 8, 18)).title).toBe("Fredag - Uke 39");
     expect(sessionCopyDefaults({ ...dated(2026, 9, 18), title: "Keepertrening" }, new Date(2026, 8, 18)).title).toBe("Keepertrening");
   });
 
@@ -369,14 +366,14 @@ describe("copying a session", () => {
     const copy = (overrides: Partial<Parameters<typeof buildSessionCopy>[1]> = {}) => {
       counter = 0;
       return buildSessionCopy({ ...demoSessions[0], status: "completed", startedAt: "2026-09-04T16:30:00.000Z", completedAt: "2026-09-04T18:00:00.000Z", groupingKind: "teams" }, {
-        id: "session-copy", title: "Uke 39 - fredag", startsAt: "2026-09-25T14:30:00.000Z", userId: "user-nora",
+        id: "session-copy", title: "Fredag - Uke 39", startsAt: "2026-09-25T14:30:00.000Z", userId: "user-nora",
         makeId: () => `copied-${(counter += 1)}`, now: new Date("2026-09-19T08:00:00.000Z"), ...overrides,
       });
     };
 
     it("lands as a fresh draft on the chosen date, owned by whoever copied it", () => {
       const made = copy();
-      expect(made).toMatchObject({ id: "session-copy", title: "Uke 39 - fredag", startsAt: "2026-09-25T14:30:00.000Z", status: "draft", startedAt: null, completedAt: null, groupingKind: null, createdBy: "user-nora", updatedBy: "user-nora" });
+      expect(made).toMatchObject({ id: "session-copy", title: "Fredag - Uke 39", startsAt: "2026-09-25T14:30:00.000Z", status: "draft", startedAt: null, completedAt: null, groupingKind: null, createdBy: "user-nora", updatedBy: "user-nora" });
       expect(made.createdAt).toBe("2026-09-19T08:00:00.000Z");
     });
     it("carries the whole plan over with fresh ids", () => {

@@ -155,20 +155,6 @@ export function isNearTerm(session: PlannedSession, now = new Date(), timeZone?:
 }
 
 /**
- * What a calendar row calls the session. A name a coach typed stands as it is,
- * but a generated one is the date said twice — the row already carries «tor. 8.»
- * in its own column — and a row whose only words repeat the column beside it
- * says nothing about the workout. The blocks do: they are what the session is.
- * A plan with neither keeps the name it was given.
- */
-export function sessionRowHeadline(session: Pick<PlannedSession, "title" | "blocks">) {
-  const title = session.title.trim();
-  if (!isAutoSessionTitle(title)) return { text: title, fromBlocks: false };
-  const blocks = session.blocks.map((block) => block.title.trim()).filter(Boolean);
-  return blocks.length ? { text: blocks.join(" · "), fromBlocks: true } : { text: title || UNTITLED_SESSION_TITLE, fromBlocks: false };
-}
-
-/**
  * How much of the plan is actually there, for the right-hand end of a calendar
  * row. Without it a month of published sessions renders a five-block plan and
  * an emptied one as the same line, and the one question a coach reads a month
@@ -185,6 +171,12 @@ export function sessionPlanSummary(session: Pick<PlannedSession, "blocks" | "pla
   const built = sessionDuration(session);
   if (!built) return blocks;
   return built < session.plannedDurationMinutes ? `${blocks} · ${built} av ${session.plannedDurationMinutes} min` : `${blocks} · ${minutesLabel(built)}`;
+}
+
+/** How much of the planned time the blocks fill, as a whole percent capped at 100. */
+export function sessionPlanProgress(session: Pick<PlannedSession, "blocks" | "plannedDurationMinutes">) {
+  if (!session.plannedDurationMinutes) return 0;
+  return Math.min(100, Math.round((sessionDuration(session) / session.plannedDurationMinutes) * 100));
 }
 
 // Months are the section unit in the calendar tabs: a team runs a handful of
@@ -310,15 +302,17 @@ export function isoWeekNumber(date: Date, timeZone?: string) {
   return Math.ceil(((thursday.getTime() - Date.UTC(thursday.getUTCFullYear(), 0, 1)) / DAY_MS + 1) / 7);
 }
 
-/** `Uke 38 - fredag`: the name a coach would have typed anyway. */
+/** `Fredag - Uke 38`: the name a coach would have typed anyway. */
 export function autoSessionTitle(startsAt: string, timeZone?: string) {
   const date = new Date(startsAt);
   if (Number.isNaN(date.getTime())) return UNTITLED_SESSION_TITLE;
   const weekday = new Intl.DateTimeFormat("nb-NO", { weekday: "long", ...(timeZone ? { timeZone } : {}) }).format(date);
-  return `Uke ${isoWeekNumber(date, timeZone)} - ${weekday}`;
+  return `${weekday.charAt(0).toLocaleUpperCase("nb-NO")}${weekday.slice(1)} - Uke ${isoWeekNumber(date, timeZone)}`;
 }
 
-const AUTO_TITLE = /^Uke \d{1,2} - \p{L}+$/u;
+// The second form is the `Uke 38 - fredag` order titles were generated in
+// before; plans already saved under it are just as unnamed.
+const AUTO_TITLE = /^(\p{L}+ - Uke \d{1,2}|Uke \d{1,2} - \p{L}+)$/u;
 /**
  * Whether the plan is still carrying a name nobody chose — blank, the placeholder
  * `createSession` writes, or an earlier `autoSessionTitle`. Moving the date

@@ -11,7 +11,7 @@ import { CopySessionDialog, ReopenSessionDialog, SessionMenu } from "@/component
 import { PageHeading } from "@/components/page-heading";
 import { Avatar, Button, EmptyState, Field, Modal, Tag, textareaClass } from "@/components/ui";
 import { monthKey } from "@/lib/fixtures";
-import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration, sessionPlanSummary, sessionRowHeadline } from "@/lib/session";
+import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration, sessionPlanProgress, sessionPlanSummary, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
 import type { PlannedSession, Profile, SessionTab } from "@/lib/types";
 import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
@@ -200,7 +200,7 @@ function SessionDay({ date }: { date: ReturnType<typeof sessionDateParts> }) {
 }
 
 function SessionRow({ session, tab, hero = false, onCopy, onReopen, onDelete }: { session: PlannedSession; tab: SessionTab; hero?: boolean; onCopy(): void; onReopen(): void; onDelete(): void }) {
-  const { currentTeam, user } = useGrep(); const built = sessionDuration(session); const progress = session.plannedDurationMinutes ? Math.min(100, Math.round((built / session.plannedDurationMinutes) * 100)) : 0; const updater = currentTeam?.members.find((member) => member.id === session.updatedBy) ?? currentTeam?.members[0];
+  const { currentTeam, user } = useGrep(); const built = sessionDuration(session); const progress = sessionPlanProgress(session); const updater = currentTeam?.members.find((member) => member.id === session.updatedBy) ?? currentTeam?.members[0];
   const inProgress = session.status === "in_progress"; const date = sessionDateParts(session.startsAt); const relative = relativeDayLabel(session.startsAt); const [menuOpen, setMenuOpen] = useState(false);
   // Every row in a tab shares that tab's status, so only the one status that
   // does set a row apart is worth a chip. Same for the coach: it is the
@@ -236,21 +236,17 @@ function SessionRow({ session, tab, hero = false, onCopy, onReopen, onDelete }: 
 // Sessions further out than the coming week, and every finished one, are things
 // you read rather than act on: the same row, one line tall. Still one line — the
 // point of the compact row is that a plan four weeks out does not compete with
-// the one on Thursday — but a line that says what the workout is rather than
-// what day it falls on. The date column already has the day; the middle carries
-// the blocks the session is made of, and the right-hand end how much of the plan
-// is there. Everything else is one tap away in the plan itself.
+// the one on Thursday. The date column has the day, the middle the session's
+// name, and the right-hand end how much of the plan is there — a bar of built
+// against planned minutes, so the ones still needing work show down the month
+// at a glance. Everything else is one tap away in the plan itself.
 function CompactSessionRow({ session, onCopy, onReopen, onDelete }: { session: PlannedSession; onCopy(): void; onReopen(): void; onDelete(): void }) {
   const date = sessionDateParts(session.startsAt); const [menuOpen, setMenuOpen] = useState(false);
-  const headline = sessionRowHeadline(session);
-  // The overlaid link keeps naming the session rather than the headline shown:
-  // two rows reading «Oppvarming · Spill» would otherwise be one accessible
-  // name, and the row's own text is in the list for a screen reader either way.
   return <li className={cn("grep-session-row grep-session-compact", menuOpen && "grep-session-open")}>
     <Link href={`/sessions/${session.id}`} aria-label={`Åpne ${session.title}`} className="grep-session-hit" />
     <SessionDay date={date} />
-    <span className="grep-session-copy"><span className="grep-session-headline"><h3 className={cn(headline.fromBlocks && "grep-session-derived")}>{headline.text}</h3></span></span>
-    <span className="grep-session-plan">{sessionPlanSummary(session)}</span>
+    <span className="grep-session-copy"><span className="grep-session-headline"><h3>{session.title.trim() || UNTITLED_SESSION_TITLE}</h3></span></span>
+    <span className="grep-session-plan"><span className="grep-session-bar" aria-hidden="true"><span style={{ width: `${sessionPlanProgress(session)}%` }} /></span>{sessionPlanSummary(session)}</span>
     <span className="grep-session-actions">
       <SessionMenu session={session} open={menuOpen} onOpenChange={setMenuOpen} onCopy={onCopy} onReopen={onReopen} onDelete={onDelete} />
     </span>
