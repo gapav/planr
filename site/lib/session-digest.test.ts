@@ -4,6 +4,7 @@ import {
   clubDay,
   digestMailings,
   digestMonthKeys,
+  DIGEST_MIN_PLAN_PROGRESS,
   digestSessionsForDay,
   mapDigestCoach,
   mapDigestSession,
@@ -12,11 +13,18 @@ import {
   type DigestSession,
 } from "./session-digest";
 
+/** A plan whose activities add up to `minutes`, in one block. */
+function planOf(minutes: number): DigestSession["blocks"] {
+  return [{ title: "Hoveddel", notes: "", kind: "sequence", items: [{ title: "Pasningsdrill", durationMinutes: minutes, coachingNotes: "", assignedCoachId: null }] }];
+}
+
+// Fully built by default, so the tests about days and recipients are not
+// quietly filtered out by the progress rule.
 function session(overrides: Partial<DigestSession> = {}): DigestSession {
   return {
     id: "session-1", teamId: "team-1", teamName: "Fjordvik G14", title: "Teknikkøkt",
     startsAt: "2026-09-12T16:00:00.000Z", venue: "Fjordvik hall", plannedDurationMinutes: 90,
-    objective: "", notes: "", status: "published", monthFocus: "", blocks: [],
+    objective: "", notes: "", status: "published", monthFocus: "", blocks: planOf(90),
     ...overrides,
   };
 }
@@ -73,6 +81,28 @@ describe("digestSessionsForDay", () => {
       session({ id: "live", status: "in_progress", startsAt: "2026-12-15T16:00:00.000Z" }),
     ];
     expect(digestSessionsForDay(rows, day).map((row) => row.id)).toEqual(["live"]);
+  });
+
+  it("only mails a plan that is nearly built", () => {
+    const at = "2026-12-15T16:00:00.000Z";
+    const rows = [
+      session({ id: "empty", startsAt: at, blocks: [] }),
+      session({ id: "skeleton", startsAt: at, blocks: planOf(20) }),
+      session({ id: "short", startsAt: at, blocks: planOf(71) }),
+      session({ id: "almost", startsAt: at, blocks: planOf(72) }),
+      session({ id: "over", startsAt: at, blocks: planOf(120) }),
+    ];
+    // 72 of 90 minutes is exactly the threshold; 71 rounds to 79 %.
+    expect(DIGEST_MIN_PLAN_PROGRESS).toBe(80);
+    expect(digestSessionsForDay(rows, day).map((row) => row.id)).toEqual(["almost", "over"]);
+  });
+
+  it("counts a stations block by its stations, as the calendar bar does", () => {
+    const stations: DigestSession["blocks"] = [{
+      title: "Stasjoner", notes: "", kind: "stations",
+      items: [1, 2, 3].map((n) => ({ title: `Stasjon ${n}`, durationMinutes: 25, coachingNotes: "", assignedCoachId: null })),
+    }];
+    expect(digestSessionsForDay([session({ startsAt: "2026-12-15T16:00:00.000Z", blocks: stations })], day)).toHaveLength(1);
   });
 
   it("sorts the day earliest first", () => {

@@ -9,7 +9,7 @@ import type { PlannedSession, Profile, SessionBlock, SessionItem, SessionTab } f
  * that: a database trigger mirrors `rotationMinutes` onto every station's own
  * `durationMinutes`, so the sum below is `stations × rotation` already.
  */
-export function blockDuration(block: SessionBlock) { return block.items.reduce((total, item) => total + item.durationMinutes, 0); }
+export function blockDuration(block: { items: ReadonlyArray<Pick<SessionItem, "durationMinutes">> }) { return block.items.reduce((total, item) => total + item.durationMinutes, 0); }
 export function isStationBlock(block: Pick<SessionBlock, "kind">) { return block.kind === "stations"; }
 /** The rotation to show and to step from, standing in for a row written before the column existed. */
 export function stationRotation(block: Pick<SessionBlock, "rotationMinutes">) { return block.rotationMinutes ?? DEFAULT_ROTATION_MINUTES; }
@@ -24,7 +24,7 @@ export function suggestedGroupCount(session: Pick<PlannedSession, "blocks">) {
   const counts = session.blocks.filter(isStationBlock).map((block) => block.items.length).filter((count) => count >= MIN_STATIONS);
   return counts.length ? Math.max(...counts) : null;
 }
-export function sessionDuration(session: Pick<PlannedSession, "blocks">) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
+export function sessionDuration(session: { blocks: ReadonlyArray<Parameters<typeof blockDuration>[0]> }) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
 
 /**
  * When each block falls on the clock: the session's own start, plus the blocks
@@ -174,7 +174,7 @@ export function sessionPlanSummary(session: Pick<PlannedSession, "blocks" | "pla
 }
 
 /** How much of the planned time the blocks fill, as a whole percent capped at 100. */
-export function sessionPlanProgress(session: Pick<PlannedSession, "blocks" | "plannedDurationMinutes">) {
+export function sessionPlanProgress(session: Parameters<typeof sessionDuration>[0] & Pick<PlannedSession, "plannedDurationMinutes">) {
   if (!session.plannedDurationMinutes) return 0;
   return Math.min(100, Math.round((sessionDuration(session) / session.plannedDurationMinutes) * 100));
 }

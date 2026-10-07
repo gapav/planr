@@ -6,7 +6,7 @@
  * and hands both to these functions. The rules that decide who gets mailed are
  * the interesting part, and they are testable without a database or a mailbox.
  *
- * Three of them are easy to get wrong:
+ * Four of them are easy to get wrong:
  *
  *   - **The day is the club's day, not the server's.** Sessions are stored in
  *     UTC and the job runs in UTC, so "today" has to be derived in the club's
@@ -15,16 +15,30 @@
  *   - **Only a session the coach could actually run.** Drafts never mail. They
  *     have no agreed time, and `start_session` refuses them — a mail promising
  *     a session the app will not start is worse than no mail.
+ *   - **Only a plan that is nearly built.** Publishing needs a single block,
+ *     so a published session can still be a skeleton. A letter reading out
+ *     ten minutes of a ninety-minute plan is noise, and coaches learn to
+ *     ignore noise. The bar is the one the calendar already draws —
+ *     `sessionPlanProgress` — so "ready enough to mail" never disagrees with
+ *     what the coach sees on screen.
  *   - **One mail per coach, not per session.** A coach on two teams with two
  *     sessions the same day gets a single letter listing both.
  */
 
 import { monthKey } from "./fixtures";
+import { sessionPlanProgress } from "./session";
 import { CLUB_TIME_ZONE } from "./time";
 import type { SessionBlockKind, SessionStatus } from "./types";
 
 /** The statuses a digest may announce: planned, or already under way. */
 const MAILABLE_STATUSES: readonly SessionStatus[] = ["published", "in_progress"];
+
+/**
+ * How much of the planned time the blocks must fill, in percent, before the
+ * plan is worth a letter. Not 100: a plan five minutes short of its slot is
+ * finished in every sense a coach cares about at 07:00.
+ */
+export const DIGEST_MIN_PLAN_PROGRESS = 80;
 
 /** The kind recorded in `session_email_log`; the table's check constraint knows it. */
 export const DIGEST_KIND = "daily_digest";
@@ -141,12 +155,14 @@ export function clubDay(now: Date, timeZone: string = CLUB_TIME_ZONE): ClubDay {
  * The sessions of that day worth mailing about, earliest first.
  *
  * The route already asks the database for this window, so the filter here is
- * belt and braces — but the status rule is not: it is the one place that
- * decides a draft never reaches an inbox.
+ * belt and braces — but the status and progress rules are not: this is the one
+ * place that decides a draft, or a plan still mostly empty, never reaches an
+ * inbox.
  */
 export function digestSessionsForDay(sessions: readonly DigestSession[], day: ClubDay): DigestSession[] {
   return sessions
     .filter((session) => MAILABLE_STATUSES.includes(session.status))
+    .filter((session) => sessionPlanProgress(session) >= DIGEST_MIN_PLAN_PROGRESS)
     .filter((session) => {
       const startsAt = Date.parse(session.startsAt);
       return Number.isFinite(startsAt) && startsAt >= Date.parse(day.from) && startsAt < Date.parse(day.to);

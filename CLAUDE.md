@@ -111,8 +111,11 @@ and the letter in `lib/session-email.ts`, both pure and tested; the route only
 wires them together. `lib/email-shell.ts` is the envelope both it and
 `lib/auth-email.ts` render into.
 
-Two invariants: **drafts never mail** (the status filter is the only thing
-preventing a letter about a session `start_session` would refuse), and **sending
+Three invariants: **drafts never mail** (the status filter is the only thing
+preventing a letter about a session `start_session` would refuse), **nor does a
+plan that is mostly empty** — `digestSessionsForDay` needs
+`sessionPlanProgress` (the calendar's bar) at `DIGEST_MIN_PLAN_PROGRESS` (80 %)
+or more, since publishing only requires one block — and **sending
 is idempotent** — the job claims each (session, coach) pair in
 `session_email_log` (migration `202609020033`) before sending and only mails the
 claims the database granted, giving a claim back when a send fails. A run with
