@@ -10,7 +10,8 @@ import { AppShell } from "./app-shell";
 import { CourtArtwork } from "./court-artwork";
 import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewSalutation, overviewSessions } from "@/lib/overview";
 import { calendarDaysUntil } from "@/lib/session";
-import { focusSpanLabel } from "@/lib/focus";
+import { dayKey } from "@/lib/fixtures";
+import { focusSpanLabel, focusWeekNumber, noteLines } from "@/lib/focus";
 import type { FocusPeriod } from "@/lib/types";
 import { cn, minutesLabel } from "@/lib/utils";
 
@@ -97,7 +98,7 @@ export function Overview() {
           <Link href="/exercises" className="overview-card overview-shortcut"><span className="overview-shortcut-icon peach"><ListFilter size={25} strokeWidth={1.7} /></span><span><strong>Finn øvelser</strong><small>En god idé til neste økt</small></span><ChevronRight size={19} /></Link>
         </div>
       </div>
-      <FocusBand focus={focus} />
+      <FocusBand focus={focus} today={now ? dayKey(now) : null} />
     </>}
   </div></AppShell>;
 }
@@ -105,19 +106,33 @@ export function Overview() {
 /**
  * The current focus closes the overview: the cards are what happens next, and
  * the focus is the standing answer to "towards what?" — read after them, not
- * before. It only reads the focus out — it is set in the season overview, and
- * who wrote it is a question for the Økter page, not this one. With nothing
- * running the band stays and says where a focus is set.
+ * before. It is a card like its neighbours, with the name set as large as a
+ * date, the working points beside the note, and where in the period the team
+ * is now. It only reads the focus out — it is set in the season overview, which
+ * the corner icon opens, and who wrote it is a question for the Økter page.
+ * With nothing running the card stays and says where a focus is set.
  */
-function FocusBand({ focus }: { focus: FocusPeriod | null }) {
-  return <section className={cn("overview-focus", !focus && "overview-focus-unset")} aria-labelledby="current-focus-heading">
-    <span className="overview-focus-mark" aria-hidden><Target size={25} strokeWidth={1.7} /></span>
-    <div className="overview-focus-copy">
-      <h2 id="current-focus-heading" className="overview-focus-eyebrow">Nåværende fokus{focus && <span>· {focusSpanLabel(focus)}</span>}</h2>
-      {focus
-        ? <><p className="overview-focus-title">{focus.title}</p>{focus.note.trim() && <p className="overview-focus-note">{focus.note}</p>}</>
-        : <p className="overview-focus-note overview-focus-invite">Ingen fokus nå. Hva laget skal jobbe mest med de neste ukene setter dere i <Link href="/sessions?mode=season">sesongoverblikket</Link>.</p>}
+function FocusBand({ focus, today }: { focus: FocusPeriod | null; today: string | null }) {
+  const points = focus ? noteLines(focus.notes) : [];
+  const week = focus && today ? focusWeekNumber(focus, today) : null;
+  return <section className={cn("overview-card overview-focus", !focus && "overview-focus-unset")} aria-labelledby="current-focus-heading">
+    <div className="overview-card-label">
+      <h2 id="current-focus-heading">Nåværende fokus</h2>
+      <Link href={focus ? `/sessions?mode=season&focus=${focus.id}` : "/sessions?mode=season"} className="overview-card-icon" aria-label="Åpne sesongoverblikket"><Target size={19} /></Link>
     </div>
+    {focus ? <div className="overview-focus-body">
+      <div className="overview-focus-copy">
+        <p className="overview-focus-title">{focus.title}</p>
+        {focus.note.trim() && <p className="overview-focus-note">{focus.note}</p>}
+        {points.length > 0 && <ul className="overview-focus-points">{points.map((point, index) => <li key={index}>{point}</li>)}</ul>}
+      </div>
+      <div className="overview-focus-progress">
+        {week && <p className="overview-focus-week"><strong>Uke {week}</strong> av {focus.weeks}</p>}
+        {week && <ol className="overview-focus-weeks" aria-hidden>{Array.from({ length: focus.weeks }, (_, index) => <li key={index} className={cn(index + 1 < week && "is-done", index + 1 === week && "is-now")} />)}</ol>}
+        <p className="overview-focus-span">{focusSpanLabel(focus)}</p>
+      </div>
+    </div>
+      : <p className="overview-focus-invite">Ingen fokus nå. Hva laget skal jobbe mest med de neste ukene setter dere i <Link href="/sessions?mode=season">sesongoverblikket</Link>.</p>}
   </section>;
 }
 

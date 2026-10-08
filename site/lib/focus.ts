@@ -89,3 +89,9 @@ export function focusSpanLabel(focus: Pick<FocusPeriod, "startsOn" | "weeks">) {
   const day = (key: string) => shortDay.format(new Date(`${key}T12:00:00Z`));
   return `${first === last ? `Uke ${first}` : `Uke ${first}–${last}`} · ${day(focus.startsOn)}–${day(end)}`;
 }
+
+/** Which of a focus's weeks a day falls in, from 1; null outside it. */
+export function focusWeekNumber(focus: Pick<FocusPeriod, "startsOn" | "weeks">, day: string) {
+  if (!focusCovers(focus, day)) return null;
+  return Math.floor((dayNumber(day) - dayNumber(focus.startsOn)) / 7) + 1;
+}

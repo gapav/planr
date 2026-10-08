@@ -67,6 +67,10 @@ describe("Oversikt", () => {
     // The note is written in the session calendar, and by-lines belong there too.
     expect(focus).not.toHaveTextContent("Satt av");
     expect(within(focus).queryByRole("button")).not.toBeInTheDocument();
+    // The working points and where in the period the team is (20 September is week 3 of 5).
+    expect(within(focus).getAllByRole("listitem").filter((item) => item.textContent).map((item) => item.textContent)).toEqual(["Samarbeid mellom to-er og tre-er", "Aktiv midtblokk", "Kontring ut av forsvaret"]);
+    expect(focus).toHaveTextContent("Uke 3 av 5");
+    expect(within(focus).getByRole("link", { name: "Åpne sesongoverblikket" })).toHaveAttribute("href", "/sessions?mode=season&focus=focus-forsvar");
   });
   it("says where a focus is set when none is running", () => {
     vi.setSystemTime(new Date("2026-11-02T10:00:00Z")); render(<Overview />);
