@@ -1,15 +1,16 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
+import { demoFixtures, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
+import { dayKey } from "@/lib/fixtures";
 import type { MonthFocus, PlannedSession } from "@/lib/types";
 import SessionsPage from "./page";
 
-const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), deleteSession: vi.fn(), saveMonthFocus: vi.fn(), query: "" }));
+const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), replace: vi.fn(), createSession: vi.fn(), deleteSession: vi.fn(), saveMonthFocus: vi.fn(), query: "" }));
 
 vi.mock("@/components/app-provider", () => ({ useGrep: mocks.useGrep }));
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }), useSearchParams: () => new URLSearchParams(mocks.query) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push, replace: mocks.replace }), useSearchParams: () => new URLSearchParams(mocks.query) }));
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode; href: string }) => <a href={href} {...props}>{children}</a>,
 }));
@@ -19,7 +20,7 @@ const upcoming = (id: string, title: string, startsAt: string, extra: Partial<Pl
   ({ ...demoSessions[1], id, teamId: team.id, title, startsAt, status: "published", updatedBy: demoUser.id, ...extra });
 
 function renderPage(sessions: PlannedSession[], monthFocus: MonthFocus[] = []) {
-  mocks.useGrep.mockReturnValue({ sessions, currentTeam: team, user: demoUser, monthFocus, createSession: vi.fn(), deleteSession: mocks.deleteSession, saveMonthFocus: mocks.saveMonthFocus });
+  mocks.useGrep.mockReturnValue({ sessions, fixtures: demoFixtures, currentTeam: team, user: demoUser, monthFocus, createSession: mocks.createSession, deleteSession: mocks.deleteSession, saveMonthFocus: mocks.saveMonthFocus });
   render(<SessionsPage />);
 }
 const rowFor = (title: string) => screen.getByRole("link", { name: `Åpne ${title}` }).closest("li") as HTMLElement;
@@ -224,5 +225,71 @@ describe("month focus", () => {
 
     expect(screen.getByRole("heading", { name: "Gjennomført" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Opprett økt/ })).toBeNull();
+  });
+});
+
+describe("season overview", () => {
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.createSession.mockReset().mockResolvedValue("new-session"); mocks.saveMonthFocus.mockReset(); });
+  afterEach(() => { vi.useRealTimers(); mocks.query = ""; });
+
+  it("shows the calendar lanes, includes dated drafts, and opens a month's focus", () => {
+    const draft = upcoming("october-draft", "Kontringsøkt", "2026-10-10T13:00:00.000Z", { status: "draft" });
+    renderPage([draft]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
+    expect(screen.getByRole("heading", { name: "Sesong 2026/27" })).toBeInTheDocument();
+    const calendar = screen.getByRole("region", { name: "Sesongkalender" });
+    for (const row of ["Fokus", "Kamper", "Treninger"]) expect(within(calendar).getByText(row)).toBeInTheDocument();
+    fireEvent.click(within(calendar).getByRole("button", { name: /Fokus for oktober 2026/ }));
+    const detail = screen.getByRole("heading", { name: "oktober 2026" }).closest("section") as HTMLElement;
+    expect(within(detail).getByRole("link", { name: /Kontringsøkt/ })).toHaveAttribute("href", "/sessions/october-draft");
+    expect(within(detail).getByText(/Utkast/)).toBeInTheDocument();
+    fireEvent.click(within(detail).getByRole("button", { name: "Sett fokus" }));
+    expect(screen.getByRole("dialog", { name: "Månedens fokus" })).toBeInTheDocument();
+  });
+
+  it("opens a week from either activity row and starts a dated training plan", async () => {
+    renderPage([upcoming("october-draft", "Kontringsøkt", "2026-10-10T13:00:00.000Z", { status: "draft" })]);
+    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
+    const calendar = screen.getByRole("region", { name: "Sesongkalender" });
+    fireEvent.click(within(calendar).getByRole("button", { name: /Uke 41.*1 kamp/ }));
+    const detail = screen.getByRole("heading", { name: "Uke 41" }).closest("section") as HTMLElement;
+    expect(within(detail).getByText(/Ski Rød – Fjordvik Rød/)).toBeInTheDocument();
+    expect(within(detail).getByRole("link", { name: /Kontringsøkt/ })).toBeInTheDocument();
+    fireEvent.click(within(detail).getByRole("button", { name: "Planlegg økt denne uka" }));
+    await waitFor(() => expect(mocks.createSession).toHaveBeenCalledWith(expect.any(String)));
+    expect(dayKey(mocks.createSession.mock.calls[0][0])).toBe("2026-10-06");
+    expect(mocks.push).toHaveBeenCalledWith("/sessions/new-session/edit");
+  });
+
+  it("shows both monthly focuses when a selected week crosses a month boundary", () => {
+    const focus = (month: string, note: string): MonthFocus => ({ teamId: team.id, month, note, updatedAt: "2026-09-01T08:00:00Z", updatedBy: demoUser.id });
+    renderPage([
+      upcoming("september", "Septemberøkt", "2026-09-30T13:00:00Z"),
+      upcoming("october", "Oktoberøkt", "2026-10-01T13:00:00Z"),
+    ], [focus("2026-09", "Samspill i forsvar."), focus("2026-10", "Raske kontringer.")]);
+    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Sesongkalender" })).getByRole("button", { name: /Uke 40.*2 treninger/ }));
+
+    const detail = screen.getByRole("heading", { name: "Uke 40" }).closest("section") as HTMLElement;
+    expect(within(detail).getByText("Samspill i forsvar.")).toBeInTheDocument();
+    expect(within(detail).getByText("Raske kontringer.")).toBeInTheDocument();
+  });
+
+  it("keeps the calendar view available after opening Sesongoverblikk", () => {
+    renderPage([upcoming("next", "Neste økt", "2026-09-05T13:00:00.000Z")]);
+    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
+    expect(mocks.replace).toHaveBeenCalledWith("/sessions?mode=season", { scroll: false });
+    fireEvent.click(screen.getByRole("button", { name: "Økter" }));
+    expect(screen.getByRole("button", { name: /Kommende/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Åpne Neste økt" })).toBeInTheDocument();
+  });
+
+  it("opens the month linked from a dated session", () => {
+    mocks.query = "mode=season&month=2027-01";
+    renderPage([]);
+
+    expect(screen.getByRole("heading", { name: "Sesong 2026/27" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "januar 2027" })).toBeInTheDocument();
   });
 });

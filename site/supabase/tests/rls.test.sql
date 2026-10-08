@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(229);
+select plan(233);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -460,8 +460,22 @@ select throws_ok($$ insert into public.session_blocks (id, session_id, title, ki
 select lives_ok($$ insert into public.session_blocks (id, session_id, title, kind, rotation_minutes, position, updated_by) values ('31000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000003', 'Stasjoner', 'stations', 8, 1, '10000000-0000-0000-0000-000000000001') $$, 'a coach can add a stations block with a rotation');
 select lives_ok($$ insert into public.session_items (id, block_id, kind, title, duration_minutes, position, updated_by) values ('32000000-0000-0000-0000-000000000002', '31000000-0000-0000-0000-000000000002', 'custom', 'Skuddstasjon', 25, 0, '10000000-0000-0000-0000-000000000001') $$, 'a station is added like any other activity');
 select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000002'), 8, 'a station lasts the block rotation, whatever duration was sent');
+reset role;
+
+-- The second station was last edited by another coach. The block rotation
+-- still belongs to the team, so the first coach must be able to extend it.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select lives_ok($$ insert into public.session_items (id, block_id, kind, title, duration_minutes, position, updated_by) values ('32000000-0000-0000-0000-000000000003', '31000000-0000-0000-0000-000000000002', 'custom', 'Pasningsstasjon', 25, 1, '10000000-0000-0000-0000-000000000002') $$, 'a second coach can add a station');
+select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000003'), 8, 'the second coach station starts at the same rotation');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok($$ update public.session_blocks set rotation_minutes = 12, updated_by = '10000000-0000-0000-0000-000000000001' where id = '31000000-0000-0000-0000-000000000002' $$, 'a coach can change the rotation of a stations block');
 select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000002'), 12, 'changing the rotation carries down to every station in the block');
+select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000003'), 12, 'changing the rotation also reaches another coach station');
+select is((select updated_by::text from public.session_items where id = '32000000-0000-0000-0000-000000000003'), '10000000-0000-0000-0000-000000000002', 'a rotation change preserves who last edited the station');
 select lives_ok($$ update public.session_items set duration_minutes = 45, updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000002' $$, 'a write of a station duration is accepted rather than refused');
 select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000002'), 12, 'but a station cannot be given minutes of its own');
 select is((select duration_minutes from public.session_items where id = '32000000-0000-0000-0000-000000000001'), 10, 'an activity in a sequence block keeps the minutes it was given');

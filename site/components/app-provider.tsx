@@ -11,7 +11,7 @@ import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUplo
 import { displayNameError, normalizeDisplayName } from "@/lib/profile";
 import { CONNECTION_LOST_MESSAGE, isInvitationAlreadyUsed, isTransportFailure, norwegianServerMessage } from "@/lib/server-messages";
 import { minimizePlayerName } from "@/lib/roster";
-import { buildSessionCopy, nextPosition, stationRotation, UNTITLED_SESSION_TITLE } from "@/lib/session";
+import { autoSessionTitle, buildSessionCopy, nextPosition, stationRotation, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { DEFAULT_ROTATION_MINUTES, MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
@@ -187,7 +187,7 @@ interface GrepContextValue {
   updateWarmupItem(routineId: string, itemId: string, patch: WarmupItemPatch): Promise<void>;
   deleteWarmupItem(routineId: string, itemId: string): Promise<void>;
   reorderWarmupItems(routineId: string, orderedIds: string[]): Promise<void>;
-  createSession(): Promise<string>;
+  createSession(startsAt?: string): Promise<string>;
   updateSession(id: string, patch: SessionPatch): Promise<void>;
   deleteSession(id: string): Promise<void>;
   publishSession(id: string): Promise<void>;
@@ -1294,11 +1294,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentTeam, monthFocus, persist, supabase, user]);
 
-  const createSession = useCallback(async () => {
+  const createSession = useCallback(async (startsAt?: string) => {
     if (!currentTeam || !user) throw new Error("Velg et lag først"); const id = makeUuid(); const now = new Date().toISOString();
-    const session: PlannedSession = { id, teamId: currentTeam.id, title: UNTITLED_SESSION_TITLE, startsAt: null, venue: "", plannedDurationMinutes: 90, objective: "", notes: "", status: "draft", blocks: [], createdBy: user.id, updatedBy: user.id, createdAt: now, updatedAt: now };
+    const session: PlannedSession = { id, teamId: currentTeam.id, title: startsAt ? autoSessionTitle(startsAt) : UNTITLED_SESSION_TITLE, startsAt: startsAt ?? null, venue: "", plannedDurationMinutes: 90, objective: "", notes: "", status: "draft", blocks: [], createdBy: user.id, updatedBy: user.id, createdAt: now, updatedAt: now };
     setSessions((current) => [session, ...current]);
-    await persist(supabase ? () => supabase.from("sessions").insert({ id, team_id: currentTeam.id, title: session.title, planned_duration_minutes: 90, created_by: user.id, updated_by: user.id }) : null);
+    await persist(supabase ? () => supabase.from("sessions").insert({ id, team_id: currentTeam.id, title: session.title, starts_at: session.startsAt, planned_duration_minutes: 90, created_by: user.id, updated_by: user.id }) : null);
     return id;
   }, [currentTeam, persist, supabase, user]);
 

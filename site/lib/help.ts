@@ -24,6 +24,15 @@ export const HELP_TOPICS = {
     ],
     note: "«Start»-knappen dukker opp på selve treningsdagen. Resten av tiden er «Rediger» den eneste handlingen på en økt.",
   },
+  "season-overview": {
+    title: "Slik bruker du sesongoverblikket",
+    intro: "Kalenderen viser lagets fokus, kamper og treninger uke for uke fra august til juli.",
+    points: [
+      "Trykk på en måned eller feltet i Fokus-raden for å lese og endre månedens fokus.",
+      "Trykk på en uke under Kamper eller Treninger for å se hva som skjer den uka. Fylte prikker er publiserte økter, åpne prikker er utkast.",
+      "Fra en kommende uke kan du starte en ny øktplan med datoen satt. Du kan endre dato og klokkeslett i øktplanen.",
+    ],
+  },
   "session-day": {
     title: "Hva skjer på treningsdagen",
     intro: "På dagen økten er satt opp, får den en «Start»-knapp i kalenderen. Den tar deg hit, til klargjøringen.",

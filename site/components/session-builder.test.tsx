@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { demoExercises, demoSessions, demoTeams } from "@/lib/demo-data";
+import { demoExercises, demoMonthFocus, demoSessions, demoTeams } from "@/lib/demo-data";
 import { SessionBuilder } from "./session-builder";
 
 const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), useSessionRealtime: vi.fn() }));
@@ -71,6 +71,15 @@ describe("session builder", () => {
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: firstItem.title })).toBeInTheDocument();
     expect(within(dialog).getByText(firstItem.description)).toBeInTheDocument();
+  });
+
+  it("keeps the dated month's focus available beside the session objective", () => {
+    mocks.useGrep.mockReturnValue({ sessions: [draft], monthFocus: demoMonthFocus, teams: demoTeams, exercises: demoExercises, user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock });
+    render(<SessionBuilder sessionId={draft.id} />);
+
+    const focus = screen.getByText("Månedens fokus · september 2026").closest("details") as HTMLElement;
+    expect(within(focus).getByText(/Forsvar 6-0 med aktiv midtblokk/)).toBeInTheDocument();
+    expect(within(focus).getByRole("link", { name: "Se sesongoverblikk" })).toHaveAttribute("href", "/sessions?mode=season&month=2026-09");
   });
 
   it("offers the session team's coaches as the one responsible for an activity", () => {

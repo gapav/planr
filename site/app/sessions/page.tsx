@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CalendarDays, Clock3, LayoutList, MapPin, Plus, Sparkles, Target, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarRange, Clock3, LayoutList, MapPin, Plus, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,6 +9,7 @@ import { HelpTip } from "@/components/help-tip";
 import { useGrep } from "@/components/app-provider";
 import { CopySessionDialog, ReopenSessionDialog, SessionMenu } from "@/components/session-actions";
 import { PageHeading } from "@/components/page-heading";
+import { SeasonOverview } from "@/components/season-overview";
 import { Avatar, Button, EmptyState, Field, Modal, Tag, textareaClass } from "@/components/ui";
 import { monthKey } from "@/lib/fixtures";
 import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration, sessionPlanProgress, sessionPlanSummary, UNTITLED_SESSION_TITLE } from "@/lib/session";
@@ -26,24 +27,36 @@ function SessionsRoute() {
   const search = useSearchParams();
   const view = search.get("view");
   const initialTab: SessionTab = view === "past" || view === "drafts" ? view : "upcoming";
-  return <SessionsContent key={initialTab} initialTab={initialTab} />;
+  const initialPlanningView = search.get("mode") === "season" ? "season" : "calendar";
+  const initialSeasonMonth = search.get("month");
+  return <SessionsContent key={`${initialTab}-${initialPlanningView}-${initialSeasonMonth ?? ""}`} initialTab={initialTab} initialPlanningView={initialPlanningView} initialSeasonMonth={initialSeasonMonth} />;
 }
 
-function SessionsContent({ initialTab }: { initialTab: SessionTab }) {
-  const { sessions, currentTeam, monthFocus, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>(initialTab); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const [focusMonth, setFocusMonth] = useState<{ key: string; label: string } | null>(null); const router = useRouter();
+function SessionsContent({ initialTab, initialPlanningView, initialSeasonMonth }: { initialTab: SessionTab; initialPlanningView: "calendar" | "season"; initialSeasonMonth: string | null }) {
+  const { sessions, fixtures, currentTeam, monthFocus, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>(initialTab); const [planningView, setPlanningView] = useState<"calendar" | "season">(initialPlanningView); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const [focusMonth, setFocusMonth] = useState<{ key: string; label: string } | null>(null); const router = useRouter();
   const current = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === tab).sort((a, b) => tab === "drafts" ? b.updatedAt.localeCompare(a.updatedAt) : tab === "upcoming" ? (a.startsAt ?? "").localeCompare(b.startsAt ?? "") : (b.startsAt ?? "").localeCompare(a.startsAt ?? "")), [sessions, currentTeam, tab]);
   const counts = useMemo(() => tabs.reduce((acc, entry) => { acc[entry.id] = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return acc; }, {} as Record<SessionTab, number>), [sessions, currentTeam]);
   // The nearest session is lifted out of its month so the one plan being
   // prepared for is not one card among ten identical ones.
   const hero = tab === "upcoming" ? current[0] : undefined; const listed = hero ? current.slice(1) : current;
-  async function startSession() { setCreating(true); try { const id = await createSession(); router.push(`/sessions/${id}/edit`); } catch { /* The provider shows the failure notice. */ } finally { setCreating(false); } }
+  async function startSession(startsAt?: string) { setCreating(true); try { const id = await createSession(startsAt); router.push(`/sessions/${id}/edit`); } catch { /* The provider shows the failure notice. */ } finally { setCreating(false); } }
+  function choosePlanningView(next: "calendar" | "season") {
+    setPlanningView(next);
+    const params = new URLSearchParams(window.location.search);
+    if (next === "season") params.set("mode", "season");
+    else { params.delete("mode"); params.delete("month"); }
+    const query = params.toString();
+    router.replace(`/sessions${query ? `?${query}` : ""}`, { scroll: false });
+  }
   // A failed delete rolls itself back in the provider and surfaces a notice, so
   // the dialog closes either way.
   async function confirmDelete() { if (!pendingDelete) return; setDeleting(true); try { await deleteSession(pendingDelete.id); } catch { /* notice is shown by the provider */ } finally { setDeleting(false); setPendingDelete(null); } }
   if (!currentTeam) return <AppShell><div className="mx-auto max-w-3xl px-4 py-20">{user?.isGlobalAdmin
     ? <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag" body="Øktene tilhører et lag. Opprett lag og tildel trenere fra systemadministrasjonen." action={<Link href="/admin" className="grep-action">Gå til administrasjon</Link>} />
     : <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag ennå" body="Øktene tilhører et lag, slik at de riktige trenerne kan se og redigere dem. Systemadministratoren gir deg tilgang." />}</div></AppShell>;
-  return <AppShell><div className="grep-page grep-calendar"><PageHeading eyebrow={currentTeam.shortName} title="Øktkalender" description={<>En god plan <ArrowRight size={16} className="inline-block -mt-0.5 align-middle text-[var(--accent)]" aria-hidden /> et samkjørt trenerteam.</>} actions={<>{tab !== "past" && <Button size="lg" onClick={() => void startSession()} disabled={creating}><Plus size={18} />{creating ? "Oppretter…" : "Opprett økt"}</Button>}<HelpTip topic="sessions-calendar" /></>} />
+  return <AppShell><div className={cn("grep-page grep-calendar", planningView === "season" && "grep-season-page")}><PageHeading eyebrow={currentTeam.shortName} title={planningView === "season" ? "Sesongoverblikk" : "Øktkalender"} description={planningView === "season" ? "Fokus, kamper og treninger gjennom hele sesongen." : <>En god plan <ArrowRight size={16} className="inline-block -mt-0.5 align-middle text-[var(--accent)]" aria-hidden /> et samkjørt trenerteam.</>} actions={<>{(planningView === "season" || tab !== "past") && <Button size="lg" onClick={() => void startSession()} disabled={creating}><Plus size={18} />{creating ? "Oppretter…" : "Opprett økt"}</Button>}<HelpTip topic={planningView === "season" ? "season-overview" : "sessions-calendar"} /></>} />
+    <div className="grep-planning-views grep-segments" role="group" aria-label="Planvisning"><button type="button" aria-pressed={planningView === "calendar"} onClick={() => choosePlanningView("calendar")}><CalendarDays size={16} />Økter</button><button type="button" aria-pressed={planningView === "season"} onClick={() => choosePlanningView("season")}><CalendarRange size={16} />Sesongoverblikk</button></div>
+    {planningView === "season" ? <SeasonOverview teamId={currentTeam.id} sessions={sessions} fixtures={fixtures ?? []} monthFocus={monthFocus} initialMonth={initialSeasonMonth} onEditFocus={setFocusMonth} onCreateTraining={startSession} /> : <>
     <TabSelect tab={tab} onSelect={setTab} counts={counts} />
     {tab === "drafts"
       // Drafts sort by when they were last touched, so a calendar heading would
@@ -66,6 +79,7 @@ function SessionsContent({ initialTab }: { initialTab: SessionTab }) {
       : (current.length
         ? <div className="grep-session-sections">{groupSessionsByMonth(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onCopy={setCopySource} onReopen={setReopenSource} onDelete={setPendingDelete} />)}</div>
         : <div className="grep-session-sections"><EmptyState icon={<CalendarDays size={22} />} title="Ingen gjennomførte økter" body="Gjennomførte økter samles her for senere bruk." /></div>)}
+    </>}
     {/* Gjennomførte is a record of what has been, so it ends where the last
         workout did. The new plan belongs under the tabs you plan in. */}
     {copySource && <CopySessionDialog session={copySource} onClose={() => setCopySource(null)} />}
