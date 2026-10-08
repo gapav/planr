@@ -5,6 +5,9 @@ describe("norwegianServerMessage", () => {
   it("explains the manual colour migration when the schema is older than the app", () => {
     expect(norwegianServerMessage("Could not find the 'our_team_colors' column of 'team_fixtures' in the schema cache")).toContain("202609130001");
   });
+  it("names the focus migration when the table has not reached the database", () => {
+    expect(norwegianServerMessage("Could not find the table 'public.team_focus_periods' in the schema cache")).toContain("202610080003");
+  });
   it("translates an English database message", () => {
     expect(norwegianServerMessage("Invitation has expired")).toBe("Invitasjonen har utløpt");
   });

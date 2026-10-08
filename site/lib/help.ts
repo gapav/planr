@@ -20,7 +20,7 @@ export const HELP_TOPICS = {
       "Kommende er publiserte økter som ikke er avsluttet. Den nærmeste ligger øverst, under «Neste økt».",
       "Gjennomførte er økter du har avsluttet. De er låst, men kan leses som dokumentasjon i ettertid.",
       "Økter lenger fram enn en uke vises som én linje. De er ikke skjult — de er bare nedtonet til du nærmer deg dem.",
-      "Månedene framover står i kalenderen selv om ingenting er satt opp i dem ennå, så du kan skrive månedens fokus før øktene planlegges.",
+      "Øverst står fokuset laget jobber med nå. Du kan endre det her, eller legge ut fokus for flere uker i sesongoverblikket.",
     ],
     note: "«Start»-knappen dukker opp på selve treningsdagen. Resten av tiden er «Rediger» den eneste handlingen på en økt.",
   },
@@ -28,7 +28,7 @@ export const HELP_TOPICS = {
     title: "Slik bruker du sesongoverblikket",
     intro: "Kalenderen viser lagets fokus, kamper og treninger uke for uke fra august til juli.",
     points: [
-      "Trykk på en måned eller feltet i Fokus-raden for å lese og endre månedens fokus.",
+      "Et fokus varer så mange uker dere vil. Dra over ledige uker i Fokus-raden, eller trykk «Nytt fokus», for å sette et. Trykk på et fokus for å lese og endre det.",
       "Trykk på en uke under Kamper eller Treninger for å se hva som skjer den uka. Fylte prikker er publiserte økter, åpne prikker er utkast.",
       "Fra en kommende uke kan du starte en ny øktplan med datoen satt. Du kan endre dato og klokkeslett i øktplanen.",
     ],

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  attachMonthFocus,
+  attachFocus,
   clubDay,
   digestMailings,
-  digestMonthKeys,
+  digestFocusFrom,
   DIGEST_MIN_PLAN_PROGRESS,
   digestSessionsForDay,
   mapDigestCoach,
@@ -24,7 +24,7 @@ function session(overrides: Partial<DigestSession> = {}): DigestSession {
   return {
     id: "session-1", teamId: "team-1", teamName: "Fjordvik G14", title: "Teknikkøkt",
     startsAt: "2026-09-12T16:00:00.000Z", venue: "Fjordvik hall", plannedDurationMinutes: 90,
-    objective: "", notes: "", status: "published", monthFocus: "", blocks: planOf(90),
+    objective: "", notes: "", status: "published", focus: null, blocks: planOf(90),
     ...overrides,
   };
 }
@@ -213,34 +213,32 @@ describe("mapDigestCoach", () => {
   });
 });
 
-describe("digestMonthKeys", () => {
-  it("keys the month in the club's zone, not in UTC", () => {
-    // 22:30Z on 30 September is 00:30 on 1 October in Oslo.
-    expect(digestMonthKeys([session({ startsAt: "2026-09-30T22:30:00.000Z" })])).toEqual(["2026-10"]);
-  });
-
-  it("asks once per month, however many sessions share it", () => {
-    expect(digestMonthKeys([session(), session({ id: "session-2", startsAt: "2026-09-12T18:00:00.000Z" })])).toEqual(["2026-09"]);
+describe("digestFocusFrom", () => {
+  it("reaches back as far as the longest focus can run", () => {
+    expect(digestFocusFrom("2026-10-08")).toBe("2025-08-14");
   });
 });
 
-describe("attachMonthFocus", () => {
-  const rows = [{ team_id: "team-1", month: "2026-09", note: "Forsvar 6-0 med aktiv midtblokk." }];
+describe("attachFocus", () => {
+  // Three weeks: Monday 7 September to Sunday 27 September.
+  const rows = [{ team_id: "team-1", title: "Forsvar 6-0", note: " Aktiv midtblokk. ", starts_on: "2026-09-07", weeks: 3 }];
 
-  it("joins the note onto the team and month it was written for", () => {
-    expect(attachMonthFocus([session()], rows)[0].monthFocus).toBe("Forsvar 6-0 med aktiv midtblokk.");
+  it("joins the focus running on the session's day", () => {
+    expect(attachFocus([session({ startsAt: "2026-09-15T16:00:00.000Z" })], rows)[0].focus).toEqual({ title: "Forsvar 6-0", note: "Aktiv midtblokk." });
   });
 
-  it("leaves another team's session without one", () => {
-    expect(attachMonthFocus([session({ teamId: "team-2" })], rows)[0].monthFocus).toBe("");
+  it("takes the day in the club's zone, so a late Sunday session is still in the focus", () => {
+    // 22:30Z on Sunday 27 September is 00:30 on Monday in Oslo — the week after.
+    expect(attachFocus([session({ startsAt: "2026-09-27T21:30:00.000Z" })], rows)[0].focus?.title).toBe("Forsvar 6-0");
+    expect(attachFocus([session({ startsAt: "2026-09-27T22:30:00.000Z" })], rows)[0].focus).toBeNull();
   });
 
-  it("leaves another month's session without one", () => {
-    expect(attachMonthFocus([session({ startsAt: "2026-10-12T16:00:00.000Z" })], rows)[0].monthFocus).toBe("");
+  it("leaves another team's session, and a day outside the weeks, without one", () => {
+    expect(attachFocus([session({ teamId: "team-2", startsAt: "2026-09-15T16:00:00.000Z" })], rows)[0].focus).toBeNull();
+    expect(attachFocus([session({ startsAt: "2026-09-06T16:00:00.000Z" })], rows)[0].focus).toBeNull();
   });
 
-  it("treats a blank note as nothing written", () => {
-    expect(attachMonthFocus([session()], [{ team_id: "team-1", month: "2026-09", note: "   " }])[0].monthFocus).toBe("");
-    expect(attachMonthFocus([session()], [{ team_id: "team-1", month: "2026-09", note: null }])[0].monthFocus).toBe("");
+  it("treats a focus without a name as nothing set", () => {
+    expect(attachFocus([session({ startsAt: "2026-09-15T16:00:00.000Z" })], [{ ...rows[0], title: "  " }])[0].focus).toBeNull();
   });
 });

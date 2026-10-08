@@ -24,7 +24,7 @@ const sampleSession: DigestSession = {
   objective: "Skap fart i førstefasen og ta bedre valg under press.",
   notes: "Sisteliten: keeperne starter ti minutter før resten.",
   status: "published",
-  monthFocus: "Vi jobber med å vinne ballen høyt på banen og komme raskt i gang.",
+  focus: { title: "Kontring", note: "Vi jobber med å vinne ballen høyt på banen og komme raskt i gang." },
   blocks: [
     {
       title: "Oppvarming", kind: "sequence",

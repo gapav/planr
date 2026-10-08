@@ -126,15 +126,15 @@ export interface TeamFixture {
 }
 export type TeamFixtureInput = Omit<TeamFixture, "id" | "teamId" | "createdAt" | "updatedAt">;
 
-/** The longest a month focus may be — three sentences, not a periodisation plan. */
-export const MONTH_FOCUS_MAX_LENGTH = 400;
 /**
- * What the team works on in one calendar month. `month` is the same `YYYY-MM`
- * key the session calendar groups by, derived in the coach's own time zone, so
- * a focus and the sessions it covers can never disagree about which month they
- * are in. No row means no focus: an empty note is deleted, never stored.
+ * What the team works on over a run of whole weeks, Monday to Sunday — a
+ * phase in Spenst's season plan. `startsOn` is a Monday as a `YYYY-MM-DD` day
+ * in the club's calendar, and two focuses on a team never overlap, so any day
+ * has at most one. `title` is the name on the season overview's bar, `note`
+ * one sentence on what the period is for, and `notes` its points, one per line.
  */
-export interface MonthFocus { teamId: string; month: string; note: string; updatedAt: string; updatedBy: string | null; }
+export interface FocusPeriod { id: string; teamId: string; title: string; note: string; notes: string; startsOn: string; weeks: number; updatedAt: string; updatedBy: string | null; }
+export type FocusPeriodInput = Pick<FocusPeriod, "title" | "note" | "notes" | "startsOn" | "weeks">;
 
 /**
  * A warm-up activity. Like a session item it stores its own copy of the

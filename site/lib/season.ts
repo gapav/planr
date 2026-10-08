@@ -1,14 +1,7 @@
 import { dayKey, monthKey, monthLabel, shiftMonth } from "./fixtures";
 import { isoWeekNumber } from "./session";
-import type { MonthFocus, PlannedSession, TeamFixture } from "./types";
-
-export interface SeasonMonth {
-  key: string;
-  label: string;
-  focus: MonthFocus | null;
-  sessions: PlannedSession[];
-  fixtures: TeamFixture[];
-}
+import { savedTeamColors, teamPalette } from "./team-palette";
+import type { FocusPeriod, PlannedSession, TeamFixture } from "./types";
 
 export interface SeasonWeek {
   index: number;
@@ -83,26 +76,38 @@ export function seasonMonthSpans(weeks: readonly SeasonWeek[]): SeasonMonthSpan[
   return spans;
 }
 
-/** Keep dated drafts in the overview: they are plans even before publication. */
-export function seasonMonths(startYear: number, teamId: string, sessions: PlannedSession[], fixtures: TeamFixture[], focuses: MonthFocus[], timeZone?: string): SeasonMonth[] {
-  const byMonth = new Map(seasonMonthKeys(startYear).map((key) => [key, { key, label: monthLabel(key), focus: null, sessions: [], fixtures: [] } as SeasonMonth]));
-  for (const focus of focuses) {
-    if (focus.teamId === teamId) {
-      const month = byMonth.get(focus.month);
-      if (month) month.focus = focus;
-    }
-  }
-  for (const session of sessions) {
-    if (session.teamId !== teamId || !session.startsAt) continue;
-    byMonth.get(monthKey(session.startsAt, timeZone))?.sessions.push(session);
-  }
-  for (const fixture of fixtures) {
-    if (fixture.teamId !== teamId) continue;
-    byMonth.get(monthKey(fixture.startsAt, timeZone))?.fixtures.push(fixture);
-  }
-  for (const month of byMonth.values()) {
-    month.sessions.sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? ""));
-    month.fixtures.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-  }
-  return [...byMonth.values()];
+export interface SeasonMatchTeam { name: string; accent: string }
+
+// Which of the club's teams a match is for. The importer recognises them by
+// name; a match it could not place is still somebody's, and goes under its home
+// side, as the match calendar colours it.
+function matchTeamNames(fixture: TeamFixture) {
+  return fixture.ourTeams.length ? fixture.ourTeams : [fixture.homeTeam];
+}
+
+/**
+ * The club's teams with a match this season, in the colours the match calendar
+ * gives them (latest import wins), sorted by name so a team keeps its place in
+ * every week's row of dots.
+ */
+export function seasonMatchTeams(weeks: readonly SeasonWeek[]): SeasonMatchTeam[] {
+  const fixtures = weeks.flatMap((week) => week.fixtures);
+  const colors = savedTeamColors(fixtures);
+  const names = [...new Set(fixtures.flatMap(matchTeamNames))].sort((a, b) => a.localeCompare(b, "nb"));
+  return names.map((name) => ({ name, accent: teamPalette(name, colors[name]).accent }));
+}
+
+/** The teams that play in one week: one dot each, however many matches they have. */
+export function weekMatchTeams(week: SeasonWeek, teams: readonly SeasonMatchTeam[]): SeasonMatchTeam[] {
+  const playing = new Set(week.fixtures.flatMap(matchTeamNames));
+  return teams.filter((team) => playing.has(team.name));
+}
+
+/** The week columns a focus covers, clipped to the season; null if it lies wholly outside. */
+export function focusColumns(weeks: readonly SeasonWeek[], focus: Pick<FocusPeriod, "startsOn" | "weeks">): { from: number; to: number } | null {
+  if (!weeks.length) return null;
+  const from = Math.round((dayNumber(focus.startsOn) - dayNumber(weeks[0].start)) / 7);
+  const to = from + focus.weeks - 1;
+  if (to < 0 || from >= weeks.length) return null;
+  return { from: Math.max(0, from), to: Math.min(weeks.length - 1, to) };
 }

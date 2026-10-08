@@ -49,13 +49,6 @@ function blockRanges(session: DigestSession, timeZone: string): string[] {
   });
 }
 
-/** The month a session falls in, named — «september» — for the focus band's label. */
-function monthName(startsAt: string, timeZone: string): string {
-  const date = new Date(startsAt);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("nb-NO", { month: "long", timeZone }).format(date);
-}
-
 function sessionLink(siteUrl: string, session: DigestSession): string {
   return `${siteUrl.replace(/\/+$/, "")}/sessions/${session.id}`;
 }
@@ -132,22 +125,23 @@ function blockSection(block: DigestSession["blocks"][number], recipientId: strin
 }
 
 /**
- * «Månedens fokus», as the band it is on the overview screen.
+ * The focus running on the session's day, as the band it is on the overview
+ * screen.
  *
  * It sits above the session's own objective because that is the order the two
- * are read in: the month's aim is the frame, `Mål` is what today does about it.
+ * are read in: the period's aim is the frame, `Mål` is what today does about it.
  * Soft peach is the screen's own grammar for this band — the one warm surface
- * on a lilac page — and here it also does the work the letter needs: the note
+ * on a lilac page — and here it also does the work the letter needs: the focus
  * is the only thing in the card that is not today's plan, so it has to read as
  * a different kind of thing from the white activity rows below it.
  */
-function focusBand(session: DigestSession, timeZone: string): string {
-  const note = session.monthFocus.trim();
-  if (!note) return "";
-  const month = monthName(session.startsAt, timeZone);
+function focusBand(session: DigestSession): string {
+  if (!session.focus) return "";
+  const { title, note } = session.focus;
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFF1E7" style="margin-top:14px;background:#FFF1E7;border:1px solid #FFDCC6;border-radius:13px"><tr><td style="padding:13px 15px">
-<p style="margin:0;color:#8A5A3C;font-size:11px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase">Månedens fokus${month ? ` · ${escapeHtml(month)}` : ""}</p>
-<p style="margin:5px 0 0;color:#2E1B3D;font-size:14px;line-height:1.6">${escapeHtml(note)}</p>
+<p style="margin:0;color:#8A5A3C;font-size:11px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase">Fokus</p>
+<p style="margin:5px 0 0;color:#2E1B3D;font-size:15px;font-weight:800;line-height:1.4">${escapeHtml(title)}</p>${note ? `
+<p style="margin:3px 0 0;color:#2E1B3D;font-size:14px;line-height:1.6">${escapeHtml(note)}</p>` : ""}
 </td></tr></table>`;
 }
 
@@ -183,7 +177,7 @@ function sessionCard(session: DigestSession, recipientId: string, timeZone: stri
 <p style="margin:0;color:#706479;font-size:12px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">${escapeHtml(session.teamName)}</p>
 <h2 style="margin:6px 0 0;color:#2E1B3D;font-size:21px;line-height:1.25;font-weight:900;letter-spacing:-.5px">${escapeHtml(session.title)}</h2>
 <p style="margin:7px 0 0;color:#706479;font-size:14px;font-weight:700">${factLine(session, timeZone)}</p>
-${started}${focusBand(session, timeZone)}${objective}${session.blocks.map((block, index) => blockSection(block, recipientId, ranges[index])).join("")}${notes}
+${started}${focusBand(session)}${objective}${session.blocks.map((block, index) => blockSection(block, recipientId, ranges[index])).join("")}${notes}
 </td></tr></table>`;
 }
 
@@ -195,10 +189,7 @@ function sessionText(session: DigestSession, recipientId: string, siteUrl: strin
     [`Kl. ${clockTime(session.startsAt, timeZone)}`, session.venue.trim(), durationLabel(session)].filter(Boolean).join(" · "),
   ];
   if (session.status === "in_progress") lines.push("Økta er allerede startet.");
-  if (session.monthFocus.trim()) {
-    const month = monthName(session.startsAt, timeZone);
-    lines.push(`Månedens fokus${month ? ` (${month})` : ""}: ${session.monthFocus.trim()}`);
-  }
+  if (session.focus) lines.push(`Fokus: ${session.focus.title}${session.focus.note ? ` — ${session.focus.note}` : ""}`);
   if (session.objective.trim()) lines.push(`Mål: ${session.objective.trim()}`);
   const ranges = blockRanges(session, timeZone);
   for (const [blockIndex, block] of session.blocks.entries()) {

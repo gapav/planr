@@ -3,10 +3,10 @@ import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoFixtures, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { dayKey } from "@/lib/fixtures";
-import type { MonthFocus, PlannedSession } from "@/lib/types";
+import type { FocusPeriod, PlannedSession } from "@/lib/types";
 import SessionsPage from "./page";
 
-const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), replace: vi.fn(), createSession: vi.fn(), deleteSession: vi.fn(), saveMonthFocus: vi.fn(), query: "" }));
+const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), replace: vi.fn(), createSession: vi.fn(), deleteSession: vi.fn(), createFocusPeriod: vi.fn(), updateFocusPeriod: vi.fn(), deleteFocusPeriod: vi.fn(), query: "" }));
 
 vi.mock("@/components/app-provider", () => ({ useGrep: mocks.useGrep }));
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
@@ -19,14 +19,14 @@ const team = demoTeams[0];
 const upcoming = (id: string, title: string, startsAt: string, extra: Partial<PlannedSession> = {}): PlannedSession =>
   ({ ...demoSessions[1], id, teamId: team.id, title, startsAt, status: "published", updatedBy: demoUser.id, ...extra });
 
-function renderPage(sessions: PlannedSession[], monthFocus: MonthFocus[] = []) {
-  mocks.useGrep.mockReturnValue({ sessions, fixtures: demoFixtures, currentTeam: team, user: demoUser, monthFocus, createSession: mocks.createSession, deleteSession: mocks.deleteSession, saveMonthFocus: mocks.saveMonthFocus });
+function renderPage(sessions: PlannedSession[], focusPeriods: FocusPeriod[] = []) {
+  mocks.useGrep.mockReturnValue({ sessions, fixtures: demoFixtures, currentTeam: team, user: demoUser, focusPeriods, createSession: mocks.createSession, deleteSession: mocks.deleteSession, createFocusPeriod: mocks.createFocusPeriod, updateFocusPeriod: mocks.updateFocusPeriod, deleteFocusPeriod: mocks.deleteFocusPeriod });
   render(<SessionsPage />);
 }
 const rowFor = (title: string) => screen.getByRole("link", { name: `Åpne ${title}` }).closest("li") as HTMLElement;
 
 describe("session calendar rows", () => {
-  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.deleteSession.mockReset(); mocks.saveMonthFocus.mockReset(); });
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.deleteSession.mockReset(); mocks.createFocusPeriod.mockReset().mockResolvedValue("new-focus"); mocks.updateFocusPeriod.mockReset(); mocks.deleteFocusPeriod.mockReset(); });
   afterEach(() => { vi.useRealTimers(); mocks.query = ""; });
 
   it("opens completed sessions from the Oversikt history shortcut", () => {
@@ -39,9 +39,8 @@ describe("session calendar rows", () => {
   it("lifts the nearest session out of its month and counts the rest", () => {
     renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z"), upcoming("b", "Om to dager", "2026-09-04T13:45:00.000Z"), upcoming("c", "Neste måned", "2026-10-01T13:45:00.000Z")]);
 
-    // The months ahead are sections whether or not anything is scheduled in them,
-    // so only the two that hold a session carry a count.
-    expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual(["Neste økt", "september 2026 · 1 økt", "oktober 2026 · 1 økt", "november 2026", "desember 2026", "januar 2027"]);
+    // Only the months that hold a session are sections, under the current focus.
+    expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual(["Nåværende fokus", "Neste økt", "september 2026 · 1 økt", "oktober 2026 · 1 økt"]);
     // The hero is its own section, so its month section holds only what is left.
     expect(within(screen.getByRole("heading", { name: "Neste økt" }).closest("section") as HTMLElement).getAllByRole("listitem")).toHaveLength(1);
   });
@@ -161,61 +160,82 @@ describe("session calendar rows", () => {
   });
 });
 
-// The month focus is the one thing on this page that is not a session: it hangs
-// off the month heading, and the months are padded out precisely so it can be
-// written before anything is scheduled.
-describe("month focus", () => {
-  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.deleteSession.mockReset(); mocks.saveMonthFocus.mockReset(); });
+// The focus running today heads the calendar. It is a run of weeks, laid out in
+// the season overview; here it can be read, edited, or set when none is running.
+describe("current focus", () => {
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.createFocusPeriod.mockReset().mockResolvedValue("new-focus"); mocks.updateFocusPeriod.mockReset(); });
   afterEach(() => { vi.useRealTimers(); });
-  const focusFor = (month: string, note: string): MonthFocus => ({ teamId: team.id, month, note, updatedAt: "2026-09-01T08:00:00.000Z", updatedBy: demoUser.id });
+  const focusFrom = (id: string, title: string, startsOn: string, weeks: number, extra: Partial<FocusPeriod> = {}): FocusPeriod => ({
+    id, teamId: team.id, title, note: "", notes: "", startsOn, weeks, updatedAt: "2026-09-01T08:00:00.000Z", updatedBy: demoUser.id, ...extra,
+  });
+  const region = () => screen.getByRole("region", { name: /Nåværende fokus/ });
 
-  it("shows the month's own focus and offers one on every month still to come", () => {
-    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")], [focusFor("2026-09", "Forsvar 6-0 med aktiv midtblokk.")]);
+  it("reads out the focus running today, with its weeks, sentence and points", () => {
+    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")], [focusFrom("forsvar", "Forsvar 6-0", "2026-08-31", 3, { note: "Aktiv midtblokk.", notes: "To-er og tre-er\nKontring" }), focusFrom("senere", "Kontring", "2026-09-21", 2)]);
 
-    expect(screen.getByText("Forsvar 6-0 med aktiv midtblokk.")).toBeInTheDocument();
-    // September has one, so the four padded months ahead are what is left to fill.
-    expect(screen.getAllByRole("button", { name: "Sett månedens fokus" })).toHaveLength(4);
+    expect(region()).toHaveTextContent("Uke 36–38 · 31. aug.–20. sep.");
+    expect(within(region()).getByText("Forsvar 6-0")).toBeInTheDocument();
+    expect(within(region()).getByText("Aktiv midtblokk.")).toBeInTheDocument();
+    expect(within(region()).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["To-er og tre-er", "Kontring"]);
+    expect(region()).not.toHaveTextContent("Kontring fra");
   });
 
-  it("names the coach whose focus is standing", () => {
-    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")], [{ ...focusFor("2026-09", "Forsvar 6-0 med aktiv midtblokk."), updatedBy: "user-nora" }]);
-
-    expect(screen.getByText("Satt av Nora Vik · 1. sep.")).toBeInTheDocument();
+  it("names the coach whose focus is standing, «deg» included", () => {
+    renderPage([], [focusFrom("forsvar", "Forsvar 6-0", "2026-08-31", 3, { updatedBy: "user-nora" })]);
+    expect(within(region()).getByText("Satt av Nora Vik · 1. sep.")).toBeInTheDocument();
   });
 
   it("says «deg» when the focus is the signed-in coach's own", () => {
-    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")], [focusFor("2026-09", "Forsvar 6-0 med aktiv midtblokk.")]);
-
-    expect(screen.getByText("Satt av deg · 1. sep.")).toBeInTheDocument();
+    renderPage([], [focusFrom("forsvar", "Forsvar 6-0", "2026-08-31", 3)]);
+    expect(within(region()).getByText("Satt av deg · 1. sep.")).toBeInTheDocument();
   });
 
-  it("saves against the month the dialog was opened from", async () => {
-    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z")]);
-    const october = screen.getByRole("heading", { name: "oktober 2026" }).closest("section") as HTMLElement;
-
-    fireEvent.click(within(october).getByRole("button", { name: "Sett månedens fokus" }));
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Kontring ut av forsvaret." } });
-    fireEvent.click(screen.getByRole("button", { name: "Lagre fokus" }));
-
-    await waitFor(() => expect(mocks.saveMonthFocus).toHaveBeenCalledWith("2026-10", "Kontring ut av forsvaret."));
+  it("no longer asks for a focus month by month", () => {
+    renderPage([upcoming("a", "I dag", "2026-09-02T13:45:00.000Z"), upcoming("b", "Senere", "2026-11-12T13:45:00.000Z")]);
+    expect(screen.queryByRole("button", { name: /månedens fokus/i })).toBeNull();
+    // Only the months that hold something are sections now.
+    expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).not.toContain("oktober 2026");
   });
 
-  it("keeps a past month's focus on the page but stops offering to write one", () => {
-    // Two sessions in August: the first becomes the hero, so the second leaves a
-    // month section behind for a month that has already been and gone.
-    renderPage([
-      upcoming("a", "Forrige", "2026-08-29T13:45:00.000Z", { status: "in_progress" }),
-      upcoming("b", "Også forrige", "2026-08-30T13:45:00.000Z", { status: "in_progress" }),
-    ], [focusFor("2026-08", "Innspill til strek.")]);
-    const august = screen.getByRole("heading", { name: /august 2026/ }).closest("section") as HTMLElement;
+  it("says what comes next when nothing is running, and sets a focus from this week", async () => {
+    renderPage([], [focusFrom("senere", "Kontring", "2026-09-21", 2)]);
+    expect(region()).toHaveTextContent("Ingen fokus nå. Neste er Kontring fra uke 39.");
 
-    expect(within(august).getByText("Innspill til strek.")).toBeInTheDocument();
-    // Nothing in the section is a control: the focus is a record now, not an offer.
-    expect(within(august).queryByRole("button", { name: /månedens fokus/i })).toBeNull();
+    fireEvent.click(within(region()).getByRole("button", { name: "Sett fokus" }));
+    const dialog = screen.getByRole("dialog", { name: "Nytt fokus" });
+    // This week, and as long as fits before Kontring starts.
+    expect(within(dialog).getByRole("combobox", { name: "Starter" })).toHaveValue("2026-08-31");
+    expect(within(dialog).getByRole("textbox", { name: "Uker" })).toHaveValue("3");
+    const save = within(dialog).getByRole("button", { name: "Lagre" });
+    expect(save).toBeDisabled();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /Navn/ }), { target: { value: "Forsvar 6-0" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /Notater/ }), { target: { value: "Midtblokk" } });
+    fireEvent.click(save);
+
+    await waitFor(() => expect(mocks.createFocusPeriod).toHaveBeenCalledWith({ title: "Forsvar 6-0", note: "", notes: "Midtblokk", startsOn: "2026-08-31", weeks: 3 }));
   });
 
-  // Gjennomførte is a record of what has been; the offer to plan a new session
-  // belongs under the tabs you plan in.
+  it("refuses a focus that would run into the next one, and names it", () => {
+    renderPage([], [focusFrom("senere", "Kontring", "2026-09-21", 2)]);
+    fireEvent.click(within(region()).getByRole("button", { name: "Sett fokus" }));
+    const dialog = screen.getByRole("dialog", { name: "Nytt fokus" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /Navn/ }), { target: { value: "Forsvar 6-0" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Uker" }), { target: { value: "4" } });
+
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Overlapper med «Kontring»");
+    expect(within(dialog).getByRole("button", { name: "Lagre" })).toBeDisabled();
+  });
+
+  it("edits the running focus in place", async () => {
+    renderPage([], [focusFrom("forsvar", "Forsvar 6-0", "2026-08-31", 3, { note: "Aktiv midtblokk." })]);
+    fireEvent.click(within(region()).getByRole("button", { name: "Rediger fokus" }));
+    const dialog = screen.getByRole("dialog", { name: "Rediger fokus" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /Navn/ }), { target: { value: "Forsvar 5-1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lagre" }));
+
+    await waitFor(() => expect(mocks.updateFocusPeriod).toHaveBeenCalledWith("forsvar", { title: "Forsvar 5-1", note: "Aktiv midtblokk.", notes: "", startsOn: "2026-08-31", weeks: 3 }));
+  });
+
   it("offers to create a session everywhere but under Gjennomførte", () => {
     renderPage([upcoming("a", "Gjennomført", "2026-08-28T13:45:00.000Z", { status: "completed" })]);
 
@@ -229,10 +249,10 @@ describe("month focus", () => {
 });
 
 describe("season overview", () => {
-  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.createSession.mockReset().mockResolvedValue("new-session"); mocks.saveMonthFocus.mockReset(); });
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.createSession.mockReset().mockResolvedValue("new-session"); mocks.createFocusPeriod.mockReset().mockResolvedValue("new-focus"); mocks.updateFocusPeriod.mockReset(); mocks.deleteFocusPeriod.mockReset(); });
   afterEach(() => { vi.useRealTimers(); mocks.query = ""; });
 
-  it("shows the calendar lanes, includes dated drafts, and opens a month's focus", () => {
+  it("shows the calendar lanes, opens on this week, and sets a focus from a week", () => {
     const draft = upcoming("october-draft", "Kontringsøkt", "2026-10-10T13:00:00.000Z", { status: "draft" });
     renderPage([draft]);
 
@@ -240,12 +260,20 @@ describe("season overview", () => {
     expect(screen.getByRole("heading", { name: "Sesong 2026/27" })).toBeInTheDocument();
     const calendar = screen.getByRole("region", { name: "Sesongkalender" });
     for (const row of ["Fokus", "Kamper", "Treninger"]) expect(within(calendar).getByText(row)).toBeInTheDocument();
-    fireEvent.click(within(calendar).getByRole("button", { name: /Fokus for oktober 2026/ }));
-    const detail = screen.getByRole("heading", { name: "oktober 2026" }).closest("section") as HTMLElement;
+    expect(within(calendar).getByText("Dra over ukene for å sette fokus")).toBeInTheDocument();
+    // Months are labels, not something to open: a focus runs over weeks.
+    expect(within(calendar).queryByRole("button", { name: /oktober/ })).toBeNull();
+    expect(screen.queryByText(/måned/i)).toBeNull();
+    // With no focus running, the season opens on this week.
+    expect(screen.getByRole("heading", { name: "Uke 36" })).toBeInTheDocument();
+
+    fireEvent.click(within(calendar).getByRole("button", { name: /Uke 41.*1 trening/ }));
+    const detail = screen.getByRole("heading", { name: "Uke 41" }).closest("section") as HTMLElement;
     expect(within(detail).getByRole("link", { name: /Kontringsøkt/ })).toHaveAttribute("href", "/sessions/october-draft");
     expect(within(detail).getByText(/Utkast/)).toBeInTheDocument();
+    expect(within(detail).getByText("Ingen fokus denne uka.")).toBeInTheDocument();
     fireEvent.click(within(detail).getByRole("button", { name: "Sett fokus" }));
-    expect(screen.getByRole("dialog", { name: "Månedens fokus" })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog", { name: "Nytt fokus" })).getByRole("combobox", { name: "Starter" })).toHaveValue("2026-10-05");
   });
 
   it("opens a week from either activity row and starts a dated training plan", async () => {
@@ -262,18 +290,47 @@ describe("season overview", () => {
     expect(mocks.push).toHaveBeenCalledWith("/sessions/new-session/edit");
   });
 
-  it("shows both monthly focuses when a selected week crosses a month boundary", () => {
-    const focus = (month: string, note: string): MonthFocus => ({ teamId: team.id, month, note, updatedAt: "2026-09-01T08:00:00Z", updatedBy: demoUser.id });
-    renderPage([
-      upcoming("september", "Septemberøkt", "2026-09-30T13:00:00Z"),
-      upcoming("october", "Oktoberøkt", "2026-10-01T13:00:00Z"),
-    ], [focus("2026-09", "Samspill i forsvar."), focus("2026-10", "Raske kontringer.")]);
-    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
-    fireEvent.click(within(screen.getByRole("region", { name: "Sesongkalender" })).getByRole("button", { name: /Uke 40.*2 treninger/ }));
+  const kontring: FocusPeriod = { id: "kontring", teamId: team.id, title: "Kontring", note: "Vinne ballen høyt og komme raskt i gang.", notes: "Første pasning fram\n\nFire i løp", startsOn: "2026-10-05", weeks: 3, updatedAt: "2026-09-01T08:00:00Z", updatedBy: demoUser.id };
 
-    const detail = screen.getByRole("heading", { name: "Uke 40" }).closest("section") as HTMLElement;
-    expect(within(detail).getByText("Samspill i forsvar.")).toBeInTheDocument();
-    expect(within(detail).getByText("Raske kontringer.")).toBeInTheDocument();
+  it("draws a focus as one bar over its weeks and reads it in full on its card", () => {
+    renderPage([upcoming("october", "Oktoberøkt", "2026-10-07T13:00:00Z")], [kontring]);
+    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
+
+    const bar = within(screen.getByRole("region", { name: "Sesongkalender" })).getByRole("button", { name: "Fokus: Kontring, Uke 41–43 · 5. okt.–25. okt." });
+    expect(bar).toHaveTextContent(/^Kontring$/);
+    expect(bar).toHaveAttribute("title", "Kontring — Vinne ballen høyt og komme raskt i gang.");
+    expect(bar.style.gridColumn).toBe("12 / 15");
+
+    const card = within(screen.getByRole("region", { name: "Fokus gjennom sesongen" })).getByRole("button", { name: /Kontring/ });
+    expect(card).toHaveTextContent("Uke 41–43 · 5. okt.–25. okt. · 1 økt · 2 kamper");
+    expect(within(card).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Første pasning fram", "Fire i løp"]);
+
+    fireEvent.click(card);
+    const detail = screen.getByRole("heading", { name: "Kontring" }).closest("section") as HTMLElement;
+    expect(within(detail).getByText("Fire i løp")).toBeInTheDocument();
+    expect(within(detail).getByRole("link", { name: /Oktoberøkt/ })).toBeInTheDocument();
+    fireEvent.click(within(detail).getByRole("button", { name: "Rediger fokus" }));
+    expect(screen.getByRole("dialog", { name: "Rediger fokus" })).toBeInTheDocument();
+  });
+
+  it("shows the focus running in a selected week, and opens it from there", () => {
+    renderPage([upcoming("october", "Oktoberøkt", "2026-10-07T13:00:00Z")], [kontring]);
+    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Sesongkalender" })).getByRole("button", { name: /Uke 41.*1 trening/ }));
+
+    const detail = screen.getByRole("heading", { name: "Uke 41" }).closest("section") as HTMLElement;
+    expect(within(detail).getByText("Vinne ballen høyt og komme raskt i gang.")).toBeInTheDocument();
+    fireEvent.click(within(detail).getByRole("button", { name: "Åpne fokuset" }));
+    expect(screen.getByRole("heading", { name: "Kontring" })).toBeInTheDocument();
+  });
+
+  it("starts a new focus from the heading in the first free weeks", () => {
+    renderPage([], [kontring]);
+    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nytt fokus" }));
+    const dialog = screen.getByRole("dialog", { name: "Nytt fokus" });
+    expect(within(dialog).getByRole("combobox", { name: "Starter" })).toHaveValue("2026-08-31");
+    expect(within(dialog).getByRole("textbox", { name: "Uker" })).toHaveValue("4");
   });
 
   it("keeps the calendar view available after opening Sesongoverblikk", () => {
@@ -285,11 +342,18 @@ describe("season overview", () => {
     expect(screen.getByRole("link", { name: "Åpne Neste økt" })).toBeInTheDocument();
   });
 
-  it("opens the month linked from a dated session", () => {
-    mocks.query = "mode=season&month=2027-01";
-    renderPage([]);
+  it("opens on the focus running today", () => {
+    vi.setSystemTime(new Date("2026-10-14T09:00:00.000Z"));
+    renderPage([], [kontring]);
+    fireEvent.click(screen.getByRole("button", { name: "Sesongoverblikk" }));
+    expect(screen.getByRole("heading", { name: "Kontring" }).closest("section")).toHaveAttribute("id", "season-detail");
+  });
 
-    expect(screen.getByRole("heading", { name: "Sesong 2026/27" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "januar 2027" })).toBeInTheDocument();
+  it("opens the focus linked from a session, in its own season", () => {
+    mocks.query = "mode=season&focus=next-season";
+    renderPage([], [kontring, { ...kontring, id: "next-season", title: "Overgang", startsOn: "2027-08-30" }]);
+
+    expect(screen.getByRole("heading", { name: "Sesong 2027/28" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Overgang" }).closest("section")).toHaveAttribute("id", "season-detail");
   });
 });

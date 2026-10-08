@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(233);
+select plan(240);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -435,6 +435,23 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
 select is((select count(*)::integer from public.team_month_focus), 0, 'an unrelated coach cannot read another team month focus');
 select throws_ok(format($$ insert into public.team_month_focus (team_id, month, note) values ('%s', '2026-11', 'Fremmed fokus.') $$, current_setting('plannr.test_team')), '42501', null, 'an unrelated coach cannot set another team month focus');
+reset role;
+
+-- 202610080003 replaced the month focus with focus periods: any run of whole
+-- weeks, never two at once on one team. Still coaching content every coach writes.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select lives_ok(format($$ insert into public.team_focus_periods (team_id, title, note, starts_on, weeks, updated_by) values ('%s', 'Forsvar 6-0', 'Aktiv midtblokk.', '2026-09-07', 3, '10000000-0000-0000-0000-000000000002') $$, current_setting('plannr.test_team')), 'a coach who is not an admin can set a focus period');
+select throws_ok(format($$ insert into public.team_focus_periods (team_id, title, starts_on, weeks) values ('%s', 'Kontring', '2026-09-21', 2) $$, current_setting('plannr.test_team')), '23P01', null, 'a focus cannot overlap another on the same team');
+select lives_ok(format($$ insert into public.team_focus_periods (team_id, title, starts_on, weeks) values ('%s', 'Kontring', '2026-09-28', 2) $$, current_setting('plannr.test_team')), 'a focus can start the Monday after the last one ends');
+select throws_ok(format($$ insert into public.team_focus_periods (team_id, title, starts_on, weeks) values ('%s', 'Midt i uka', '2026-11-04', 2) $$, current_setting('plannr.test_team')), '23514', null, 'a focus starts on a Monday');
+select throws_ok(format($$ insert into public.team_focus_periods (team_id, title, starts_on, weeks) values ('%s', '   ', '2026-11-02', 2) $$, current_setting('plannr.test_team')), '23514', null, 'a focus needs a name for its bar');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.team_focus_periods), 0, 'an unrelated coach cannot read another team focus periods');
+select throws_ok(format($$ insert into public.team_focus_periods (team_id, title, starts_on, weeks) values ('%s', 'Fremmed fokus', '2027-01-04', 2) $$, current_setting('plannr.test_team')), '42501', null, 'an unrelated coach cannot set another team focus');
 reset role;
 
 -- 202609020025 put a responsible coach on each activity. The browser writes it

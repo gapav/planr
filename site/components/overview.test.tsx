@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { demoFixtures, demoMonthFocus, demoSessions, demoTeams, demoUser, demoWarmupRoutines } from "@/lib/demo-data";
+import { demoFixtures, demoFocusPeriods, demoSessions, demoTeams, demoUser, demoWarmupRoutines } from "@/lib/demo-data";
 import { Overview } from "./overview";
 
 const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn(), createSession: vi.fn() }));
@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("next/link", () => ({ default: ({ children, href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode; href: string }) => <a href={href} {...props}>{children}</a> }));
 const state = () => ({
   user: demoUser, currentTeam: demoTeams[0], sessions: demoSessions, fixtures: demoFixtures,
-  warmupRoutines: demoWarmupRoutines, monthFocus: demoMonthFocus, workspaceLoaded: true, createSession: mocks.createSession,
+  warmupRoutines: demoWarmupRoutines, focusPeriods: demoFocusPeriods, workspaceLoaded: true, createSession: mocks.createSession,
 });
 
 describe("Oversikt", () => {
@@ -58,21 +58,22 @@ describe("Oversikt", () => {
     expect(screen.getByRole("link", { name: "Se kampkalenderen" })).toHaveAttribute("href", "/matches");
     expect(screen.queryByRole("link", { name: /Importer kamper/ })).not.toBeInTheDocument();
   });
-  it("leads with this month's focus, and only reads it out", () => {
+  it("leads with the focus running now, and only reads it out", () => {
     render(<Overview />);
-    const focus = screen.getByRole("region", { name: /Månedens fokus/ });
-    expect(focus).toHaveTextContent("september 2026");
+    const focus = screen.getByRole("region", { name: /Nåværende fokus/ });
+    expect(focus).toHaveTextContent("Uke 36–40");
+    expect(focus).toHaveTextContent("Forsvar 6-0");
     expect(focus).toHaveTextContent("Forsvar 6-0 med aktiv midtblokk");
     // The note is written in the session calendar, and by-lines belong there too.
     expect(focus).not.toHaveTextContent("Satt av");
     expect(within(focus).queryByRole("button")).not.toBeInTheDocument();
   });
-  it("does not carry the focus into a month it was not written for, and says where it is set", () => {
-    vi.setSystemTime(new Date("2026-10-05T10:00:00Z")); render(<Overview />);
-    const focus = screen.getByRole("region", { name: /Månedens fokus/ });
-    expect(focus).toHaveTextContent("oktober 2026");
-    expect(focus).not.toHaveTextContent("Forsvar 6-0");
-    expect(within(focus).getByRole("link", { name: "øktkalenderen" })).toHaveAttribute("href", "/sessions");
+  it("says where a focus is set when none is running", () => {
+    vi.setSystemTime(new Date("2026-11-02T10:00:00Z")); render(<Overview />);
+    const focus = screen.getByRole("region", { name: /Nåværende fokus/ });
+    expect(focus).toHaveTextContent("Ingen fokus nå");
+    expect(focus).not.toHaveTextContent("Kontring");
+    expect(within(focus).getByRole("link", { name: "sesongoverblikket" })).toHaveAttribute("href", "/sessions?mode=season");
   });
   it("prevents planning without a team", () => {
     mocks.useGrep.mockReturnValue({ ...state(), currentTeam: null }); render(<Overview />);

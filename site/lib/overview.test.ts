@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { demoFixtures, demoMonthFocus, demoSessions, demoWarmupRoutines } from "./demo-data";
+import { demoFixtures, demoFocusPeriods, demoSessions, demoWarmupRoutines } from "./demo-data";
 import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewHeadlinesAt, overviewSalutation, overviewSessions } from "./overview";
 
 const now = new Date("2026-09-12T10:00:00Z");
@@ -80,12 +80,14 @@ describe("overview fixture", () => {
 });
 
 describe("overview focus", () => {
-  const focus = demoMonthFocus[0];
-  it("finds the focus for the month the coach is standing in", () => {
+  const focus = demoFocusPeriods[0]; // 31 August to 4 October
+  it("finds the focus running on the day the coach is standing in", () => {
     expect(overviewFocus([focus], "team-senior", new Date("2026-09-20T10:00:00Z"), "Europe/Oslo")).toBe(focus);
+    // 22:30Z on 4 October is already Monday the 5th in Oslo.
+    expect(overviewFocus([focus], "team-senior", new Date("2026-10-04T21:30:00Z"), "Europe/Oslo")).toBe(focus);
   });
-  it("does not carry a focus into the next month or across teams", () => {
-    expect(overviewFocus([focus], "team-senior", new Date("2026-10-01T10:00:00Z"), "Europe/Oslo")).toBeNull();
+  it("does not carry a focus past its last week or across teams", () => {
+    expect(overviewFocus([focus], "team-senior", new Date("2026-10-04T22:30:00Z"), "Europe/Oslo")).toBeNull();
     expect(overviewFocus([focus], "team-u16", new Date("2026-09-20T10:00:00Z"), "Europe/Oslo")).toBeNull();
     expect(overviewFocus([focus], undefined, new Date("2026-09-20T10:00:00Z"), "Europe/Oslo")).toBeNull();
   });

@@ -444,6 +444,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 /* Small, but set like the date that leads a card: same weight, same tightness,
    same ink at full strength — the month included. */
 .overview-focus-eyebrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; color: var(--grep-ink); font-size: 13px; font-weight: 600; line-height: 1.2; letter-spacing: -.035em; }
+.overview-focus-title { margin: 8px 0 0; font-size: 16px; font-weight: 650; line-height: 1.35; letter-spacing: -.02em; color: var(--grep-ink); overflow-wrap: anywhere; }
+.overview-focus-title + .overview-focus-note { margin-top: 3px; }
 .overview-focus-note { max-width: 62ch; margin: 8px 0 0; font-size: 14px; font-weight: 400; line-height: 1.65; color: var(--ink-mid); white-space: pre-line; overflow-wrap: anywhere; }
 .overview-focus-invite { max-width: 46ch; font-size: 14px; font-weight: 400; line-height: 1.7; letter-spacing: 0; color: var(--grep-muted); }
 .overview-focus-invite a { text-decoration: underline; text-underline-offset: 3px; color: var(--grep-ink); }
@@ -648,6 +650,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .season-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
 .season-heading h2 { margin: 7px 0 8px; font-size: clamp(26px,3vw,38px); font-weight: 650; letter-spacing: -.05em; line-height: 1.1; }
 .season-heading p:last-child { max-width: 61ch; font-size: 14px; line-height: 1.6; color: var(--ink-mid); }
+.season-heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.season-new-focus { display: inline-flex; align-items: center; gap: 7px; min-height: 46px; padding: 0 15px; border: 1px solid var(--grep-line); border-radius: 12px; background: var(--surface); font-size: 13px; font-weight: 650; }
+.season-new-focus:hover { border-color: var(--line-hover); background: var(--paper); }
 .season-navigation { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; padding: 4px; border: 1px solid var(--grep-line); border-radius: 12px; background: var(--surface); }
 .season-navigation button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; color: var(--ink-mid); }
 .season-navigation button:hover { background: var(--paper-deep); color: var(--ink); }
@@ -659,19 +664,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .season-row-label { position: sticky; left: 0; z-index: 4; display: flex; align-items: center; padding-left: 16px; background: var(--surface); font-size: 12px; font-weight: 700; color: var(--ink-mid); }
 .season-row-label-small { font-size: 10px; font-weight: 600; color: var(--ink-soft); }
 .season-month-head { min-width: 0; padding: 0 6px 5px; border-left: 1px solid var(--grep-line); text-align: left; font-size: 12px; font-weight: 650; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-mid); }
-.season-month-head:hover, .season-month-head.is-selected { color: var(--lilac-ink); background: var(--lilac-wash); }
 .season-week-number { display: grid; place-items: center; font-size: 10px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .season-week-number.is-today { color: var(--warn-ink); font-weight: 700; }
-.season-focus-bar { z-index: 1; display: flex; align-items: center; min-width: 0; margin: 4px 2px; padding: 0 9px; border-radius: 8px; text-align: left; font-size: 12px; font-weight: 600; }
+.season-focus-cell { margin: 4px 0; border-left: 1px dashed var(--grep-line); }
+.season-focus-cell.is-free { cursor: crosshair; }
+.season-focus-cell.is-free:hover { background: var(--hover-wash-strong); }
+.season-focus-cell.is-dragging { background: var(--lilac-wash); box-shadow: inset 0 0 0 1px var(--lilac-ink-soft); }
+.season-focus-hint { z-index: 1; align-self: center; padding-left: 12px; font-size: 12px; color: var(--ink-soft); pointer-events: none; white-space: nowrap; }
+.season-focus-bar { z-index: 2; display: flex; align-items: center; min-width: 0; margin: 4px 2px; padding: 0 9px; border-radius: 8px; background: var(--grep-lilac); color: var(--lilac-ink); text-align: left; font-size: 12px; font-weight: 650; }
 .season-focus-bar > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.season-focus-bar.has-focus { background: var(--grep-lilac); color: var(--lilac-ink); }
-.season-focus-bar.is-empty { border: 1px dashed var(--line-dashed); color: var(--ink-soft); }
 .season-focus-bar:hover { filter: brightness(.97); }
 .season-focus-bar.is-selected { outline: 2px solid var(--lilac-ink-soft); outline-offset: 1px; }
 .season-week-cell { z-index: 1; display: grid; place-items: center; min-width: 0; margin: 2px 1px; border-left: 1px dashed var(--grep-line); border-radius: 6px; }
 .season-week-cell:hover { background: var(--hover-wash-strong); }
 .season-week-cell.is-selected { background: var(--lilac-wash); }
-.season-match-count { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--apricot-wash-strong); color: var(--ink); font-size: 10px; font-weight: 700; }
+.season-match-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; max-width: 20px; }
+.season-match-dots i, .season-legend-team { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; }
 .season-training-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; max-width: 20px; }
 .season-training-dots i, .season-legend-dot { display: inline-block; flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--lilac-ink-soft); }
 .season-training-dots i.is-published, .season-legend-dot.is-published { background: var(--lilac-ink-soft); box-shadow: none; }
@@ -679,10 +687,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .season-today-line { z-index: 2; justify-self: center; width: 2px; border-radius: 2px; background: var(--warn-ink); opacity: .55; pointer-events: none; }
 .season-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 18px; padding: 12px 17px; border-top: 1px solid var(--grep-line); font-size: 11px; color: var(--ink-soft); }
 .season-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.season-legend-match { width: 12px; height: 12px; border-radius: 3px; background: var(--apricot-wash-strong); }
+.season-focus-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.season-focus-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px 18px; border: 1px solid var(--grep-line); border-top: 5px solid var(--grep-lilac); border-radius: 16px; background: var(--surface); text-align: left; transition: border-color .15s; }
+.season-focus-card:hover { border-left-color: var(--line-hover); border-right-color: var(--line-hover); border-bottom-color: var(--line-hover); }
+.season-focus-card.is-selected { outline: 2px solid var(--lilac-ink-soft); outline-offset: 1px; }
+.season-focus-card-head { display: flex; align-items: center; gap: 8px; }
+.season-focus-card-head strong { min-width: 0; font-size: 16px; font-weight: 650; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.season-focus-card-head svg { flex-shrink: 0; margin-left: auto; color: var(--ink-soft); }
+.season-focus-now { flex-shrink: 0; padding: 2px 7px; border-radius: 999px; background: var(--apricot-wash-strong); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.season-focus-card small { font-size: 12px; color: var(--ink-soft); }
+.season-focus-card small::first-letter { text-transform: uppercase; }
+.season-focus-card-line { font-size: 14px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.season-focus-card ul { padding-left: 18px; list-style: disc; font-size: 13px; line-height: 1.6; color: var(--ink-mid); overflow-wrap: anywhere; }
 .season-detail { scroll-margin-top: 24px; overflow: hidden; border: 1px solid var(--grep-line); border-radius: 20px; background: var(--surface); }
 .season-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 23px 27px; }
 .season-detail-header h3 { margin-top: 5px; font-size: 26px; font-weight: 650; text-transform: capitalize; letter-spacing: -.04em; }
+.season-detail-header h3.is-focus { text-transform: none; }
+.season-detail-focus-empty { color: var(--ink-soft); }
 .season-detail-dates { margin-top: 4px; font-size: 12px; color: var(--ink-soft); }
 .season-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .season-detail-edit, .season-detail-add { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 13px; border: 1px solid var(--grep-line); border-radius: 10px; font-size: 12px; font-weight: 650; }
@@ -693,7 +714,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .season-detail-focus { display: flex; gap: 12px; padding: 17px 19px; border-radius: 14px; background: var(--lilac-wash); }
 .season-detail-focus.is-empty { background: var(--paper); }
 .season-detail-focus > svg { flex-shrink: 0; margin-top: 1px; }
-.season-detail-focus strong { font-size: 12px; font-weight: 700; }
+.season-detail-focus small { display: block; font-size: 12px; font-weight: 700; }
+.season-detail-focus strong { display: block; margin-top: 6px; font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
+.season-detail-focus ul { margin-top: 8px; padding-left: 18px; list-style: disc; font-size: 14px; line-height: 1.6; color: var(--ink-mid); }
 .season-detail-focus p { margin-top: 4px; font-size: 14px; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
 .season-detail-focus.is-empty p { color: var(--ink-soft); }
 .season-focus-edit { margin-top: 8px; font-size: 12px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
@@ -715,6 +738,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .session-month-focus summary { width: fit-content; cursor: pointer; font-weight: 650; }
 .session-month-focus summary:hover { color: var(--ink); }
 .session-month-focus p { margin-top: 9px; line-height: 1.6; white-space: pre-line; }
+.session-month-focus ul { margin-top: 6px; padding-left: 18px; list-style: disc; line-height: 1.6; }
 .session-month-focus a { display: inline-block; margin-top: 7px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 639px) {
   .season-overview { gap: 16px; }
@@ -783,15 +807,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    row is exactly that colour, and a header that matches a hover state is not a
    header. The band belongs to a focus that exists — washing the invitation to
    write one would put the card's weight on the row with nothing in it. */
-.grep-session-focus { display: block; width: 100%; padding: 17px 20px; text-align: left; background: var(--paper-deep); transition: background .15s; }
-button.grep-session-focus:hover { background: var(--paper-deep-hover); }
-.grep-session-focus small { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
-.grep-session-focus p { margin: 9px 0 0; font-size: 14px; font-weight: 500; line-height: 1.6; white-space: pre-line; }
-.grep-session-focus-by { display: flex; align-items: center; gap: 8px; margin-top: 11px; font-size: 12px; color: var(--ink-soft); }
-.grep-session-focus-empty { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 52px; padding: 0 20px; font-size: 13px; font-weight: 500; color: var(--ink-soft); transition: background .15s, color .15s, border-color .15s; }
-.grep-session-focus-empty:hover { color: var(--ink); background: var(--paper); }
-.grep-session-focus-offer { margin-top: 8px; border: 1px dashed var(--line-dashed); border-radius: 14px; }
-.grep-session-focus-offer:hover { border-color: var(--line-hover-strong); }
+.grep-current-focus { margin-bottom: 24px; padding: 18px 20px 16px; border-radius: 18px; background: var(--paper-deep); }
+.grep-current-focus.is-empty { border: 1px dashed var(--line-dashed); background: var(--surface); }
+.grep-current-focus-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.grep-current-focus-head h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
+.grep-current-focus-head h2 span { letter-spacing: .04em; text-transform: none; font-weight: 600; }
+.grep-current-focus-link { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; font-size: 12px; font-weight: 650; color: var(--ink-mid); }
+.grep-current-focus-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.grep-current-focus-title { display: block; margin-top: 10px; font-size: 18px; font-weight: 650; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.grep-current-focus > p { margin-top: 4px; max-width: 70ch; font-size: 14px; font-weight: 500; line-height: 1.6; overflow-wrap: anywhere; }
+.grep-current-focus > ul { margin-top: 8px; padding-left: 18px; list-style: disc; font-size: 14px; line-height: 1.6; color: var(--ink-mid); overflow-wrap: anywhere; }
+.grep-current-focus-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 12px; }
+.grep-current-focus-foot > p { font-size: 14px; line-height: 1.6; color: var(--ink-mid); }
+.grep-session-focus-by { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft); }
 @media (max-width: 639px) {
   .grep-session-featured { gap: 14px; padding: 18px 16px; }
   .grep-session-featured .grep-match-date { width: 56px; height: 70px; }
@@ -807,7 +835,7 @@ button.grep-session-focus:hover { background: var(--paper-deep-hover); }
   .grep-session-compact > .grep-session-actions { order: 2; }
   .grep-session-compact > .grep-session-plan { order: 3; width: 100%; padding-left: 64px; }
   .grep-session-month-heading { font-size: 17px; }
-  .grep-session-focus, .grep-session-focus-empty { padding-left: 14px; padding-right: 14px; }
+  .grep-current-focus { padding-left: 14px; padding-right: 14px; }
 }
 /* Øvelsesbanken: the filters sit beside the results, not above them.
    The panel they replace cost 242px of every screen and grew a row per axis,

@@ -2,18 +2,18 @@ import { timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { authLinkSiteUrl } from "@/lib/auth-email";
 import {
-  attachMonthFocus,
+  attachFocus,
   clubDay,
   DIGEST_KIND,
   digestMailings,
-  digestMonthKeys,
+  digestFocusFrom,
   digestSessionsForDay,
   mapDigestCoach,
   mapDigestSession,
   plannedDigestSends,
   type CoachDigestRow,
   type DigestSend,
-  type MonthFocusRow,
+  type FocusDigestRow,
   type SessionDigestRow,
 } from "@/lib/session-digest";
 import { dailySessionDigestEmail } from "@/lib/session-email";
@@ -62,7 +62,7 @@ const SESSION_SELECT =
 
 const COACH_SELECT = "team_id, profile_id, profiles(id, email, full_name, session_digest_email, deleted_at)";
 
-const MONTH_FOCUS_SELECT = "team_id, month, note";
+const FOCUS_SELECT = "team_id, title, note, starts_on, weeks";
 
 function bad(message: string, status: number) {
   return Response.json({ error: message }, { status });
@@ -103,17 +103,18 @@ export async function GET(request: Request) {
   if (dated.length === 0) return Response.json({ day: day.key, sessions: 0, recipients: 0, sent: 0, failed: 0 });
 
   const teamIds = [...new Set(dated.map((session) => session.teamId))];
-  // The coaches and the month's focus are two independent reads over the same
+  // The coaches and the current focus are two independent reads over the same
   // team ids; neither depends on the other, so they go out together.
   const [{ data: coachRows, error: coachError }, { data: focusRows, error: focusError }] = await Promise.all([
     admin.from("team_memberships").select(COACH_SELECT).in("team_id", teamIds),
-    admin.from("team_month_focus").select(MONTH_FOCUS_SELECT).in("team_id", teamIds).in("month", digestMonthKeys(dated)),
+    // Every focus that could still be running today; `attachFocus` picks the one that is.
+    admin.from("team_focus_periods").select(FOCUS_SELECT).in("team_id", teamIds).lte("starts_on", day.key).gte("starts_on", digestFocusFrom(day.key)),
   ]);
   if (coachError) return bad(coachError.message, 502);
   // A missing focus is the normal state, so a failed read is not worth losing
   // the whole letter over — the band simply drops out of it.
-  if (focusError) console.warn("Månedens fokus kunne ikke leses:", focusError.message);
-  const sessions = attachMonthFocus(dated, ((focusRows ?? []) as unknown as MonthFocusRow[]));
+  if (focusError) console.warn("Fokuset kunne ikke leses:", focusError.message);
+  const sessions = attachFocus(dated, ((focusRows ?? []) as unknown as FocusDigestRow[]));
 
   const coaches = ((coachRows ?? []) as unknown as CoachDigestRow[]).map(mapDigestCoach).filter((coach) => coach !== null);
   const planned = plannedDigestSends(sessions, coaches);

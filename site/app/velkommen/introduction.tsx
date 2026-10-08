@@ -63,7 +63,7 @@ export function GrepIntroduction() {
         <div className={styles.court}><CourtArtwork /></div>
         <figure className={styles.realPreview}>
           <div className={styles.previewBar}><span>En god plan starter her</span><Laptop size={18} aria-hidden /></div>
-          <Image src="/intro/overview-current-demo.png" alt="Grep Oversikt på desktop, med neste trening, kampdag og månedens fokus." width={3584} height={1852} priority sizes="(max-width: 760px) 94vw, 53vw" />
+          <Image src="/intro/overview-current-demo.png" alt="Grep Oversikt på desktop, med neste trening, kampdag og lagets fokus." width={3584} height={1852} priority sizes="(max-width: 760px) 94vw, 53vw" />
           <figcaption>Neste økt. Neste kamp. Ett sted.</figcaption>
         </figure>
       </div>

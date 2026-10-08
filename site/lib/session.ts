@@ -1,4 +1,4 @@
-import { monthKey, monthLabel, shiftMonth } from "./fixtures";
+import { monthLabel } from "./fixtures";
 import { minutesLabel } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile, SessionBlock, SessionItem, SessionTab } from "./types";
@@ -197,33 +197,21 @@ export function groupSessionsByMonth(sessions: PlannedSession[], timeZone?: stri
   return groups;
 }
 
-// How far ahead the calendar lists months that hold nothing yet.
-export const MIN_FUTURE_MONTHS = 4;
-
 /**
- * The Upcoming tab's sections. Unlike `groupSessionsByMonth` this is a calendar,
- * not a list of what exists: a coach decides what the month is about before the
- * sessions carrying it are scheduled, so this month and the next
- * `MIN_FUTURE_MONTHS` are always sections even when empty. Months that do hold a
- * session are added on top, including one already begun — an in-progress workout
- * stays in Upcoming after its own month has passed.
+ * The Upcoming and Past tabs' sections: one per month that holds a session, in
+ * calendar order. `groupSessionsByMonth` only merges runs, so a month split by
+ * an out-of-order session — an in-progress workout stays in Upcoming after its
+ * own month has passed — is gathered back into one section here.
  *
- * Undated sessions keep their own trailing section and are never padded around.
+ * Undated sessions keep their own trailing section.
  */
-export function calendarMonthGroups(sessions: PlannedSession[], now = new Date(), timeZone?: string) {
+export function calendarMonthGroups(sessions: PlannedSession[], timeZone?: string) {
   const grouped = groupSessionsByMonth(sessions, timeZone);
   const undated = grouped.filter((group) => group.key === "no-date");
-  // `groupSessionsByMonth` only merges runs, so a month split by an out-of-order
-  // session arrives as two groups. Collect by key rather than overwriting.
   const byKey = new Map<string, PlannedSession[]>();
   for (const group of grouped) {
     if (group.key === "no-date") continue;
     byKey.set(group.key, [...(byKey.get(group.key) ?? []), ...group.sessions]);
-  }
-  const start = monthKey(now, timeZone);
-  for (let ahead = 0; ahead <= MIN_FUTURE_MONTHS; ahead += 1) {
-    const key = shiftMonth(start, ahead);
-    if (!byKey.has(key)) byKey.set(key, []);
   }
   // `YYYY-MM` sorts chronologically as text.
   const dated = [...byKey.keys()].sort().map((key) => ({ key, label: monthLabel(key), sessions: byKey.get(key) ?? [] }));

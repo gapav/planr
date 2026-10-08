@@ -1,5 +1,5 @@
 import { COACH_AVATAR_PEER, COACH_AVATAR_SELF } from "./team-palette";
-import type { Exercise, ExerciseCollection, MonthFocus, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
+import type { Exercise, ExerciseCollection, FocusPeriod, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
 
 export const demoUser: Profile = {
   id: "user-gard", email: "gard@fjordvik.no", fullName: "Gard Pavel", initials: "GP", color: COACH_AVATAR_SELF, isGlobalAdmin: true, teamRole: "admin",
@@ -46,12 +46,17 @@ export const demoFixtures: TeamFixture[] = fixtureSeed.map(([matchNumber, starts
   createdAt: "2026-08-20T08:00:00.000Z", updatedAt: "2026-08-20T08:00:00.000Z",
 }));
 
-// One month with a focus and the rest without, so a preview shows both the
-// filled row and the empty affordance next to it.
-export const demoMonthFocus: MonthFocus[] = [{
-  teamId: "team-senior", month: "2026-09",
-  note: "Forsvar 6-0 med aktiv midtblokk. Hver økt skal ha minst én bolk på samarbeidet mellom to-eren og tre-eren. Vi avslutter alltid med kontring ut av forsvaret.",
+// Two focuses back to back with a gap after them, so a preview shows bars, the
+// "Sett fokus" cells between them, and a focus running today.
+export const demoFocusPeriods: FocusPeriod[] = [{
+  id: "focus-forsvar", teamId: "team-senior", title: "Forsvar 6-0", startsOn: "2026-08-31", weeks: 5,
+  note: "Forsvar 6-0 med aktiv midtblokk. Hver økt skal ha minst én bolk på samarbeidet mellom to-eren og tre-eren.",
+  notes: "Samarbeid mellom to-er og tre-er\nAktiv midtblokk\nKontring ut av forsvaret",
   updatedAt: "2026-09-01T08:00:00.000Z", updatedBy: "user-gard",
+}, {
+  id: "focus-kontring", teamId: "team-senior", title: "Kontring", startsOn: "2026-10-05", weeks: 3,
+  note: "Vinne ballen høyt og være i gang innen tre sekunder.", notes: "Første pasning fram\nFire i løp",
+  updatedAt: "2026-10-01T08:00:00.000Z", updatedBy: "user-gard",
 }];
 
 const warmupSeed = [

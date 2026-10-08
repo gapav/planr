@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CalendarDays, CalendarRange, Clock3, LayoutList, MapPin, Plus, Sparkles, Target, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarRange, Clock3, LayoutList, MapPin, Pencil, Plus, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,12 +9,13 @@ import { HelpTip } from "@/components/help-tip";
 import { useGrep } from "@/components/app-provider";
 import { CopySessionDialog, ReopenSessionDialog, SessionMenu } from "@/components/session-actions";
 import { PageHeading } from "@/components/page-heading";
+import { FocusDialog } from "@/components/focus-dialog";
 import { SeasonOverview } from "@/components/season-overview";
-import { Avatar, Button, EmptyState, Field, Modal, Tag, textareaClass } from "@/components/ui";
-import { monthKey } from "@/lib/fixtures";
+import { Avatar, Button, EmptyState, Modal, Tag } from "@/components/ui";
+import { dayKey } from "@/lib/fixtures";
+import { focusAt, focusSpanLabel, freeFocusSpan, nextFocus, noteLines, weekOf } from "@/lib/focus";
 import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration, sessionPlanProgress, sessionPlanSummary, UNTITLED_SESSION_TITLE } from "@/lib/session";
-import { MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
-import type { PlannedSession, Profile, SessionTab } from "@/lib/types";
+import type { FocusPeriod, FocusPeriodInput, PlannedSession, SessionTab } from "@/lib/types";
 import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
 
 const tabs: Array<{ id: SessionTab; label: string }> = [{ id: "upcoming", label: "Kommende" }, { id: "drafts", label: "Utkast" }, { id: "past", label: "Gjennomførte" }];
@@ -28,12 +29,12 @@ function SessionsRoute() {
   const view = search.get("view");
   const initialTab: SessionTab = view === "past" || view === "drafts" ? view : "upcoming";
   const initialPlanningView = search.get("mode") === "season" ? "season" : "calendar";
-  const initialSeasonMonth = search.get("month");
-  return <SessionsContent key={`${initialTab}-${initialPlanningView}-${initialSeasonMonth ?? ""}`} initialTab={initialTab} initialPlanningView={initialPlanningView} initialSeasonMonth={initialSeasonMonth} />;
+  const initialSeasonFocus = search.get("focus");
+  return <SessionsContent key={`${initialTab}-${initialPlanningView}-${initialSeasonFocus ?? ""}`} initialTab={initialTab} initialPlanningView={initialPlanningView} initialSeasonFocus={initialSeasonFocus} />;
 }
 
-function SessionsContent({ initialTab, initialPlanningView, initialSeasonMonth }: { initialTab: SessionTab; initialPlanningView: "calendar" | "season"; initialSeasonMonth: string | null }) {
-  const { sessions, fixtures, currentTeam, monthFocus, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>(initialTab); const [planningView, setPlanningView] = useState<"calendar" | "season">(initialPlanningView); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const [focusMonth, setFocusMonth] = useState<{ key: string; label: string } | null>(null); const router = useRouter();
+function SessionsContent({ initialTab, initialPlanningView, initialSeasonFocus }: { initialTab: SessionTab; initialPlanningView: "calendar" | "season"; initialSeasonFocus: string | null }) {
+  const { sessions, fixtures, currentTeam, focusPeriods, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>(initialTab); const [planningView, setPlanningView] = useState<"calendar" | "season">(initialPlanningView); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const router = useRouter();
   const current = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === tab).sort((a, b) => tab === "drafts" ? b.updatedAt.localeCompare(a.updatedAt) : tab === "upcoming" ? (a.startsAt ?? "").localeCompare(b.startsAt ?? "") : (b.startsAt ?? "").localeCompare(a.startsAt ?? "")), [sessions, currentTeam, tab]);
   const counts = useMemo(() => tabs.reduce((acc, entry) => { acc[entry.id] = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return acc; }, {} as Record<SessionTab, number>), [sessions, currentTeam]);
   // The nearest session is lifted out of its month so the one plan being
@@ -44,7 +45,7 @@ function SessionsContent({ initialTab, initialPlanningView, initialSeasonMonth }
     setPlanningView(next);
     const params = new URLSearchParams(window.location.search);
     if (next === "season") params.set("mode", "season");
-    else { params.delete("mode"); params.delete("month"); }
+    else { params.delete("mode"); params.delete("focus"); }
     const query = params.toString();
     router.replace(`/sessions${query ? `?${query}` : ""}`, { scroll: false });
   }
@@ -56,7 +57,8 @@ function SessionsContent({ initialTab, initialPlanningView, initialSeasonMonth }
     : <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag ennå" body="Øktene tilhører et lag, slik at de riktige trenerne kan se og redigere dem. Systemadministratoren gir deg tilgang." />}</div></AppShell>;
   return <AppShell><div className={cn("grep-page grep-calendar", planningView === "season" && "grep-season-page")}><PageHeading eyebrow={currentTeam.shortName} title={planningView === "season" ? "Sesongoverblikk" : "Øktkalender"} description={planningView === "season" ? "Fokus, kamper og treninger gjennom hele sesongen." : <>En god plan <ArrowRight size={16} className="inline-block -mt-0.5 align-middle text-[var(--accent)]" aria-hidden /> et samkjørt trenerteam.</>} actions={<>{(planningView === "season" || tab !== "past") && <Button size="lg" onClick={() => void startSession()} disabled={creating}><Plus size={18} />{creating ? "Oppretter…" : "Opprett økt"}</Button>}<HelpTip topic={planningView === "season" ? "season-overview" : "sessions-calendar"} /></>} />
     <div className="grep-planning-views grep-segments" role="group" aria-label="Planvisning"><button type="button" aria-pressed={planningView === "calendar"} onClick={() => choosePlanningView("calendar")}><CalendarDays size={16} />Økter</button><button type="button" aria-pressed={planningView === "season"} onClick={() => choosePlanningView("season")}><CalendarRange size={16} />Sesongoverblikk</button></div>
-    {planningView === "season" ? <SeasonOverview teamId={currentTeam.id} sessions={sessions} fixtures={fixtures ?? []} monthFocus={monthFocus} initialMonth={initialSeasonMonth} onEditFocus={setFocusMonth} onCreateTraining={startSession} /> : <>
+    {planningView === "season" ? <SeasonOverview teamId={currentTeam.id} sessions={sessions} fixtures={fixtures ?? []} focusPeriods={focusPeriods} initialFocus={initialSeasonFocus} onCreateTraining={startSession} /> : <>
+    <CurrentFocus onOpenSeason={() => choosePlanningView("season")} />
     <TabSelect tab={tab} onSelect={setTab} counts={counts} />
     {tab === "drafts"
       // Drafts sort by when they were last touched, so a calendar heading would
@@ -65,26 +67,22 @@ function SessionsContent({ initialTab, initialPlanningView, initialSeasonMonth }
       ? (current.length
         ? <ul className="grep-session-month grep-session-rows">{current.map((session) => <SessionRow key={session.id} session={session} tab={tab} onCopy={() => setCopySource(session)} onReopen={() => setReopenSource(session)} onDelete={() => setPendingDelete(session)} />)}</ul>
         : <div className="grep-session-sections"><EmptyState icon={<Sparkles size={22} />} title="Ingen økter under planlegging" body="Start en øktplan og inviter trenerteamet til å bidra." /></div>)
-      // Upcoming is a calendar, not a list of what happens to exist: the months
-      // ahead are sections whether or not anything is scheduled in them, so the
-      // month's focus can be written before the sessions that carry it. The
-      // empty state still leads when nothing is planned — publishing a draft is
+      // The empty state leads when nothing is planned — publishing a draft is
       // the thing to do then.
       : tab === "upcoming"
       ? <div className="grep-session-sections">
         {!current.length && <EmptyState icon={<CalendarDays size={22} />} title="Ingen planlagte økter ennå" body="Publiser et utkast, så vises det automatisk her." />}
         {hero && <section><ul><SessionRow session={hero} tab={tab} hero onCopy={() => setCopySource(hero)} onReopen={() => setReopenSource(hero)} onDelete={() => setPendingDelete(hero)} /></ul></section>}
-        {calendarMonthGroups(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onCopy={setCopySource} onReopen={setReopenSource} onDelete={setPendingDelete} />)}
+        {calendarMonthGroups(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onCopy={setCopySource} onReopen={setReopenSource} onDelete={setPendingDelete} />)}
       </div>
       : (current.length
-        ? <div className="grep-session-sections">{groupSessionsByMonth(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onEditFocus={setFocusMonth} onCopy={setCopySource} onReopen={setReopenSource} onDelete={setPendingDelete} />)}</div>
+        ? <div className="grep-session-sections">{groupSessionsByMonth(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onCopy={setCopySource} onReopen={setReopenSource} onDelete={setPendingDelete} />)}</div>
         : <div className="grep-session-sections"><EmptyState icon={<CalendarDays size={22} />} title="Ingen gjennomførte økter" body="Gjennomførte økter samles her for senere bruk." /></div>)}
     </>}
     {/* Gjennomførte is a record of what has been, so it ends where the last
         workout did. The new plan belongs under the tabs you plan in. */}
     {copySource && <CopySessionDialog session={copySource} onClose={() => setCopySource(null)} />}
     {reopenSource && <ReopenSessionDialog session={reopenSource} onClose={() => setReopenSource(null)} />}
-    {focusMonth && <MonthFocusModal month={focusMonth.key} label={focusMonth.label} note={monthFocus.find((entry) => entry.teamId === currentTeam.id && entry.month === focusMonth.key)?.note ?? null} onClose={() => setFocusMonth(null)} />}
     <Modal open={Boolean(pendingDelete)} onClose={() => { if (!deleting) setPendingDelete(null); }} title="Vil du slette denne økten?" description="Planen, alle bolkene og aktivitetene blir slettet for hele laget. Dette kan ikke angres." size="sm">
       <p className="rounded-xl bg-[var(--paper)] px-4 py-3 text-sm font-semibold">{pendingDelete?.title}</p>
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="secondary" onClick={() => setPendingDelete(null)} disabled={deleting}>Behold økten</Button><Button variant="danger" onClick={() => void confirmDelete()} disabled={deleting}><Trash2 size={17} />{deleting ? "Sletter…" : "Slett økt"}</Button></div>
@@ -92,99 +90,63 @@ function SessionsContent({ initialTab, initialPlanningView, initialSeasonMonth }
   </div></AppShell>;
 }
 
-// One month of the calendar: the heading, the month's focus, and the sessions in
-// it. A month the calendar padded in arrives with no sessions at all — heading
-// and focus only, which is the whole point of padding it.
-function MonthSection({ group, tab, onEditFocus, onCopy, onReopen, onDelete }: { group: { key: string; label: string; sessions: PlannedSession[] }; tab: SessionTab; onEditFocus(month: { key: string; label: string }): void; onCopy(session: PlannedSession): void; onReopen(session: PlannedSession): void; onDelete(session: PlannedSession): void }) {
-  const { currentTeam, monthFocus, user } = useGrep();
-  const focus = monthFocus.find((entry) => entry.teamId === currentTeam?.id && entry.month === group.key) ?? null;
-  // The whole coaching team writes into the same note, so the row says whose
-  // words are standing. Unlike a session row the name shows even when it is the
-  // signed-in coach: "who set this month's focus" is the question the by-line
-  // answers, and leaving your own name out leaves it open. A coach who has since
-  // left the team is no longer in `members`, so only the credit survives.
-  const author = focus ? currentTeam?.members.find((member) => member.id === focus.updatedBy) ?? null : null;
-  const credit = focus ? { author, name: focus.updatedBy === user?.id ? "deg" : author?.fullName ?? "en tidligere trener", at: focus.updatedAt } : null;
-  // A month that has been and gone keeps the focus it was given — it is a record
-  // of what the team worked on — but is not advertised as something to fill in.
-  // An "add" button on each of twelve past months is noise, not an offer.
-  const editable = group.key !== "no-date" && group.key >= monthKey(new Date());
-  const focusRow = <MonthFocusRow label={group.label} note={focus?.note ?? null} credit={credit} editable={editable} standalone={!focus && !group.sessions.length} onEdit={() => onEditFocus({ key: group.key, label: group.label })} />;
-  const rows = group.sessions.length > 0 ? <ul className="grep-session-rows">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
-    ? <SessionRow key={session.id} session={session} tab={tab} onCopy={() => onCopy(session)} onReopen={() => onReopen(session)} onDelete={() => onDelete(session)} />
-    : <CompactSessionRow key={session.id} session={session} onCopy={() => onCopy(session)} onReopen={() => onReopen(session)} onDelete={() => onDelete(session)} />)}</ul> : null;
-  // A month that holds anything is one card — the focus at its head, the plans
-  // it is meant to steer as rows under it, hairline-separated the way a match
-  // day holds its fixtures — so a plan reads as belonging to the month's theme
-  // rather than merely following it. A month that is neither written nor
-  // scheduled stays flat: the calendar pads four months ahead, and four empty
-  // cards would weigh more than the invitation inside them.
+// One month of the calendar: the heading and the sessions in it, as one card.
+function MonthSection({ group, tab, onCopy, onReopen, onDelete }: { group: { key: string; label: string; sessions: PlannedSession[] }; tab: SessionTab; onCopy(session: PlannedSession): void; onReopen(session: PlannedSession): void; onDelete(session: PlannedSession): void }) {
   return <section>
-    <h2 className="grep-session-month-heading">{group.label}{group.sessions.length > 0 && <span>{" · "}{group.sessions.length} {group.sessions.length === 1 ? "økt" : "økter"}</span>}</h2>
-    {focus || rows
-      ? <div className="grep-session-month">{focusRow}{rows}</div>
-      : focusRow}
+    <h2 className="grep-session-month-heading">{group.label}<span>{" · "}{group.sessions.length} {group.sessions.length === 1 ? "økt" : "økter"}</span></h2>
+    <ul className="grep-session-month grep-session-rows">{group.sessions.map((session) => tab === "upcoming" && isNearTerm(session)
+      ? <SessionRow key={session.id} session={session} tab={tab} onCopy={() => onCopy(session)} onReopen={() => onReopen(session)} onDelete={() => onDelete(session)} />
+      : <CompactSessionRow key={session.id} session={session} onCopy={() => onCopy(session)} onReopen={() => onReopen(session)} onDelete={() => onDelete(session)} />)}</ul>
   </section>;
 }
 
-// Who left the note, ready to render: `author` is absent once that coach has
-// left the team, and `name` is what the by-line says either way.
-interface FocusCredit { author: Profile | null; name: string; at: string }
-// The by-line sits under a month heading that already carries the year, so the
-// day and month are all it has to say.
 const focusDateFormat = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "short" });
 
-// The focus is the head of the month's card, set into its own recessed band so
-// the plans under it read as the workouts carrying a theme. On the rows' own
-// white it was a third sibling on a hairline grid, and the longest text in the
-// card besides — which left the context outweighing the plans it exists to
-// steer. Still no accent: in this list the apricot means "the next thing you
-// act on", and a focus is context for the plans, not one of them.
-function MonthFocusRow({ label, note, credit, editable, standalone, onEdit }: { label: string; note: string | null; credit: FocusCredit | null; editable: boolean; standalone: boolean; onEdit(): void }) {
-  if (!note) return editable
-    ? <button type="button" onClick={onEdit} className={cn("grep-session-focus-empty", standalone && "grep-session-focus-offer")}><Target size={16} />Sett månedens fokus</button>
-    : null;
-  const body = <>
-    <small><Target size={13} />Månedens fokus</small>
-    <p>{note}</p>
-    {credit && <span className="grep-session-focus-by">
-      {credit.author && <Avatar name={credit.author.fullName} initials={credit.author.initials} color={credit.author.color} size="sm" />}
-      <span>Satt av {credit.name} · {focusDateFormat.format(new Date(credit.at))}</span>
-    </span>}
-  </>;
-  // A month that can no longer be written to is text, not a control: a disabled
-  // button would still be reached and announced as one.
-  if (!editable) return <div className="grep-session-focus">{body}</div>;
-  // The label replaces the button's text for a screen reader, so the credit has
-  // to be repeated in it — otherwise the one month a coach can edit is the one
-  // month that does not say who wrote it.
-  return <button type="button" onClick={onEdit} aria-label={`Rediger månedens fokus for ${label}${credit ? `, satt av ${credit.name}` : ""}`} className="grep-session-focus">{body}</button>;
-}
-
-// One short note the whole coaching team shares, so there is nothing to merge:
-// saving overwrites, and clearing the field deletes the note rather than storing
-// a blank one.
-function MonthFocusModal({ month, label, note, onClose }: { month: string; label: string; note: string | null; onClose(): void }) {
-  const { saveMonthFocus } = useGrep();
-  const [draft, setDraft] = useState(note ?? ""); const [busy, setBusy] = useState(false);
-  const trimmed = draft.trim();
-  async function save(next: string) {
-    setBusy(true);
-    // A failed save is rolled back and announced by the provider, so the dialog
-    // stays open with the text still in it rather than losing what was typed.
-    try { await saveMonthFocus(month, next); } catch { setBusy(false); return; }
-    onClose();
-  }
-  return <Modal open onClose={() => { if (!busy) onClose(); }} title="Månedens fokus" description={`Hva laget skal jobbe mest med i ${label}. Alle trenerne på laget kan endre det.`} size="sm">
-    <Field label="Fokus" hint={`${draft.length} av ${MONTH_FOCUS_MAX_LENGTH} tegn`}>
-      <textarea className={textareaClass} value={draft} maxLength={MONTH_FOCUS_MAX_LENGTH} autoFocus onChange={(event) => setDraft(event.target.value)} placeholder="F.eks. forsvar 6-0 med aktiv midtblokk. Hver økt skal ha minst én bolk på det, og vi avslutter alltid med kontring." />
-    </Field>
-    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-      {note && <Button variant="ghost" className="sm:mr-auto" disabled={busy} onClick={() => void save("")}><Trash2 size={16} />Fjern fokus</Button>}
-      <Button variant="secondary" onClick={onClose} disabled={busy}>Avbryt</Button>
-      <Button onClick={() => void save(draft)} disabled={busy || !trimmed || trimmed === note}>{busy ? "Lagrer…" : "Lagre fokus"}</Button>
+/**
+ * The focus running today, at the head of the calendar: what the sessions
+ * below are meant to steer. It is a run of weeks, set and laid out in the
+ * season overview; here it can be read and edited, and when nothing is running
+ * the card says what comes next and offers to set one from this week.
+ *
+ * Still no accent: in this list the apricot means "the next thing you act on",
+ * and a focus is context for the plans, not one of them.
+ */
+function CurrentFocus({ onOpenSeason }: { onOpenSeason(): void }) {
+  const { currentTeam, focusPeriods, user } = useGrep();
+  const [dialog, setDialog] = useState<{ focus: FocusPeriod | null; initial: FocusPeriodInput } | null>(null);
+  const today = dayKey(new Date());
+  const focus = focusAt(focusPeriods, currentTeam?.id, today);
+  const upcoming = focus ? null : nextFocus(focusPeriods, currentTeam?.id, today);
+  // The whole coaching team writes the same focus, so the card says whose
+  // words are standing — your own name included, since "who set this" is the
+  // question the by-line answers. A coach who has left the team is no longer
+  // in `members`, so only the credit survives.
+  const author = focus ? currentTeam?.members.find((member) => member.id === focus.updatedBy) ?? null : null;
+  const creditName = focus ? focus.updatedBy === user?.id ? "deg" : author?.fullName ?? "en tidligere trener" : null;
+  if (!currentTeam) return null;
+  const points = focus ? noteLines(focus.notes) : [];
+  return <section className={cn("grep-current-focus", !focus && "is-empty")} aria-labelledby="current-focus-heading">
+    <div className="grep-current-focus-head">
+      <h2 id="current-focus-heading"><Target size={14} />Nåværende fokus{focus && <span>· {focusSpanLabel(focus)}</span>}</h2>
+      <button type="button" className="grep-current-focus-link" onClick={onOpenSeason}>Se sesongen<ArrowRight size={14} aria-hidden /></button>
     </div>
-  </Modal>;
+    {focus ? <>
+      <strong className="grep-current-focus-title">{focus.title}</strong>
+      {focus.note.trim() && <p>{focus.note}</p>}
+      {points.length > 0 && <ul>{points.map((point, index) => <li key={index}>{point}</li>)}</ul>}
+      <div className="grep-current-focus-foot">
+        <span className="grep-session-focus-by">
+          {author && <Avatar name={author.fullName} initials={author.initials} color={author.color} size="sm" />}
+          <span>Satt av {creditName} · {focusDateFormat.format(new Date(focus.updatedAt))}</span>
+        </span>
+        <Button variant="secondary" size="sm" onClick={() => setDialog({ focus, initial: { title: focus.title, note: focus.note, notes: focus.notes, startsOn: focus.startsOn, weeks: focus.weeks } })}><Pencil size={14} />Rediger fokus</Button>
+      </div>
+    </> : <div className="grep-current-focus-foot">
+      <p>{upcoming ? <>Ingen fokus nå. Neste er <strong>{upcoming.title}</strong> fra uke {weekOf(upcoming.startsOn)}.</> : "Ingen fokus nå. Hva skal laget jobbe mest med de neste ukene?"}</p>
+      <Button variant="secondary" size="sm" onClick={() => setDialog({ focus: null, initial: { title: "", note: "", notes: "", ...freeFocusSpan(focusPeriods, currentTeam.id, today) } })}><Plus size={14} />Sett fokus</Button>
+    </div>}
+    {dialog && <FocusDialog focus={dialog.focus} initial={dialog.initial} onClose={() => setDialog(null)} />}
+  </section>;
 }
 
 // Full labels stay visible on desktop; the native selector fits narrow screens.

@@ -34,6 +34,7 @@ export function norwegianServerMessage(message: string, fallback = "Handlingen k
   // its tables reach the database. Name the migration rather than let PostgREST
   // say "schema cache" to a coach.
   if (/exercise_collections?/.test(message) && /schema cache|does not exist/i.test(message)) return "Samlinger trenger en databaseoppdatering. Be systemadministratoren bruke migrasjonen 202609170001.";
+  if (/team_focus_periods/.test(message) && /schema cache|does not exist/i.test(message)) return "Fokus over uker trenger en databaseoppdatering. Be systemadministratoren bruke migrasjonen 202610080003.";
   // The unique index folds case and trims, so two coaches naming the same
   // samling at the same moment is the only way past the check in the dialog.
   if (/exercise_collections_team_name_key/.test(message)) return "Laget har allerede en samling med dette navnet.";

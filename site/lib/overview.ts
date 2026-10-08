@@ -1,6 +1,7 @@
-import { dayKey, fixtureOpponent, groupMatchDays, joinNames, monthKey, upcomingFixtures } from "./fixtures";
+import { dayKey, fixtureOpponent, groupMatchDays, joinNames, upcomingFixtures } from "./fixtures";
 import { deriveSessionTab } from "./session";
-import type { MonthFocus, PlannedSession, TeamFixture, WarmupRoutine } from "./types";
+import { focusAt } from "./focus";
+import type { FocusPeriod, PlannedSession, TeamFixture, WarmupRoutine } from "./types";
 import { warmupSchedule } from "./warmup";
 
 /** Shared calendar rules, with an in-progress workout always taking priority. */
@@ -45,14 +46,10 @@ export function overviewFixture(
   return { fixture, day, startsAt, venue: day ? day.venue : fixture.venue, opponents, meetAt, ...fixtureOpponent(fixture) };
 }
 
-/**
- * The focus for the month the coach is standing in, keyed the way the session
- * calendar keys it so the two can never disagree about which month it is.
- */
-export function overviewFocus(monthFocus: MonthFocus[], teamId: string | undefined, now = new Date(), timeZone?: string) {
+/** The focus running on the day the coach is standing in, in the club's calendar. */
+export function overviewFocus(focusPeriods: FocusPeriod[], teamId: string | undefined, now = new Date(), timeZone?: string) {
   if (!teamId) return null;
-  const month = monthKey(now, timeZone);
-  return monthFocus.find((entry) => entry.teamId === teamId && entry.month === month) ?? null;
+  return focusAt(focusPeriods, teamId, dayKey(now, timeZone));
 }
 
 /**

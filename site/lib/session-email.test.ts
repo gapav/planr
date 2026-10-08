@@ -9,7 +9,7 @@ function session(overrides: Partial<DigestSession> = {}): DigestSession {
   return {
     id: "session-1", teamId: "team-1", teamName: "Fjordvik G14", title: "Teknikkøkt",
     startsAt: "2026-09-12T16:00:00.000Z", venue: "Fjordvik hall", plannedDurationMinutes: 90,
-    objective: "Pasningskvalitet", notes: "", status: "published", monthFocus: "",
+    objective: "Pasningskvalitet", notes: "", status: "published", focus: null,
     blocks: [{
       title: "Hoveddel", notes: "", kind: "sequence",
       items: [
@@ -52,17 +52,20 @@ describe("dailySessionDigestEmail", () => {
     expect(mail?.text).toContain("- Firkant 4v2 (20 min)");
   });
 
-  it("carries the month's focus beside the session's own objective", () => {
-    const mail = dailySessionDigestEmail({ recipient, sessions: [session({ monthFocus: "Forsvar 6-0 med aktiv midtblokk." })], siteUrl });
-    expect(mail?.html).toContain("Månedens fokus · september");
-    expect(mail?.html).toContain("Forsvar 6-0 med aktiv midtblokk.");
-    expect(mail?.text).toContain("Månedens fokus (september): Forsvar 6-0 med aktiv midtblokk.");
+  it("carries the current focus beside the session's own objective", () => {
+    const mail = dailySessionDigestEmail({ recipient, sessions: [session({ focus: { title: "Forsvar 6-0", note: "Aktiv midtblokk & kontring." } })], siteUrl });
+    expect(mail?.html).toContain(">Fokus</p>");
+    expect(mail?.html).toContain("Forsvar 6-0");
+    expect(mail?.html).toContain("Aktiv midtblokk &amp; kontring.");
+    expect(mail?.text).toContain("Fokus: Forsvar 6-0 — Aktiv midtblokk & kontring.");
   });
 
-  it("drops the band entirely when the team has not written one", () => {
+  it("names a focus that has no sentence, and drops the band when none is running", () => {
+    const named = dailySessionDigestEmail({ recipient, sessions: [session({ focus: { title: "Forsvar 6-0", note: "" } })], siteUrl });
+    expect(named?.text).toContain("Fokus: Forsvar 6-0\n");
     const mail = dailySessionDigestEmail({ recipient, sessions: [session()], siteUrl });
-    expect(mail?.html).not.toContain("Månedens fokus");
-    expect(mail?.text).not.toContain("Månedens fokus");
+    expect(mail?.html).not.toContain(">Fokus</p>");
+    expect(mail?.text).not.toContain("Fokus:");
   });
 
   it("names a stations block's activities as stations, sharing one rotation", () => {

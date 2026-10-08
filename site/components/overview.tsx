@@ -8,16 +8,16 @@ import { AccountMenu } from "./account-menu";
 import { useGrep } from "./app-provider";
 import { AppShell } from "./app-shell";
 import { CourtArtwork } from "./court-artwork";
-import { monthKey, monthLabel } from "@/lib/fixtures";
 import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewSalutation, overviewSessions } from "@/lib/overview";
 import { calendarDaysUntil } from "@/lib/session";
-import type { MonthFocus } from "@/lib/types";
+import { focusSpanLabel } from "@/lib/focus";
+import type { FocusPeriod } from "@/lib/types";
 import { cn, minutesLabel } from "@/lib/utils";
 
 const dayFormat = new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long" });
 
 export function Overview() {
-  const { user, currentTeam, sessions, fixtures, warmupRoutines, monthFocus, workspaceLoaded, createSession } = useGrep();
+  const { user, currentTeam, sessions, fixtures, warmupRoutines, focusPeriods, workspaceLoaded, createSession } = useGrep();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +39,7 @@ export function Overview() {
   }, []);
   const { next, draft } = overviewSessions(sessions, currentTeam?.id, now ?? new Date(0));
   const match = now ? overviewFixture(fixtures, currentTeam?.id, warmupRoutines, now) : null;
-  const focus = now ? overviewFocus(monthFocus, currentTeam?.id, now) : null;
-  const focusMonthLabel = now ? monthLabel(monthKey(now)) : "";
+  const focus = now ? overviewFocus(focusPeriods, currentTeam?.id, now) : null;
   const loading = !workspaceLoaded || !now;
   const firstName = user?.fullName.trim().split(/\s+/)[0] || "trener";
   const ongoing = next?.status === "in_progress";
@@ -98,26 +97,26 @@ export function Overview() {
           <Link href="/exercises" className="overview-card overview-shortcut"><span className="overview-shortcut-icon peach"><ListFilter size={25} strokeWidth={1.7} /></span><span><strong>Finn øvelser</strong><small>En god idé til neste økt</small></span><ChevronRight size={19} /></Link>
         </div>
       </div>
-      <MonthFocusBand focus={focus} label={focusMonthLabel} />
+      <FocusBand focus={focus} />
     </>}
   </div></AppShell>;
 }
 
 /**
- * The month's focus closes the overview: the cards are what happens next, and
+ * The current focus closes the overview: the cards are what happens next, and
  * the focus is the standing answer to "towards what?" — read after them, not
- * before. It only reads the note out — the note is written in the month it belongs to, over in the session
- * calendar, and who wrote it is a question for that screen and not this one. A
- * month with nothing written keeps the band and says where it is set.
+ * before. It only reads the focus out — it is set in the season overview, and
+ * who wrote it is a question for the Økter page, not this one. With nothing
+ * running the band stays and says where a focus is set.
  */
-function MonthFocusBand({ focus, label }: { focus: MonthFocus | null; label: string }) {
-  return <section className={cn("overview-focus", !focus && "overview-focus-unset")} aria-labelledby="month-focus-heading">
+function FocusBand({ focus }: { focus: FocusPeriod | null }) {
+  return <section className={cn("overview-focus", !focus && "overview-focus-unset")} aria-labelledby="current-focus-heading">
     <span className="overview-focus-mark" aria-hidden><Target size={25} strokeWidth={1.7} /></span>
     <div className="overview-focus-copy">
-      <h2 id="month-focus-heading" className="overview-focus-eyebrow">Månedens fokus<span>· {label}</span></h2>
+      <h2 id="current-focus-heading" className="overview-focus-eyebrow">Nåværende fokus{focus && <span>· {focusSpanLabel(focus)}</span>}</h2>
       {focus
-        ? <p className="overview-focus-note">{focus.note}</p>
-        : <p className="overview-focus-note overview-focus-invite">Ingen fokus satt for {label}. Én setning om hva laget skal jobbe mest med setter dere i <Link href="/sessions">øktkalenderen</Link>.</p>}
+        ? <><p className="overview-focus-title">{focus.title}</p>{focus.note.trim() && <p className="overview-focus-note">{focus.note}</p>}</>
+        : <p className="overview-focus-note overview-focus-invite">Ingen fokus nå. Hva laget skal jobbe mest med de neste ukene setter dere i <Link href="/sessions?mode=season">sesongoverblikket</Link>.</p>}
     </div>
   </section>;
 }

@@ -25,7 +25,8 @@
  *     sessions the same day gets a single letter listing both.
  */
 
-import { monthKey } from "./fixtures";
+import { dayKey as calendarDay } from "./fixtures";
+import { FOCUS_MAX_WEEKS } from "./focus";
 import { sessionPlanProgress } from "./session";
 import { CLUB_TIME_ZONE } from "./time";
 import type { SessionBlockKind, SessionStatus } from "./types";
@@ -69,8 +70,8 @@ export interface DigestSession {
   objective: string;
   notes: string;
   status: SessionStatus;
-  /** The team's «månedens fokus» for the month the session falls in; `""` when none is written. */
-  monthFocus: string;
+  /** The team's focus running on the session's day; `null` when none is. */
+  focus: { title: string; note: string } | null;
   blocks: DigestBlock[];
 }
 
@@ -261,11 +262,13 @@ export interface SessionDigestRow {
   }> | null;
 }
 
-/** One row of `team_month_focus`, as the route selects it. */
-export interface MonthFocusRow {
+/** One row of `team_focus_periods`, as the route selects it. */
+export interface FocusDigestRow {
   team_id: string;
-  month: string;
+  title: string | null;
   note: string | null;
+  starts_on: string;
+  weeks: number;
 }
 
 export interface CoachDigestRow {
@@ -324,45 +327,42 @@ export function mapDigestSession(row: SessionDigestRow): DigestSession | null {
     objective: row.objective ?? "",
     notes: row.notes ?? "",
     status: row.status,
-    // Filled in by `attachMonthFocus`: the note lives on the team and the
-    // month, not on the session, so it is read separately and joined here.
-    monthFocus: "",
+    // Filled in by `attachFocus`: the focus lives on the team and its weeks,
+    // not on the session, so it is read separately and joined here.
+    focus: null,
     blocks,
   };
 }
 
 /**
- * The `YYYY-MM` keys the day's sessions fall in, for the route's `in(...)`
- * filter. Derived in the club's zone for the same reason the day is: an 18:00
- * session on the last of the month is stored on the first of the next one.
- *
- * Normally one key. A session at 23:00 on 30 September and one the next morning
- * cannot both be "today", but a run near midnight in a zone the club does not
- * keep could still produce two, and asking for both costs nothing.
+ * The earliest Monday a focus running on `dayKey` can have started — a focus
+ * lasts at most `FOCUS_MAX_WEEKS` weeks — so the route can bound its read.
  */
-export function digestMonthKeys(sessions: readonly DigestSession[], timeZone: string = CLUB_TIME_ZONE): string[] {
-  return [...new Set(sessions.map((session) => monthKey(session.startsAt, timeZone)).filter(Boolean))];
+export function digestFocusFrom(dayKey: string): string {
+  return addDays(dayKey, -FOCUS_MAX_WEEKS * 7);
 }
 
 /**
- * Joins «månedens fokus» onto the sessions it belongs to.
+ * Joins the focus running on each session's day onto it.
  *
  * The focus is the standing answer to "towards what?" — the letter is the one
  * place a coach reads the day's plan without the app around it, so it carries
- * the month's aim beside the session's own. A team with nothing written keeps
- * `""` and the letter simply drops the line; an empty band would only announce
- * that nobody has written one, which is a job for the screen, not the inbox.
+ * the period's aim beside the session's own. A team with nothing running keeps
+ * `null` and the letter simply drops the band; an empty one would only announce
+ * that nobody has set one, which is a job for the screen, not the inbox. The
+ * day is taken in the club's zone, as the season overview's weeks are.
  */
-export function attachMonthFocus(
+export function attachFocus(
   sessions: readonly DigestSession[],
-  rows: readonly MonthFocusRow[],
+  rows: readonly FocusDigestRow[],
   timeZone: string = CLUB_TIME_ZONE,
 ): DigestSession[] {
-  const notes = new Map(rows.map((row) => [`${row.team_id}:${row.month}`, (row.note ?? "").trim()]));
-  return sessions.map((session) => ({
-    ...session,
-    monthFocus: notes.get(`${session.teamId}:${monthKey(session.startsAt, timeZone)}`) ?? "",
-  }));
+  return sessions.map((session) => {
+    const day = calendarDay(session.startsAt, timeZone);
+    const row = rows.find((candidate) => candidate.team_id === session.teamId && day >= candidate.starts_on && day <= addDays(candidate.starts_on, candidate.weeks * 7 - 1));
+    const title = row?.title?.trim() ?? "";
+    return { ...session, focus: title ? { title, note: (row?.note ?? "").trim() } : null };
+  });
 }
 
 /** A membership row to a coach. A deleted profile is a tombstone, never a recipient. */

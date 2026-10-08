@@ -4,7 +4,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { mapAdminAccount, mapAdminTeam, partitionSessionsByMembership, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
 import { claimableInvitations, invitationUrl, isIdentityChange, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, passwordResetRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
-import { demoCollections, demoExercises, demoFixtures, demoMonthFocus, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
+import { demoCollections, demoExercises, demoFixtures, demoFocusPeriods, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { collectionNameError, normalizeCollectionName, sortCollections } from "@/lib/collections";
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
@@ -14,9 +14,10 @@ import { minimizePlayerName } from "@/lib/roster";
 import { autoSessionTitle, buildSessionCopy, nextPosition, stationRotation, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { DEFAULT_ROTATION_MINUTES, MONTH_FOCUS_MAX_LENGTH } from "@/lib/types";
+import { DEFAULT_ROTATION_MINUTES } from "@/lib/types";
+import { FOCUS_MAX_WEEKS, FOCUS_NOTE_MAX_LENGTH, FOCUS_NOTES_MAX_LENGTH, FOCUS_TITLE_MAX_LENGTH, mondayOf, noteLines, overlappingFocus } from "@/lib/focus";
 import { COACH_AVATAR_PEER, COACH_AVATAR_SELF, validTeamColors } from "@/lib/team-palette";
-import type { AdminAccount, AdminTeam, Exercise, ExerciseCollection, ExerciseInput, MonthFocus, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionBlockKind, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
+import type { AdminAccount, AdminTeam, Exercise, ExerciseCollection, ExerciseInput, FocusPeriod, FocusPeriodInput, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionBlockKind, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
 import { initials, makeUuid } from "@/lib/utils";
 
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
@@ -115,7 +116,7 @@ interface GrepContextValue {
   players: TeamPlayer[];
   fixtures: TeamFixture[];
   /** Every month focus for the coach's teams, keyed by `YYYY-MM`. Months without one are simply absent. */
-  monthFocus: MonthFocus[];
+  focusPeriods: FocusPeriod[];
   warmupRoutines: WarmupRoutine[];
   attendance: SessionAttendance[];
   groupings: SessionGrouping[];
@@ -178,7 +179,10 @@ interface GrepContextValue {
   removeFixture(fixtureId: string): Promise<void>;
   clearFixtures(): Promise<void>;
   /** Writes the current team's focus for one `YYYY-MM`. An empty note removes it. */
-  saveMonthFocus(month: string, note: string): Promise<void>;
+  /** Adds a focus to the current team and hands back its id. Refuses one that overlaps another. */
+  createFocusPeriod(input: FocusPeriodInput): Promise<string>;
+  updateFocusPeriod(id: string, input: FocusPeriodInput): Promise<void>;
+  deleteFocusPeriod(id: string): Promise<void>;
   /** Creates the team's routine on first use and hands back its id. */
   ensureWarmupRoutine(): Promise<string>;
   updateWarmupRoutine(routineId: string, patch: WarmupRoutinePatch): Promise<void>;
@@ -246,7 +250,7 @@ interface DbWarmupRoutine {
   id: string; team_id: string; name: string; is_default: boolean; meet_minutes_before: number; notes: string;
   created_at: string; updated_at: string; warmup_items?: DbWarmupItem[];
 }
-interface DbMonthFocus { team_id: string; month: string; note: string; updated_at: string; updated_by: string | null; }
+interface DbFocusPeriod { id: string; team_id: string; title: string; note: string | null; notes: string | null; starts_on: string; weeks: number; updated_at: string; updated_by: string | null; }
 interface DbCollection {
   id: string; team_id: string; name: string; created_by: string; created_at: string; updated_at: string;
   exercise_collection_items?: Array<{ exercise_id: string }>;
@@ -296,8 +300,8 @@ function mapCollection(row: DbCollection): ExerciseCollection {
   return { id: row.id, teamId: row.team_id, name: row.name, exerciseIds: (row.exercise_collection_items ?? []).map((item) => item.exercise_id),
     createdBy: row.created_by, createdAt: row.created_at, updatedAt: row.updated_at };
 }
-function mapMonthFocus(row: DbMonthFocus): MonthFocus {
-  return { teamId: row.team_id, month: row.month, note: row.note, updatedAt: row.updated_at, updatedBy: row.updated_by };
+function mapFocusPeriod(row: DbFocusPeriod): FocusPeriod {
+  return { id: row.id, teamId: row.team_id, title: row.title, note: row.note ?? "", notes: row.notes ?? "", startsOn: row.starts_on, weeks: row.weeks, updatedAt: row.updated_at, updatedBy: row.updated_by };
 }
 function mapPlayer(row: DbPlayer): TeamPlayer {
   return { id: row.id, teamId: row.team_id, fullName: row.full_name, jerseyNumber: row.jersey_number, createdAt: row.created_at, updatedAt: row.updated_at };
@@ -338,7 +342,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [players, setPlayers] = useState<TeamPlayer[]>(() => isSupabaseConfigured ? [] : structuredClone(demoPlayers));
   const [fixtures, setFixtures] = useState<TeamFixture[]>(() => isSupabaseConfigured ? [] : structuredClone(demoFixtures));
-  const [monthFocus, setMonthFocus] = useState<MonthFocus[]>(() => isSupabaseConfigured ? [] : structuredClone(demoMonthFocus));
+  const [focusPeriods, setFocusPeriods] = useState<FocusPeriod[]>(() => isSupabaseConfigured ? [] : structuredClone(demoFocusPeriods));
   const [warmupRoutines, setWarmupRoutines] = useState<WarmupRoutine[]>(() => isSupabaseConfigured ? [] : structuredClone(demoWarmupRoutines));
   const [attendance, setAttendance] = useState<SessionAttendance[]>([]);
   const [groupings, setGroupings] = useState<SessionGrouping[]>([]);
@@ -387,14 +391,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loadedProfileId = useRef<string | null>(null);
   const loadPrivateData = useCallback(async (authUser: User) => {
     if (!supabase) return;
-    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: monthFocusRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }, { data: favoriteRows }, { data: collectionRows }] = await Promise.all([
+    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: focusRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }, { data: favoriteRows }, { data: collectionRows }] = await Promise.all([
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name, logo_url), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
       supabase.from("profiles").select("id, email, full_name, is_global_admin, must_set_password, session_digest_email").eq("id", authUser.id).single(),
       supabase.from("team_players").select("id, team_id, full_name, jersey_number, created_at, updated_at").order("full_name"),
       supabase.from("team_fixtures").select("*").order("starts_at"),
-      supabase.from("team_month_focus").select("team_id, month, note, updated_at, updated_by"),
+      supabase.from("team_focus_periods").select("id, team_id, title, note, notes, starts_on, weeks, updated_at, updated_by"),
       supabase.from("warmup_routines").select("*, warmup_items(*)"),
       supabase.from("session_attendance").select("session_id, player_id, is_present, checked_in_at"),
       supabase.from("session_groupings").select("session_id, kind, groups, generated_at"),
@@ -440,7 +444,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (invitationRows) setInvitations((invitationRows as unknown as Array<{ id: string; team_id: string; email: string; role: TeamRole; token: string; expires_at: string; accepted_at: string | null }>).map((row) => ({ id: row.id, teamId: row.team_id, email: row.email, role: row.role, token: row.token, expiresAt: row.expires_at, acceptedAt: row.accepted_at })));
     if (playerRows) setPlayers((playerRows as unknown as DbPlayer[]).map(mapPlayer));
     if (fixtureRows) setFixtures((fixtureRows as unknown as DbFixture[]).map(mapFixture));
-    if (monthFocusRows) setMonthFocus((monthFocusRows as unknown as DbMonthFocus[]).map(mapMonthFocus));
+    if (focusRows) setFocusPeriods((focusRows as unknown as DbFocusPeriod[]).map(mapFocusPeriod));
     if (warmupRows) setWarmupRoutines((warmupRows as unknown as DbWarmupRoutine[]).map(mapWarmupRoutine));
     if (attendanceRows) setAttendance((attendanceRows as unknown as DbAttendance[]).map((row) => ({ sessionId: row.session_id, playerId: row.player_id, isPresent: row.is_present, checkedInAt: row.checked_in_at })));
     if (groupingRows) setGroupings((groupingRows as unknown as DbGrouping[]).map((row) => ({ sessionId: row.session_id, kind: row.kind, groups: row.groups, generatedAt: row.generated_at })));
@@ -1270,29 +1274,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentTeam, fixtures, persist, supabase]);
 
-  // The month focus is a single short note the whole coaching team shares, so
-  // there is nothing to merge on a clash: the last coach to save wins, and the
-  // next `loadPrivateData` hands everyone the same text. An empty note deletes
-  // the row rather than storing a blank — the check constraint refuses one, and
-  // "no row" is the only shape the calendar tests for. The optimistic write is
-  // rolled back like `toggleFavoriteExercise`: the note on screen is the only
-  // confirmation the coach gets, so it must not survive a failed save.
-  const saveMonthFocus = useCallback(async (month: string, note: string) => {
-    if (!currentTeam) return;
+  // A focus belongs to the whole coaching team, so there is nothing to merge on
+  // a clash: the last coach to save wins, and the next `loadPrivateData` hands
+  // everyone the same text. Every write is optimistic and rolled back like
+  // `toggleFavoriteExercise` — the bar on screen is the only confirmation the
+  // coach gets, so it must not survive a failed save. Overlaps are refused
+  // here before they reach the exclusion constraint, so the coach is told which
+  // focus is in the way rather than getting the database's wording.
+  const cleanFocusInput = useCallback((input: FocusPeriodInput, teamId: string, id?: string) => {
+    const title = input.title.trim().slice(0, FOCUS_TITLE_MAX_LENGTH);
+    if (!title) throw new Error("Gi fokuset et navn.");
+    const weeks = Math.round(input.weeks);
+    if (!(weeks >= 1 && weeks <= FOCUS_MAX_WEEKS)) throw new Error(`Et fokus varer fra 1 til ${FOCUS_MAX_WEEKS} uker.`);
+    const startsOn = mondayOf(input.startsOn);
+    const clash = overlappingFocus(focusPeriods, { id, teamId, startsOn, weeks });
+    if (clash) throw new Error(`Overlapper med «${clash.title}».`);
+    return { title, note: input.note.trim().slice(0, FOCUS_NOTE_MAX_LENGTH), notes: noteLines(input.notes).join("\n").slice(0, FOCUS_NOTES_MAX_LENGTH), startsOn, weeks };
+  }, [focusPeriods]);
+
+  const createFocusPeriod = useCallback(async (input: FocusPeriodInput) => {
+    if (!currentTeam) throw new Error("Velg et lag først");
     const teamId = currentTeam.id;
-    const trimmed = note.trim().slice(0, MONTH_FOCUS_MAX_LENGTH);
-    const previous = monthFocus;
-    const others = previous.filter((entry) => entry.teamId !== teamId || entry.month !== month);
-    setMonthFocus(trimmed ? [...others, { teamId, month, note: trimmed, updatedAt: new Date().toISOString(), updatedBy: user?.id ?? null }] : others);
+    const clean = cleanFocusInput(input, teamId);
+    const id = makeUuid();
+    setFocusPeriods((current) => [...current, { id, teamId, ...clean, updatedAt: new Date().toISOString(), updatedBy: user?.id ?? null }]);
     try {
-      await persist(supabase ? () => trimmed
-        ? supabase.from("team_month_focus").upsert({ team_id: teamId, month, note: trimmed, updated_by: user?.id ?? null }, { onConflict: "team_id,month" })
-        : supabase.from("team_month_focus").delete().eq("team_id", teamId).eq("month", month) : null);
+      await persist(supabase ? () => supabase.from("team_focus_periods").insert({ id, team_id: teamId, title: clean.title, note: clean.note, notes: clean.notes, starts_on: clean.startsOn, weeks: clean.weeks, updated_by: user?.id ?? null }) : null);
     } catch (error) {
-      setMonthFocus(previous);
+      setFocusPeriods((current) => current.filter((entry) => entry.id !== id));
       throw error;
     }
-  }, [currentTeam, monthFocus, persist, supabase, user]);
+    return id;
+  }, [cleanFocusInput, currentTeam, persist, supabase, user]);
+
+  const updateFocusPeriod = useCallback(async (id: string, input: FocusPeriodInput) => {
+    const existing = focusPeriods.find((entry) => entry.id === id);
+    if (!existing) return;
+    const clean = cleanFocusInput(input, existing.teamId, id);
+    setFocusPeriods((current) => current.map((entry) => entry.id === id ? { ...entry, ...clean, updatedAt: new Date().toISOString(), updatedBy: user?.id ?? null } : entry));
+    try {
+      await persist(supabase ? () => supabase.from("team_focus_periods").update({ title: clean.title, note: clean.note, notes: clean.notes, starts_on: clean.startsOn, weeks: clean.weeks, updated_by: user?.id ?? null }).eq("id", id) : null);
+    } catch (error) {
+      setFocusPeriods((current) => current.map((entry) => entry.id === id ? existing : entry));
+      throw error;
+    }
+  }, [cleanFocusInput, focusPeriods, persist, supabase, user]);
+
+  const deleteFocusPeriod = useCallback(async (id: string) => {
+    const existing = focusPeriods.find((entry) => entry.id === id);
+    if (!existing) return;
+    setFocusPeriods((current) => current.filter((entry) => entry.id !== id));
+    try {
+      await persist(supabase ? () => supabase.from("team_focus_periods").delete().eq("id", id) : null);
+    } catch (error) {
+      setFocusPeriods((current) => current.some((entry) => entry.id === id) ? current : [...current, existing]);
+      throw error;
+    }
+  }, [focusPeriods, persist, supabase]);
 
   const createSession = useCallback(async (startsAt?: string) => {
     if (!currentTeam || !user) throw new Error("Velg et lag først"); const id = makeUuid(); const now = new Date().toISOString();
@@ -1516,7 +1554,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedAdminSessions = useMemo(() => resolveAll(adminSessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [adminSessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, monthFocus, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, monthFocus, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, saveMonthFocus, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, focusPeriods, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }
