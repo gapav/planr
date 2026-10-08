@@ -1,13 +1,13 @@
 "use client";
 
-import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, Target, Trophy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Plus, Target } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FocusDialog } from "@/components/focus-dialog";
 import { dayKey } from "@/lib/fixtures";
 import { focusAt, focusOverlapsRange, focusSpanLabel, freeFocusSpan, noteLines, teamFocuses } from "@/lib/focus";
 import { autoSessionTitle, combineSessionStart, DEFAULT_SESSION_TIME } from "@/lib/session";
-import { focusColumns, seasonMatchTeams, seasonMonthSpans, seasonStartYear, seasonWeeks, shiftDay, type SeasonMatchTeam, type SeasonWeek, weekMatchTeams } from "@/lib/season";
+import { fixtureMatchTeams, focusColumns, seasonAgendaDays, seasonMatchTeams, seasonMonthSpans, seasonStartYear, seasonWeeks, shiftDay, type SeasonAgendaItem, type SeasonMatchTeam, type SeasonWeek, weekMatchTeams } from "@/lib/season";
 import type { FocusPeriod, FocusPeriodInput, PlannedSession, TeamFixture } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -15,17 +15,18 @@ type Selection = { type: "week"; index: number } | { type: "focus"; id: string }
 type DialogState = { focus: FocusPeriod } | { initial: FocusPeriodInput } | null;
 const dayFormat = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "short", timeZone: "UTC" });
 const monthFormat = new Intl.DateTimeFormat("nb-NO", { month: "short", timeZone: "UTC" });
-const sessionDate = new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-const matchDate = new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const weekdayFormat = new Intl.DateTimeFormat("nb-NO", { weekday: "short", timeZone: "UTC" });
+const timeFormat = new Intl.DateTimeFormat("nb-NO", { hour: "2-digit", minute: "2-digit" });
 
 function dayLabel(key: string) { return dayFormat.format(new Date(`${key}T12:00:00Z`)); }
 function monthShort(key: string) { return monthFormat.format(new Date(`${key}-15T12:00:00Z`)); }
 function countLabel(count: number, singular: string, plural: string) { return `${count} ${count === 1 ? singular : plural}`; }
+// Published is what a planned training normally is, so only the others say so.
 function sessionStatus(session: PlannedSession) {
   if (session.status === "draft") return "Utkast";
   if (session.status === "in_progress") return "Pågår";
   if (session.status === "completed") return "Gjennomført";
-  return "Publisert";
+  return null;
 }
 const emptyFocus = (span: { startsOn: string; weeks: number }): FocusPeriodInput => ({ title: "", note: "", notes: "", ...span });
 
@@ -127,8 +128,10 @@ export function SeasonOverview({ teamId, sessions, fixtures, focusPeriods, initi
   if (loading) return <div className="season-loading" role="status">Henter sesongen …</div>;
   const seasonLabel = `${year}/${String(year + 1).slice(-2)}`;
   const focusWeeks = selectedFocusEntry ? weeks.slice(selectedFocusEntry.span.from, selectedFocusEntry.span.to + 1) : [];
-  const detailSessions = selectedWeek?.sessions ?? focusWeeks.flatMap((week) => week.sessions);
-  const detailFixtures = selectedWeek?.fixtures ?? focusWeeks.flatMap((week) => week.fixtures);
+  const detailWeeks = selectedWeek ? [selectedWeek] : focusWeeks;
+  const detailSessionCount = detailWeeks.reduce((total, week) => total + week.sessions.length, 0);
+  const detailFixtureCount = detailWeeks.reduce((total, week) => total + week.fixtures.length, 0);
+  const detailCounts = [countLabel(detailSessionCount, "økt", "økter"), detailFixtureCount ? countLabel(detailFixtureCount, "kamp", "kamper") : null].filter(Boolean).join(" · ");
   const detailTitle = selectedFocus ? selectedFocus.title : `Uke ${selectedWeek!.number}`;
   const detailDates = selectedFocus ? focusSpanLabel(selectedFocus) : `${dayLabel(selectedWeek!.start)}–${dayLabel(selectedWeek!.end)}`;
   // A week lies in at most one focus.
@@ -236,22 +239,32 @@ export function SeasonOverview({ teamId, sessions, fixtures, focusPeriods, initi
 
     <section id="season-detail" className="season-detail" aria-labelledby="season-detail-heading" tabIndex={-1}>
       <div className="season-detail-header">
-        <div><p className="season-eyebrow">{selectedFocus ? "Fokus" : "Uke"}</p><h3 id="season-detail-heading" className={cn(selectedFocus && "is-focus")}>{detailTitle}</h3>{detailDates && <p className="season-detail-dates">{detailDates}</p>}</div>
+        <div><p className="season-eyebrow">{selectedFocus ? "Fokus" : "Uke"}</p><h3 id="season-detail-heading" className={cn(selectedFocus && "is-focus")}>{detailTitle}</h3><p className="season-detail-dates">{detailDates} · {detailCounts}</p></div>
         <div className="season-detail-actions">
           {selectedFocus && <button type="button" className="season-detail-edit" onClick={() => setDialog({ focus: selectedFocus })}><Pencil size={15} />Rediger fokus</button>}
           {canCreateTraining && <button type="button" className="season-detail-add" disabled={creating} onClick={() => void createInWeek(selectedWeek)}><Plus size={15} />{creating ? "Oppretter…" : "Planlegg økt denne uka"}</button>}
         </div>
       </div>
-      <div className="season-detail-focus-list">
+      {!(selectedFocus && !focusContent(selectedFocus)) && <div className="season-detail-focus-list">
         {selectedFocus
-          ? <div className="season-detail-focus"><Target size={19} aria-hidden="true" /><div>{focusContent(selectedFocus) ?? <p className="season-detail-focus-empty">Ingen beskrivelse ennå.</p>}</div></div>
+          ? <div className="season-detail-focus"><Target size={19} aria-hidden="true" /><div>{focusContent(selectedFocus)}</div></div>
           : weekFocus
           ? <div className="season-detail-focus"><Target size={19} aria-hidden="true" /><div><small>Fokus · {focusSpanLabel(weekFocus)}</small><strong>{weekFocus.title}</strong>{focusContent(weekFocus)}<button type="button" className="season-focus-edit" onClick={() => select({ type: "focus", id: weekFocus.id })}>Åpne fokuset</button></div></div>
-          : <div className="season-detail-focus is-empty"><Target size={19} aria-hidden="true" /><div><small>Fokus</small><p>Ingen fokus denne uka.</p><button type="button" className="season-focus-edit" onClick={() => setDialog({ initial: emptyFocus(freeFocusSpan(focusPeriods, teamId, selectedWeek!.start)) })}>Sett fokus</button></div></div>}
-      </div>
-      <div className="season-detail-columns">
-        <div><h4><Trophy size={17} />Kamper <span>{detailFixtures.length}</span></h4>{detailFixtures.length ? <ul>{detailFixtures.map((fixture) => <li key={fixture.id} className="season-match"><span><strong>{fixture.homeTeam} – {fixture.awayTeam}</strong><small>{matchDate.format(new Date(fixture.startsAt))}{fixture.venue ? ` · ${fixture.venue}` : ""}</small></span></li>)}</ul> : <p className="season-detail-empty">Ingen kamper i kalenderen.</p>}</div>
-        <div><h4><CalendarDays size={17} />Treninger <span>{detailSessions.length}</span></h4>{detailSessions.length ? <ul>{detailSessions.map((session) => <li key={session.id}><Link href={`/sessions/${session.id}`}><span><strong>{session.title || autoSessionTitle(session.startsAt!)}</strong><small>{sessionDate.format(new Date(session.startsAt!))} · {sessionStatus(session)}</small></span><ArrowRight size={16} aria-hidden="true" /></Link></li>)}</ul> : <p className="season-detail-empty">Ingen daterte økter ennå.</p>}</div>
+          : <div className="season-detail-focus is-empty"><Target size={17} aria-hidden="true" /><p>Ingen fokus denne uka.</p><button type="button" className="season-focus-edit" onClick={() => setDialog({ initial: emptyFocus(freeFocusSpan(focusPeriods, teamId, selectedWeek!.start)) })}>Sett fokus</button></div>}
+      </div>}
+      <div className="season-agenda">
+        {detailWeeks.map((week) => {
+          const days = seasonAgendaDays(week);
+          return <div key={week.index} className="season-agenda-week">
+            {selectedFocus && <h4>Uke {week.number}<span>{dayLabel(week.start)}–{dayLabel(week.end)}</span></h4>}
+            {days.length
+              ? <ol>{days.map(({ day, items }) => <li key={day} className="season-agenda-day">
+                <span className="season-agenda-date"><small>{weekdayFormat.format(new Date(`${day}T12:00:00Z`))}</small><strong>{dayLabel(day)}</strong></span>
+                <ul>{items.map((item) => <AgendaRow key={`${item.kind}-${item.kind === "session" ? item.session.id : item.fixture.id}`} item={item} teams={matchTeams} />)}</ul>
+              </li>)}</ol>
+              : <p className="season-detail-empty">{selectedFocus ? "Ingenting planlagt." : "Ingen kamper eller økter denne uka."}</p>}
+          </div>;
+        })}
       </div>
     </section>
 
@@ -273,6 +286,29 @@ function focusContent(focus: FocusPeriod) {
     {focus.note.trim() && <p>{focus.note}</p>}
     {points.length > 0 && <ul>{points.map((point, index) => <li key={index}>{point}</li>)}</ul>}
   </>;
+}
+
+/** A training links to its plan and stands out; a match is context, coloured by the team that plays. */
+function AgendaRow({ item, teams }: { item: SeasonAgendaItem; teams: readonly SeasonMatchTeam[] }) {
+  const time = <span className="season-agenda-time">{timeFormat.format(new Date(item.at))}</span>;
+  if (item.kind === "session") {
+    const { session } = item;
+    const status = sessionStatus(session);
+    return <li className={cn("season-agenda-item is-session", session.status === "draft" && "is-draft")}>
+      <Link href={`/sessions/${session.id}`}>
+        {time}<i className="season-agenda-marker" aria-hidden="true" />
+        <span className="season-agenda-title"><strong>{session.title || autoSessionTitle(session.startsAt!)}</strong>{status && <span className="season-agenda-status">{status}</span>}</span>
+        <ChevronRight size={16} aria-hidden="true" />
+      </Link>
+    </li>;
+  }
+  const { fixture } = item;
+  const playing = fixtureMatchTeams(fixture, teams);
+  const side = (name: string) => fixture.ourTeams.includes(name) ? <b>{name}</b> : name;
+  return <li className="season-agenda-item is-match">
+    {time}<span className="season-agenda-marker" aria-hidden="true">{playing.map((team) => <i key={team.name} style={{ background: team.accent }} />)}</span>
+    <span className="season-agenda-title"><strong>{side(fixture.homeTeam)} – {side(fixture.awayTeam)}</strong>{fixture.venue && <small>{fixture.venue}</small>}</span>
+  </li>;
 }
 
 function WeekCell({ week, kind, teams, selected, onClick, column }: { week: SeasonWeek; kind: "matches" | "training"; teams: readonly SeasonMatchTeam[]; selected: boolean; onClick(): void; column: number }) {

@@ -703,7 +703,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .season-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 23px 27px; }
 .season-detail-header h3 { margin-top: 5px; font-size: 26px; font-weight: 650; text-transform: capitalize; letter-spacing: -.04em; }
 .season-detail-header h3.is-focus { text-transform: none; }
-.season-detail-focus-empty { color: var(--ink-soft); }
 .season-detail-dates { margin-top: 4px; font-size: 12px; color: var(--ink-soft); }
 .season-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .season-detail-edit, .season-detail-add { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 13px; border: 1px solid var(--grep-line); border-radius: 10px; font-size: 12px; font-weight: 650; }
@@ -712,28 +711,45 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .season-detail-add:disabled { opacity: .6; }
 .season-detail-focus-list { display: grid; gap: 8px; margin: 0 27px 24px; }
 .season-detail-focus { display: flex; gap: 12px; padding: 17px 19px; border-radius: 14px; background: var(--lilac-wash); }
-.season-detail-focus.is-empty { background: var(--paper); }
+.season-detail-focus.is-empty { align-items: center; padding: 11px 16px; background: var(--paper); font-size: 13px; }
+.season-detail-focus.is-empty p, .season-detail-focus.is-empty .season-focus-edit { margin-top: 0; }
 .season-detail-focus > svg { flex-shrink: 0; margin-top: 1px; }
 .season-detail-focus small { display: block; font-size: 12px; font-weight: 700; }
 .season-detail-focus strong { display: block; margin-top: 6px; font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
 .season-detail-focus ul { margin-top: 8px; padding-left: 18px; list-style: disc; font-size: 14px; line-height: 1.6; color: var(--ink-mid); }
 .season-detail-focus p { margin-top: 4px; font-size: 14px; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
-.season-detail-focus.is-empty p { color: var(--ink-soft); }
+.season-detail-focus.is-empty p { font-size: 13px; color: var(--ink-soft); }
 .season-focus-edit { margin-top: 8px; font-size: 12px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
-.season-detail-columns { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-top: 1px solid var(--grep-line); }
-.season-detail-columns > div { min-width: 0; padding: 21px 27px 26px; }
-.season-detail-columns > div + div { border-left: 1px solid var(--grep-line); }
-.season-detail-columns h4 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; }
-.season-detail-columns h4 span { margin-left: auto; color: var(--ink-soft); }
-.season-detail-columns ul { margin-top: 12px; }
-.season-detail-columns li + li { border-top: 1px solid var(--grep-line); }
-.season-detail-columns li a, .season-detail-columns li.season-match { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 0; }
-.season-detail-columns li a:hover { color: var(--lilac-ink); }
-.season-detail-columns li strong, .season-detail-columns li small { display: block; overflow-wrap: anywhere; }
-.season-detail-columns li strong { font-size: 13px; font-weight: 650; }
-.season-detail-columns li small { margin-top: 3px; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
-.season-detail-columns li svg { flex-shrink: 0; }
-.season-detail-empty { margin-top: 17px; font-size: 13px; color: var(--ink-soft); }
+/* The detail reads as one agenda: a date column, then the day's trainings and
+   matches in time order. Trainings are the coach's own plans, so they carry the
+   fill and the link; matches are context, coloured by the team that plays. */
+.season-agenda { padding: 4px 27px 22px; border-top: 1px solid var(--grep-line); }
+.season-agenda-week h4 { display: flex; align-items: baseline; gap: 10px; padding: 18px 0 6px; font-size: 13px; font-weight: 700; }
+.season-agenda-week h4 span { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+.season-agenda-day { display: grid; grid-template-columns: 84px minmax(0,1fr); gap: 14px; padding: 9px 0; border-top: 1px solid var(--grep-line); }
+.season-agenda-week:not(:has(h4)) .season-agenda-day:first-child { border-top: 0; padding-top: 16px; }
+.season-agenda-date { padding-top: 7px; }
+.season-agenda-date small { display: block; font-size: 11px; font-weight: 600; text-transform: capitalize; color: var(--ink-soft); }
+.season-agenda-date strong { display: block; font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+.season-agenda-day > ul { display: grid; gap: 3px; }
+.season-agenda-item.is-match, .season-agenda-item.is-session a { display: grid; grid-template-columns: 40px 16px minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 36px; padding: 6px 10px; border: 1px solid transparent; border-radius: 10px; }
+.season-agenda-item.is-session a { background: var(--lilac-wash); }
+.season-agenda-item.is-session a:hover { border-color: var(--lilac-ink-soft); }
+.season-agenda-item.is-draft a { border-style: dashed; border-color: var(--lilac-ink-soft); background: transparent; }
+.season-agenda-item.is-session svg { color: var(--ink-soft); }
+.season-agenda-time { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.season-agenda-marker { display: flex; justify-content: center; gap: 2px; }
+.season-agenda-marker i, i.season-agenda-marker { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; }
+i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft); }
+.is-draft i.season-agenda-marker { background: transparent; box-shadow: inset 0 0 0 1.5px var(--lilac-ink-soft); }
+.season-agenda-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 10px; min-width: 0; }
+.season-agenda-title strong { font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+.is-match .season-agenda-title strong { font-weight: 500; color: var(--ink-mid); }
+.is-match .season-agenda-title b { font-weight: 650; color: var(--ink); }
+.season-agenda-title small { font-size: 12px; color: var(--ink-soft); }
+.season-agenda-status { padding: 1px 7px; border-radius: 999px; background: var(--apricot-wash-strong); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.season-detail-empty { padding: 16px 0 4px; font-size: 13px; color: var(--ink-soft); }
+.season-agenda-week h4 + .season-detail-empty { padding-top: 0; }
 .session-month-focus { margin-top: 8px; padding: 8px 0; font-size: 12px; color: var(--ink-mid); }
 .session-month-focus summary { width: fit-content; cursor: pointer; font-weight: 650; }
 .session-month-focus summary:hover { color: var(--ink); }
@@ -747,9 +763,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .season-row-label { padding-left: 10px; }
   .season-detail-header { align-items: flex-start; flex-direction: column; padding: 20px; }
   .season-detail-focus-list { margin: 0 20px 20px; }
-  .season-detail-columns { grid-template-columns: 1fr; }
-  .season-detail-columns > div { padding: 19px 20px; }
-  .season-detail-columns > div + div { border-top: 1px solid var(--grep-line); border-left: 0; }
+  .season-agenda { padding: 4px 20px 18px; }
+  .season-agenda-day { grid-template-columns: 1fr; gap: 4px; }
+  .season-agenda-date { display: flex; align-items: baseline; gap: 6px; padding-top: 0; }
+  .season-agenda-item.is-match, .season-agenda-item.is-session a { padding: 6px 8px; }
 }
 .grep-session-sections { display: flex; flex-direction: column; gap: 30px; }
 .grep-session-featured { position: relative; display: flex; align-items: center; gap: 22px; width: 100%; padding: 24px 22px 24px 26px; border: 1px solid var(--grep-line); border-radius: 20px; background: var(--lilac-wash); transition: border-color .15s; }

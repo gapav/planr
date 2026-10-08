@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { demoFixtures, demoSessions } from "./demo-data";
 import { TEAM_PALETTE } from "./team-palette";
 import type { TeamFixture } from "./types";
-import { focusColumns, seasonMatchTeams, seasonMonthKeys, seasonMonthSpans, seasonStartYear, seasonWeeks, shiftDay, weekMatchTeams } from "./season";
+import { fixtureMatchTeams, focusColumns, seasonAgendaDays, seasonMatchTeams, seasonMonthKeys, seasonMonthSpans, seasonStartYear, seasonWeeks, shiftDay, weekMatchTeams } from "./season";
 
 describe("season overview", () => {
   it("runs from August through July and uses the coach's calendar month", () => {
@@ -68,5 +68,22 @@ describe("season overview", () => {
     expect(weekMatchTeams(week41, teams).map((team) => team.name)).toEqual(["Ski Hvit", "Ski Rød"]);
     expect(weekMatchTeams(weeks.find((week) => week.number === 43)!, teams).map((team) => team.name)).toEqual(["Ski Hvit"]);
     expect(weekMatchTeams(weeks.find((week) => week.number === 45)!, teams)).toEqual([]);
+  });
+
+  it("reads a week as one list, day by day, trainings first on the same minute", () => {
+    const fixture = (id: string, startsAt: string, ourTeams: string[]): TeamFixture => ({
+      id, teamId: "team-senior", matchNumber: id, startsAt, homeTeam: ourTeams[0] ?? "Ås", awayTeam: "Bøler", ourTeams, result: "", venue: "", organizer: "", tournament: "", createdAt: startsAt, updatedAt: startsAt,
+    });
+    const session = (id: string, startsAt: string) => ({ ...demoSessions[0], id, teamId: "team-senior", startsAt });
+    const weeks = seasonWeeks(2026, "team-senior", [session("sat", "2026-10-10T10:00:00Z"), session("thu", "2026-10-08T15:45:00Z")], [fixture("late", "2026-10-10T14:00:00Z", ["Ski Rød"]), fixture("tie", "2026-10-10T10:00:00Z", ["Ski Hvit"]), fixture("sun", "2026-10-11T09:00:00Z", [])], "UTC");
+    const week = weeks.find((entry) => entry.number === 41)!;
+    const days = seasonAgendaDays(week, "UTC");
+
+    expect(days.map((day) => day.day)).toEqual(["2026-10-08", "2026-10-10", "2026-10-11"]);
+    expect(days[1].items.map((item) => item.kind === "session" ? item.session.id : item.fixture.id)).toEqual(["sat", "tie", "late"]);
+    expect(seasonAgendaDays(weeks[0], "UTC")).toEqual([]);
+    // A match nobody recognised is the home side's.
+    const teams = seasonMatchTeams(weeks);
+    expect(fixtureMatchTeams(week.fixtures.find((entry) => entry.id === "sun")!, teams).map((team) => team.name)).toEqual(["Ås"]);
   });
 });

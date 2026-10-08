@@ -282,8 +282,12 @@ describe("season overview", () => {
     const calendar = screen.getByRole("region", { name: "Sesongkalender" });
     fireEvent.click(within(calendar).getByRole("button", { name: /Uke 41.*1 kamp/ }));
     const detail = screen.getByRole("heading", { name: "Uke 41" }).closest("section") as HTMLElement;
-    expect(within(detail).getByText(/Ski Rød – Fjordvik Rød/)).toBeInTheDocument();
-    expect(within(detail).getByRole("link", { name: /Kontringsøkt/ })).toBeInTheDocument();
+    // One agenda, day by day: the match and the training share Saturday's row,
+    // and the club's own side is the one set in bold.
+    const saturday = within(detail).getByText("10. okt.").closest("li") as HTMLElement;
+    const match = within(saturday).getByText((_, element) => element?.tagName === "STRONG" && element.textContent === "Ski Rød – Fjordvik Rød");
+    expect(within(match).getByText("Fjordvik Rød").tagName).toBe("B");
+    expect(within(saturday).getByRole("link", { name: /Kontringsøkt/ })).toBeInTheDocument();
     fireEvent.click(within(detail).getByRole("button", { name: "Planlegg økt denne uka" }));
     await waitFor(() => expect(mocks.createSession).toHaveBeenCalledWith(expect.any(String)));
     expect(dayKey(mocks.createSession.mock.calls[0][0])).toBe("2026-10-06");

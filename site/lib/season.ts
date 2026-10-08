@@ -103,6 +103,35 @@ export function weekMatchTeams(week: SeasonWeek, teams: readonly SeasonMatchTeam
   return teams.filter((team) => playing.has(team.name));
 }
 
+/** The club's teams a match is for, in the season's colours. */
+export function fixtureMatchTeams(fixture: TeamFixture, teams: readonly SeasonMatchTeam[]): SeasonMatchTeam[] {
+  const names = matchTeamNames(fixture);
+  return teams.filter((team) => names.includes(team.name));
+}
+
+export type SeasonAgendaItem = { kind: "session"; at: string; session: PlannedSession } | { kind: "fixture"; at: string; fixture: TeamFixture };
+export interface SeasonAgendaDay { day: string; items: SeasonAgendaItem[] }
+
+/**
+ * A week's trainings and matches as one list, day by day, in time order — so
+ * the detail reads like a plan rather than two lists to hold side by side.
+ * On the same minute a training comes before a match.
+ */
+export function seasonAgendaDays(week: SeasonWeek, timeZone?: string): SeasonAgendaDay[] {
+  const items: SeasonAgendaItem[] = [
+    ...week.sessions.flatMap((session) => session.startsAt ? [{ kind: "session" as const, at: session.startsAt, session }] : []),
+    ...week.fixtures.map((fixture) => ({ kind: "fixture" as const, at: fixture.startsAt, fixture })),
+  ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || (a.kind === b.kind ? 0 : a.kind === "session" ? -1 : 1));
+  const days: SeasonAgendaDay[] = [];
+  for (const item of items) {
+    const day = dayKey(item.at, timeZone);
+    const last = days.at(-1);
+    if (last?.day === day) last.items.push(item);
+    else days.push({ day, items: [item] });
+  }
+  return days;
+}
+
 /** The week columns a focus covers, clipped to the season; null if it lies wholly outside. */
 export function focusColumns(weeks: readonly SeasonWeek[], focus: Pick<FocusPeriod, "startsOn" | "weeks">): { from: number; to: number } | null {
   if (!weeks.length) return null;
