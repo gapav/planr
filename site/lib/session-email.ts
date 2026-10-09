@@ -239,7 +239,7 @@ export function dailySessionDigestEmail({ recipient, sessions, siteUrl, timeZone
       action,
       note: {
         title: "Vil du ikke ha denne?",
-        text: "Skru av «Dagens økt på e-post» under Lag og spillere i Grep, så slutter den å komme.",
+        text: "Skru av «Dagens økt på e-post» under Laget -> Innstillinger  i Grep, så slutter den å komme.",
       },
       footer: "Du får denne e-posten fordi du er trener på et lag som trener i dag.<br>Grep · laget for trenerrommet",
     }),
