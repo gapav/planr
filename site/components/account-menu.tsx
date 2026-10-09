@@ -1,9 +1,10 @@
 "use client";
 
-import { KeyRound, LogOut, Settings, ShieldCheck } from "lucide-react";
+import { KeyRound, LifeBuoy, LogOut, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useGrep } from "./app-provider";
+import { SupportDialog } from "./support-dialog";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 export function AccountMenu() {
   const { user, signOut } = useGrep();
   const [open, setOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -30,9 +32,11 @@ export function AccountMenu() {
       <div className="my-1 h-px bg-[var(--line)]" />
       <Link href="/team" role="menuitem" autoFocus onClick={() => setOpen(false)} className={entry}><Settings size={16} />Innstillinger</Link>
       <Link href="/account/password?next=%2F" role="menuitem" onClick={() => setOpen(false)} className={entry}><KeyRound size={16} />Bytt passord</Link>
+      <button type="button" role="menuitem" onClick={() => { setOpen(false); setSupportOpen(true); }} className={entry}><LifeBuoy size={16} />Hjelp og support</button>
       {user?.isGlobalAdmin && <Link href="/admin" role="menuitem" onClick={() => setOpen(false)} className={entry}><ShieldCheck size={16} />Administrasjon</Link>}
       <div className="my-1 h-px bg-[var(--line)]" />
       <button type="button" role="menuitem" onClick={() => { setOpen(false); void signOut(); }} className={entry}><LogOut size={16} />Logg ut</button>
     </div>}
+    <SupportDialog open={supportOpen} onClose={() => setSupportOpen(false)} />
   </div>;
 }

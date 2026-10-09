@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, passwordResetRedirectUrl, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
+import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, passwordResetRedirectUrl, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
 import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
@@ -197,5 +197,31 @@ describe("shouldLoadWorkspace", () => {
 
   it("always reloads for a different coach", () => {
     expect(shouldLoadWorkspace(last, "coach-2", last.at + 40)).toBe(true);
+  });
+});
+
+describe("authEventLoadsWorkspace", () => {
+  const last = { userId: "coach-1", at: 1_000_000 };
+
+  it("loads on every identity change", () => {
+    expect(authEventLoadsWorkspace("INITIAL_SESSION", null, "coach-1")).toBe(true);
+    expect(authEventLoadsWorkspace("SIGNED_IN", last, "coach-1")).toBe(true);
+    expect(authEventLoadsWorkspace("SIGNED_OUT", last, null)).toBe(true);
+  });
+
+  it("ignores a token refresh once the workspace is loaded", () => {
+    expect(authEventLoadsWorkspace("TOKEN_REFRESHED", last, "coach-1")).toBe(false);
+  });
+
+  it("retries on the token refresh that follows a failed first load", () => {
+    expect(authEventLoadsWorkspace("TOKEN_REFRESHED", null, "coach-1")).toBe(true);
+  });
+
+  it("never reloads on USER_UPDATED, which races the password change", () => {
+    expect(authEventLoadsWorkspace("USER_UPDATED", null, "coach-1")).toBe(false);
+  });
+
+  it("does nothing for a refresh without a user", () => {
+    expect(authEventLoadsWorkspace("TOKEN_REFRESHED", null, null)).toBe(false);
   });
 });

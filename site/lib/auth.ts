@@ -162,3 +162,20 @@ export function shouldLoadWorkspace(last: WorkspaceLoad | null, userId: string, 
   if (!last || last.userId !== userId) return true;
   return now - last.at >= minIntervalMs;
 }
+
+/**
+ * Whether an auth event should (re)load the workspace.
+ *
+ * Identity changes always do. A token refresh normally does not — see
+ * `isIdentityChange` — except while there is no workspace load in hand for the
+ * coach it belongs to. That is the state a failed first load leaves behind: a
+ * tab opened on an expired access token whose refresh fails (a laptop waking
+ * before its wifi, the arena network) sends every query with the publishable
+ * key instead, RLS answers them with empty lists rather than errors, and the
+ * coach is shown no teams. The refresh that later succeeds is the first moment
+ * a retry can work, so it must not be filtered out with the rest.
+ */
+export function authEventLoadsWorkspace(event: string, last: WorkspaceLoad | null, userId: string | null): boolean {
+  if (isIdentityChange(event)) return true;
+  return event === "TOKEN_REFRESHED" && userId !== null && last?.userId !== userId;
+}

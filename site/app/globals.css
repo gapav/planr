@@ -354,6 +354,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-nav a[aria-current="page"] svg { fill: var(--hover-wash-strong); }
 .grep-sidebar-footer { margin-top: auto; padding-top: 48px; }
 .grep-admin-link { font-size: 12px; }
+.grep-support-link { width: 100%; margin-bottom: 10px; cursor: pointer; text-align: left; }
 .grep-admin-link[aria-current="page"] { background: var(--grep-lilac); color: var(--grep-ink); }
 .grep-demo-label { display: flex; align-items: center; gap: 7px; margin: 20px 10px 14px; font-size: 10px; color: var(--grep-muted); }
 .grep-demo-label span { width: 5px; height: 5px; border-radius: 50%; background: #9c7bb5; }

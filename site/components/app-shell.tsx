@@ -1,11 +1,12 @@
 "use client";
 
-import { BookOpen, CalendarDays, ChevronDown, Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, Trophy, Users, X } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronDown, Home, LifeBuoy, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, Trophy, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useGrep } from "./app-provider";
 import { Logo } from "./logo";
+import { SupportDialog } from "./support-dialog";
 import { TeamCrest } from "./team-crest";
 import { ThemeSwitch } from "./theme-switch";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const drawer = useRef<HTMLDivElement>(null);
   const isGlobalAdmin = user?.isGlobalAdmin === true;
 
@@ -71,6 +73,7 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
       <nav className="grep-nav" aria-label={mobile ? "Alle sider" : "Hovedmeny"}>{nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} aria-current={activeRoute(pathname, href) ? "page" : undefined} onClick={() => setMobileOpen(false)} title={sidebarCollapsed && !mobile ? label : undefined} aria-label={label}><Icon size={19} strokeWidth={1.8} />{(!sidebarCollapsed || mobile) && <span>{label}</span>}</Link>)}</nav>
       {isGlobalAdmin && <nav aria-label="Systemadministrasjon" className="grep-admin-nav"><Link className="grep-admin-link" href="/admin" aria-label="Administrasjon" title={sidebarCollapsed && !mobile ? "Administrasjon" : undefined} aria-current={activeRoute(pathname, "/admin") ? "page" : undefined} onClick={() => setMobileOpen(false)}><ShieldCheck size={18} />{(!sidebarCollapsed || mobile) && <span>Administrasjon</span>}</Link></nav>}
       <div className="grep-sidebar-footer">
+        <button type="button" className="grep-admin-link grep-support-link" onClick={() => { setMobileOpen(false); setSupportOpen(true); }} aria-label="Kontakt support" title={sidebarCollapsed && !mobile ? "Kontakt support" : undefined}><LifeBuoy size={18} />{(!sidebarCollapsed || mobile) && <span>Hjelp og support</span>}</button>
         {(!sidebarCollapsed || mobile) && <>
           {isDemoMode && <p className="grep-demo-label"><span />Demomodus · ingen data lagres</p>}
           <div className="grep-theme-row"><span>Utseende</span><ThemeSwitch compact /></div>
@@ -94,6 +97,7 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
       {!immersive && <nav className="grep-mobile-nav" aria-label="Hurtigmeny">{[nav[0], nav[1], nav[3]].map(({ href, label, icon: Icon }) => <Link key={href} href={href} aria-current={activeRoute(pathname, href) ? "page" : undefined}><Icon size={21} strokeWidth={1.8} /><span>{label}</span></Link>)}<button onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-controls="mobile-navigation"><Menu size={21} /><span>Mer</span></button></nav>}
     </div>
     {mobileOpen && <div className="grep-drawer-overlay" onClick={(event) => { if (event.target === event.currentTarget) setMobileOpen(false); }}><div ref={drawer} id="mobile-navigation" className="grep-drawer" role="dialog" aria-modal="true" aria-label="Navigasjon">{navigation(true)}</div></div>}
+    <SupportDialog open={supportOpen} onClose={() => setSupportOpen(false)} />
     {notice && <div role="status" className="grep-notice"><span>{notice}</span><button className="grep-icon-button" onClick={clearNotice} aria-label="Lukk meldingen"><X size={18} /></button></div>}
   </div>;
 }

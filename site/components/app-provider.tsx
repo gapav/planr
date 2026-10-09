@@ -3,7 +3,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { mapAdminAccount, mapAdminTeam, partitionSessionsByMembership, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
-import { claimableInvitations, invitationUrl, isIdentityChange, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, passwordResetRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
+import { authEventLoadsWorkspace, claimableInvitations, invitationUrl, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, passwordResetRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
 import { demoCollections, demoExercises, demoFixtures, demoFocusPeriods, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { collectionNameError, normalizeCollectionName, sortCollections } from "@/lib/collections";
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
@@ -37,6 +37,7 @@ const TEAM_LOGO_BUCKET = "team-logos";
 // absent on the server, so every access is guarded.
 const SELECTED_TEAM_KEY = "plannr.selected-team";
 const NOT_EXERCISE_OWNER = "Du kan bare endre øvelser du har lagt til selv";
+const WORKSPACE_LOAD_FAILED_MESSAGE = "Lagene dine kunne ikke lastes. Det prøves igjen når forbindelsen er tilbake.";
 
 // What `persist` needs from a Supabase call: the refusal, and the HTTP status
 // that says whether there was a server on the other end to refuse at all.
@@ -173,6 +174,7 @@ interface GrepContextValue {
   adminSetDisplayName(profileId: string, name: string): Promise<void>;
   adminRemoveMember(teamId: string, profileId: string): Promise<void>;
   deleteAccountPermanently(profileId: string, confirmationEmail: string): Promise<void>;
+  sendSupportMessage(message: string, page: string): Promise<void>;
   importPlayers(input: TeamPlayerInput[]): Promise<{ added: number; updated: number }>;
   removePlayer(playerId: string): Promise<void>;
   importFixtures(input: TeamFixtureInput[]): Promise<{ added: number; updated: number }>;
@@ -389,8 +391,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Whose `profiles` row has actually been read. A failed read only costs
   // something while this does not yet name the signed-in coach.
   const loadedProfileId = useRef<string | null>(null);
-  const loadPrivateData = useCallback(async (authUser: User) => {
-    if (!supabase) return;
+  // Resolves to whether the batch was actually read as `authUser`; a `false`
+  // has left the workspace untouched and is the caller's cue to retry.
+  const loadPrivateData = useCallback(async (authUser: User): Promise<boolean> => {
+    if (!supabase) return true;
     const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: focusRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }, { data: favoriteRows }, { data: collectionRows }] = await Promise.all([
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name, logo_url), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
@@ -407,15 +411,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // contents, and there is no view that wants one without the other.
       supabase.from("exercise_collections").select("id, team_id, name, created_by, created_at, updated_at, exercise_collection_items(exercise_id)"),
     ]);
-    if (profileRow) { loadedProfileId.current = profileRow.id; setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: COACH_AVATAR_SELF, isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password, sessionDigestEmail: profileRow.session_digest_email !== false }); }
-    // This row carries `must_set_password`, so losing it silently means a coach
-    // signs in looking fine and skips the forced password change. Say so — but
-    // only the first time, when there is nothing to fall back on. Every later
-    // load is a refresh of a profile already in hand, which a failure leaves
-    // untouched; and refreshes are unprompted (any auth event past the throttle,
-    // so every tab refocus), so a notice then reads as "the thing you just did
-    // failed" about an action that went through perfectly.
-    else if (profileError && loadedProfileId.current !== authUser.id) { console.error("[grep] profilen kunne ikke leses", profileError); setNotice("Profilen din kunne ikke lastes."); }
+    // supabase-js does not fail a query it has no session for: it sends the
+    // publishable key and runs it as `anon`, which every team-scoped policy
+    // answers with zero rows and no error. That is what a tab opened on an
+    // expired token gets when the refresh fails — a laptop waking before its
+    // wifi, the arena network — and taken at face value it says "this coach is
+    // on no teams" until a reload. The coach's own `profiles` row is the tell:
+    // only they can read it, so a batch without it was not read as them and
+    // must not replace anything. The same goes for a batch that lost the
+    // network altogether.
+    //
+    // `profiles` also carries `must_set_password`, so losing it silently would
+    // let a coach skip the forced password change. Say so — but only the first
+    // time, when there is nothing to fall back on. Every later load is a
+    // refresh of a profile already in hand, which a failure leaves untouched;
+    // and refreshes are unprompted (any auth event past the throttle, so every
+    // tab refocus), so a notice then reads as "the thing you just did failed"
+    // about an action that went through perfectly.
+    if (!profileRow || profileRow.id !== authUser.id) {
+      if (loadedProfileId.current !== authUser.id) { console.error("[grep] arbeidsområdet kunne ikke leses", profileError); setNotice(WORKSPACE_LOAD_FAILED_MESSAGE); }
+      return false;
+    }
+    loadedProfileId.current = profileRow.id;
+    setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: COACH_AVATAR_SELF, isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password, sessionDigestEmail: profileRow.session_digest_email !== false });
+    setNotice((current) => current === WORKSPACE_LOAD_FAILED_MESSAGE ? null : current);
     let memberTeamIds: Set<string> | null = null;
     if (memberships) {
       type MembershipRow = { team_id: string; profile_id: string; role: TeamRole; teams: { id: string; name: string; logo_url: string | null } | null; profiles: { id: string; email: string; full_name: string; avatar_url: string | null } | null };
@@ -459,6 +478,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAdminTeamsLoaded(true);
       setAdminAccountsLoaded(true);
     }
+    return true;
   }, [loadAdminAccounts, loadAdminTeams, supabase]);
 
   // The workspace one page load already has. `shouldLoadWorkspace` reads it to
@@ -472,11 +492,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!shouldLoadWorkspace(lastWorkspaceLoad.current, authUser.id, Date.now())) { setWorkspaceLoaded(true); return; }
     // Claimed before the load rather than after, so the second of two events
     // arriving while the first is still in flight is skipped too. A load that
-    // throws gives the claim back so the next event retries.
+    // that fails gives the claim back so the next event retries.
     lastWorkspaceLoad.current = { userId: authUser.id, at: Date.now() };
     // `finally`, not `then`: a failed load still settles the workspace, or a
     // waiting page spins for ever on the arena wifi this app is used on.
     void loadPrivateData(authUser)
+      .then((loaded) => { if (!loaded) lastWorkspaceLoad.current = null; })
       .catch(() => { lastWorkspaceLoad.current = null; })
       .finally(() => setWorkspaceLoaded(true));
   }, [loadExercises, loadPrivateData]);
@@ -488,7 +509,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       settleWorkspace(data.user ?? null);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!isIdentityChange(event)) return;
+      if (!authEventLoadsWorkspace(event, lastWorkspaceLoad.current, session?.user?.id ?? null)) return;
       setUser((current) => seedProfile(current, session?.user ? profileFromUser(session.user) : null));
       settleWorkspace(session?.user ?? null);
     });
@@ -496,11 +517,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [settleWorkspace, supabase]);
 
   useEffect(() => {
-    const online = () => setSaveState("saved");
+    const online = () => {
+      setSaveState("saved");
+      // A workspace that failed to load for want of a network has nothing else
+      // to retry it until the tab is refocused.
+      if (!supabase || lastWorkspaceLoad.current) return;
+      void supabase.auth.getSession().then(({ data }) => { if (data.session && !lastWorkspaceLoad.current) settleWorkspace(data.session.user); });
+    };
     const offline = () => setSaveState("offline");
     window.addEventListener("online", online); window.addEventListener("offline", offline);
     return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
-  }, []);
+  }, [settleWorkspace, supabase]);
 
   const persist = useCallback(async (operation: (() => PromiseLike<PersistResult>) | null) => {
     if (!operation) { setSaveState("saved"); return; }
@@ -841,7 +868,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshWorkspace = useCallback(async () => {
     if (!supabase || !user) return;
     lastWorkspaceLoad.current = { userId: user.id, at: Date.now() };
-    await loadPrivateData({ id: user.id, email: user.email, user_metadata: { full_name: user.fullName } } as unknown as User);
+    if (!await loadPrivateData({ id: user.id, email: user.email, user_metadata: { full_name: user.fullName } } as unknown as User)) lastWorkspaceLoad.current = null;
   }, [loadPrivateData, supabase, user]);
 
   // Onboarding no longer depends on the coach holding an /invite link. The
@@ -1114,6 +1141,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })));
     setNotice("Kontoen er slettet permanent. Historisk innhold vises nå med «Slettet bruker».");
   }, [supabase, user]);
+
+  // Mail, not data: nothing optimistic to show or roll back, so the dialog
+  // waits for the answer and keeps the text when it fails.
+  const sendSupportMessage = useCallback(async (message: string, page: string) => {
+    if (!supabase) throw new Error("Demomodus sender ingen meldinger. Logg inn i Grep for å kontakte support.");
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.access_token) throw new Error("Innloggingen din har utløpt. Logg inn på nytt.");
+    const response = await fetch("/api/support", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message, page }),
+    });
+    const payload = await response.json().catch((): { error?: string } => ({}));
+    if (!response.ok) throw new Error(payload.error ?? "Meldingen kunne ikke sendes.");
+  }, [supabase]);
 
   const importPlayers = useCallback(async (input: TeamPlayerInput[]) => {
     if (!currentTeam) throw new Error("Velg et lag først");
@@ -1554,7 +1596,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedAdminSessions = useMemo(() => resolveAll(adminSessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [adminSessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, focusPeriods, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, focusPeriods, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }
