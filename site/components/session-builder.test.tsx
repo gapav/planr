@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { demoExercises, demoFocusPeriods, demoSessions, demoTeams } from "@/lib/demo-data";
@@ -124,6 +124,32 @@ describe("session builder", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Kortere rotasjon" }));
     expect(updateBlock).toHaveBeenCalledWith(draft.id, stations.id, { rotationMinutes: 9 });
+  });
+
+  // The database refuses a blank title, so renaming «Ny aktivitet» used to
+  // report a failure for the instant the field was empty.
+  it("never saves a title the coach has cleared on the way to a new one", () => {
+    vi.useFakeTimers();
+    try {
+      const custom = draft.blocks[2].items[0];
+      render(<SessionBuilder sessionId={draft.id} />);
+      const title = screen.getByRole("textbox", { name: "Tittel på aktiviteten" }) as HTMLInputElement;
+
+      fireEvent.change(title, { target: { value: "  " } });
+      act(() => { vi.advanceTimersByTime(1000); });
+      expect(updateItem).not.toHaveBeenCalled();
+
+      fireEvent.change(title, { target: { value: "Skudd" } });
+      act(() => { vi.advanceTimersByTime(1000); });
+      expect(updateItem).toHaveBeenCalledExactlyOnceWith(draft.id, custom.blockId, custom.id, { title: "Skudd" });
+
+      // Walking away from an empty field leaves the saved title standing.
+      fireEvent.change(title, { target: { value: "" } });
+      fireEvent.blur(title);
+      expect(title.value).toBe(custom.title);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the minute field on an ordinary block", () => {
