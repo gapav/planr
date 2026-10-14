@@ -13,7 +13,7 @@
 import { emailShell, escapeHtml } from "./email-shell";
 import type { DigestSession } from "./session-digest";
 import { CLUB_TIME_ZONE } from "./time";
-import { minutesLabel } from "./utils";
+import { minutesLabel, noteLines } from "./utils";
 
 export interface DigestEmail { subject: string; html: string; text: string }
 
@@ -93,14 +93,18 @@ function itemLine(item: DigestSession["blocks"][number]["items"][number], recipi
   const badge = mine
     ? `<div style="margin:8px 0 0"><span style="display:inline-block;padding:3px 9px;background:#FFF0E7;border-radius:999px;color:#684535;font-size:11px;font-weight:900;letter-spacing:.8px;text-transform:uppercase">Du har ansvar</span></div>`
     : "";
-  const notes = item.coachingNotes.trim()
-    ? `<div style="margin:6px 0 0;color:#706479;font-size:13px;line-height:1.55">${escapeHtml(item.coachingNotes.trim())}</div>`
+  const description = item.description?.trim()
+    ? `<div style="margin:4px 0 0;color:#706479;font-size:13px;line-height:1.55">${escapeHtml(item.description.trim())}</div>`
+    : "";
+  const points = noteLines(item.coachingNotes);
+  const notes = points.length
+    ? `<ul style="margin:6px 0 0;padding:0 0 0 18px;color:#706479;font-size:13px;line-height:1.55">${points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>`
     : "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="margin-top:8px;background:#ffffff;border:1px solid #E8E1E9;border-radius:13px"><tr><td style="padding:13px 15px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
 <td style="color:#2E1B3D;font-size:15px;font-weight:700;line-height:1.4">${station ? `<span style="color:#706479;font-weight:900">${station}.</span> ` : ""}${escapeHtml(item.title)}</td>
 <td align="right" valign="top" style="padding-left:12px;color:#706479;font-size:13px;font-weight:700;white-space:nowrap">${station ? "" : escapeHtml(minutesLabel(item.durationMinutes))}</td>
-</tr></table>${notes}${badge}
+</tr></table>${description}${notes}${badge}
 </td></tr></table>`;
 }
 
@@ -201,7 +205,8 @@ function sessionText(session: DigestSession, recipientId: string, siteUrl: strin
     for (const [index, item] of block.items.entries()) {
       const mine = item.assignedCoachIds.includes(recipientId) ? " — du har ansvar" : "";
       lines.push(stations ? `  - ${index + 1}. ${item.title}${mine}` : `  - ${item.title} (${minutesLabel(item.durationMinutes)})${mine}`);
-      if (item.coachingNotes.trim()) lines.push(`    ${item.coachingNotes.trim()}`);
+      if (item.description?.trim()) lines.push(`    ${item.description.trim()}`);
+      for (const point of noteLines(item.coachingNotes)) lines.push(`    • ${point}`);
     }
   }
   if (session.notes.trim()) lines.push("", session.notes.trim());

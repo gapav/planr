@@ -46,7 +46,13 @@ export const DIGEST_KIND = "daily_digest";
 
 export interface DigestItem {
   title: string;
+  /**
+   * A custom activity's one-line description. A library exercise's is its full
+   * instructions, which the letter leaves to the app, so it is never carried.
+   */
+  description?: string;
   durationMinutes: number;
+  /** The stikkord, one point per line. */
   coachingNotes: string;
   /** Empty when the whole coaching team runs it. */
   assignedCoachIds: string[];
@@ -311,6 +317,7 @@ export function mapDigestSession(row: SessionDigestRow): DigestSession | null {
           const exercise = item.kind === "exercise" && item.exercise_id ? embedded(item.exercises) : null;
           return {
             title: exercise?.name ?? item.title,
+            description: item.kind === "custom" ? item.description ?? "" : "",
             durationMinutes: item.duration_minutes ?? 0,
             coachingNotes: item.coaching_notes ?? "",
             assignedCoachIds: item.assigned_coach_ids ?? [],

@@ -169,8 +169,8 @@ describe("mapDigestSession", () => {
     session_blocks: [
       {
         title: "Hoveddel", notes: "", position: 1, session_items: [
-          { title: "Lagret navn", description: "", duration_minutes: 20, coaching_notes: "", assigned_coach_ids: null, position: 1, kind: "exercise", exercise_id: "ex-1", exercises: { name: "Firkant 4v2" } },
-          { title: "Egen aktivitet", description: "", duration_minutes: 10, coaching_notes: "Høyt tempo", assigned_coach_ids: ["coach-2"], position: 0, kind: "custom", exercise_id: null, exercises: null },
+          { title: "Lagret navn", description: "Bibliotekets lange instruksjoner", duration_minutes: 20, coaching_notes: "", assigned_coach_ids: null, position: 1, kind: "exercise", exercise_id: "ex-1", exercises: { name: "Firkant 4v2" } },
+          { title: "Egen aktivitet", description: "Én setning om aktiviteten", duration_minutes: 10, coaching_notes: "Høyt tempo", assigned_coach_ids: ["coach-2"], position: 0, kind: "custom", exercise_id: null, exercises: null },
         ],
       },
       { title: "Oppvarming", notes: "Rolig start", position: 0, session_items: [] },
@@ -184,6 +184,12 @@ describe("mapDigestSession", () => {
 
   it("keeps the stored title for a custom activity", () => {
     expect(mapDigestSession(row)?.blocks[1].items[0].title).toBe("Egen aktivitet");
+  });
+
+  // A custom activity's description is the coach's one sentence; an
+  // exercise's is the library's full instructions, which the letter leaves out.
+  it("carries a custom activity's description, but not an exercise's", () => {
+    expect(mapDigestSession(row)?.blocks[1].items.map((item) => item.description)).toEqual(["Én setning om aktiviteten", ""]);
   });
 
   it("carries the activity's coaches, and reads a missing list as nobody named", () => {

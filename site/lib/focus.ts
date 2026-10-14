@@ -73,11 +73,6 @@ export function freeFocusSpan(focuses: readonly FocusPeriod[], teamId: string, f
   return { startsOn, weeks };
 }
 
-/** The working points: one per non-blank line, as the dialog asks for them. */
-export function noteLines(notes: string) {
-  return notes.split("\n").map((line) => line.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean);
-}
-
 const shortDay = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "short", timeZone: "UTC" });
 /** The ISO week number of a `YYYY-MM-DD` day. */
 export function weekOf(day: string) { return isoWeekNumber(new Date(`${day}T12:00:00Z`), "UTC"); }

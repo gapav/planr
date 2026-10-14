@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { focusAt, focusEndsOn, focusSpanLabel, focusWeekNumber, freeFocusSpan, mondayOf, nextFocus, noteLines, overlappingFocus, teamFocuses } from "./focus";
+import { focusAt, focusEndsOn, focusSpanLabel, focusWeekNumber, freeFocusSpan, mondayOf, nextFocus, overlappingFocus, teamFocuses } from "./focus";
 import type { FocusPeriod } from "./types";
 
 const focus = (id: string, startsOn: string, weeks: number, teamId = "team-senior"): FocusPeriod => ({
@@ -38,11 +38,6 @@ describe("focus periods", () => {
     expect(freeFocusSpan(focuses, "team-senior", "2026-08-26")).toEqual({ startsOn: "2026-08-24", weeks: 2 });
     expect(freeFocusSpan(focuses, "team-senior", "2026-09-16")).toEqual({ startsOn: "2026-09-28", weeks: 1 });
     expect(freeFocusSpan(focuses, "team-senior", "2026-11-04")).toEqual({ startsOn: "2026-11-02", weeks: 4 });
-  });
-
-  it("reads one working point per line, dropping blanks and typed bullets", () => {
-    expect(noteLines("Midtblokk\n\n  - Kontring \n• Høy arm\n   ")).toEqual(["Midtblokk", "Kontring", "Høy arm"]);
-    expect(noteLines("")).toEqual([]);
   });
 
   it("counts the weeks of a focus from its first Monday", () => {

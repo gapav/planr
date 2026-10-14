@@ -19,16 +19,17 @@ import { ExerciseDetail, sessionItemDetailSubject } from "./exercise-detail";
 import { ExerciseThumbnail, ItemThumbnailPlaceholder } from "./exercise-thumbnail";
 import { WorkoutSession } from "./live-session";
 import { SessionStartFields } from "./session-start-fields";
-import { Avatar, AvatarStack, Button, EmptyState, Field, inputClass, Modal, Tag, textareaClass } from "./ui";
+import { SessionItemDialog } from "./session-item-dialog";
+import { Avatar, AvatarStack, Button, EmptyState, Field, inputClass, Modal, PointList, Tag, textareaClass } from "./ui";
 import { useDismissable } from "@/hooks/use-dismissable";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
 import { countExerciseFacets, filterExercises, type ExerciseShortlist } from "@/lib/exercises";
 import { dayKey } from "@/lib/fixtures";
-import { focusAt, noteLines } from "@/lib/focus";
+import { focusAt } from "@/lib/focus";
 import { autoSessionTitle, blockClock, blockDuration, coachAssignmentOptions, coachNameList, combineSessionStart, isAutoSessionTitle, isStationBlock, sessionDuration, sessionSchedule, splitSessionStart, stationRotation, toggleAssignedCoach, validatePublish } from "@/lib/session";
 import { MIN_STATIONS } from "@/lib/types";
 import type { Exercise, ExerciseAgeGroup, ExerciseCategory, PlannedSession, Profile, SaveState, SessionBlock, SessionBlockKind, SessionItem } from "@/lib/types";
-import { clockTime, cn, minutesLabel } from "@/lib/utils";
+import { clockTime, cn, minutesLabel, noteLines } from "@/lib/utils";
 
 /**
  * The line under the plan's title, which is the only place a coach is told
@@ -155,6 +156,7 @@ function SortableBlockCard({ block, index, session, clock, active, collaborators
  */
 function SortableItemCard({ item, block, session, station, onPreview }: { item: SessionItem; block: SessionBlock; session: PlannedSession; station?: number; onPreview(): void }) {
   const store = useGrep(); const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const [editing, setEditing] = useState(false);
   // A linked exercise shows the library's title, so renaming it here would be
   // overwritten on the next render. Only custom items — and items whose exercise
   // has been archived or deleted — keep an editable title.
@@ -163,7 +165,29 @@ function SortableItemCard({ item, block, session, station, onPreview }: { item: 
   // team currently selected in the sidebar — a coach can open a plan belonging
   // to either of their teams.
   const members = store.teams.find((team) => team.id === session.teamId)?.members ?? [];
-  return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .65 : 1 }} className={cn("grid items-start gap-2 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-2.5", station ? "grid-cols-[28px_44px_minmax(0,1fr)_34px] sm:grid-cols-[32px_54px_minmax(0,1fr)_36px]" : "grid-cols-[28px_44px_minmax(0,1fr)_66px_34px] sm:grid-cols-[32px_54px_minmax(0,1fr)_84px_36px]")}><button {...attributes} {...listeners} className="grid h-10 touch-manipulation select-none place-items-center text-[var(--ink-soft)] [-webkit-touch-callout:none]" aria-label={`Dra ${item.title}`}><GripVertical size={17} /></button><button type="button" onClick={onPreview} aria-label={`Vis ${item.title}`} className="group/media relative h-11 w-11 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <ItemThumbnailPlaceholder item={item} />}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={14} /></span></span>{station && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-[var(--paper)]">{station}</span>}</button><div className="min-w-0">{fromLibrary ? <p className="flex h-8 items-center truncate px-1 text-sm font-black" title="Tittelen hentes fra øvelsesbanken">{item.title}</p> : <DebouncedInput className="h-8 w-full rounded-lg border-0 bg-transparent px-1 text-sm font-black outline-none focus:bg-[var(--paper)]" value={item.title} onSave={(value) => store.updateItem(session.id, block.id, item.id, { title: value })} aria-label={station ? `Tittel på stasjon ${station}` : "Tittel på aktiviteten"} required maxLength={140} />}<DebouncedInput className="h-7 w-full truncate rounded-lg border-0 bg-transparent px-1 text-xs text-[var(--ink-soft)] outline-none focus:bg-[var(--paper)]" value={item.coachingNotes} placeholder="Legg til trenernotat …" onSave={(value) => store.updateItem(session.id, block.id, item.id, { coachingNotes: value })} /><CoachPicker item={item} members={members} onChange={(coachIds) => void store.updateItem(session.id, block.id, item.id, { assignedCoachIds: coachIds })} /></div>{station ? null : <label className="relative"><MinutesInput min={MIN_ITEM_MINUTES} max={MAX_ITEM_MINUTES} className="h-10 w-full rounded-xl border border-[var(--line)] bg-[var(--paper)] px-2 pr-7 text-right text-sm font-black outline-none" value={item.durationMinutes} onCommit={(minutes) => void store.updateItem(session.id, block.id, item.id, { durationMinutes: minutes })} aria-label={`Varighet for ${item.title}`} /><span className="pointer-events-none absolute right-2 top-3 text-[10px] font-bold text-[var(--ink-soft)]">m</span></label>}<Button variant="ghost" size="sm" className="px-2" aria-label={station ? `Fjern stasjon ${station}` : `Fjern ${item.title}`} onClick={() => void store.deleteItem(session.id, block.id, item.id)}><Trash2 size={15} /></Button></div>;
+  return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .65 : 1 }} className={cn("grid items-start gap-2 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-2.5", station ? "grid-cols-[28px_44px_minmax(0,1fr)_34px] sm:grid-cols-[32px_54px_minmax(0,1fr)_36px]" : "grid-cols-[28px_44px_minmax(0,1fr)_66px_34px] sm:grid-cols-[32px_54px_minmax(0,1fr)_84px_36px]")}><button {...attributes} {...listeners} className="grid h-10 touch-manipulation select-none place-items-center text-[var(--ink-soft)] [-webkit-touch-callout:none]" aria-label={`Dra ${item.title}`}><GripVertical size={17} /></button><button type="button" onClick={onPreview} aria-label={`Vis ${item.title}`} className="group/media relative h-11 w-11 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <ItemThumbnailPlaceholder item={item} />}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={14} /></span></span>{station && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-[var(--paper)]">{station}</span>}</button><div className="min-w-0">{fromLibrary ? <p className="flex h-8 items-center truncate px-1 text-sm font-black" title="Tittelen hentes fra øvelsesbanken">{item.title}</p> : <DebouncedInput className="h-8 w-full rounded-lg border-0 bg-transparent px-1 text-sm font-black outline-none focus:bg-[var(--paper)]" value={item.title} onSave={(value) => store.updateItem(session.id, block.id, item.id, { title: value })} aria-label={station ? `Tittel på stasjon ${station}` : "Tittel på aktiviteten"} required maxLength={140} />}<ItemText item={item} fromLibrary={fromLibrary} station={station} onEdit={() => setEditing(true)} /><CoachPicker item={item} members={members} onChange={(coachIds) => void store.updateItem(session.id, block.id, item.id, { assignedCoachIds: coachIds })} /></div>{station ? null : <label className="relative"><MinutesInput min={MIN_ITEM_MINUTES} max={MAX_ITEM_MINUTES} className="h-10 w-full rounded-xl border border-[var(--line)] bg-[var(--paper)] px-2 pr-7 text-right text-sm font-black outline-none" value={item.durationMinutes} onCommit={(minutes) => void store.updateItem(session.id, block.id, item.id, { durationMinutes: minutes })} aria-label={`Varighet for ${item.title}`} /><span className="pointer-events-none absolute right-2 top-3 text-[10px] font-bold text-[var(--ink-soft)]">m</span></label>}<Button variant="ghost" size="sm" className="px-2" aria-label={station ? `Fjern stasjon ${station}` : `Fjern ${item.title}`} onClick={() => void store.deleteItem(session.id, block.id, item.id)}><Trash2 size={15} /></Button>{editing && <SessionItemDialog item={item} sessionId={session.id} fromLibrary={fromLibrary} station={station} onClose={() => setEditing(false)} />}</div>;
+}
+
+/**
+ * The activity's words on its card, opening the dialog that edits them: a
+ * custom activity's one-line description and the stikkord as bullets. A
+ * library exercise's description is the library's full instructions, which
+ * the preview behind the thumbnail already shows, so the card leaves it out.
+ */
+function ItemText({ item, fromLibrary, station, onEdit }: { item: SessionItem; fromLibrary: boolean; station?: number; onEdit(): void }) {
+  const description = fromLibrary ? "" : item.description.trim();
+  const points = noteLines(item.coachingNotes);
+  const name = station ? `stasjon ${station}` : item.title;
+  if (!description && !points.length) {
+    const action = fromLibrary ? "Legg til stikkord" : "Legg til beskrivelse og stikkord";
+    return <button type="button" onClick={onEdit} aria-label={`${action} for ${name}`} className="flex h-7 items-center gap-1 rounded-lg px-1 text-xs font-semibold text-[var(--ink-soft)] transition hover:bg-[var(--paper)] hover:text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]"><Plus size={13} />{fromLibrary ? "Stikkord" : "Beskrivelse og stikkord"}</button>;
+  }
+  return <button type="button" onClick={onEdit} className="group/text relative mt-0.5 block w-full rounded-lg py-1 pl-1 pr-6 text-left text-xs leading-5 text-[var(--ink-soft)] transition hover:bg-[var(--paper)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
+    <span className="sr-only">Rediger {name}: </span>
+    {description && <span className="block">{description}</span>}
+    {points.length > 0 && <PointList points={points} className={cn("font-semibold text-[var(--ink)]", description && "mt-1")} />}
+    <Pencil size={12} aria-hidden="true" className="absolute right-1.5 top-1.5 opacity-0 transition group-hover/text:opacity-60 group-focus-visible/text:opacity-60" />
+  </button>;
 }
 
 /**

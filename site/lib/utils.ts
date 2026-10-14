@@ -21,6 +21,13 @@ export function readableInk(background: string) {
   return luminance > 0.36 ? "#2e1b3d" : "#ffffff";
 }
 export function makeUuid() { return crypto.randomUUID(); }
+/**
+ * Points written one per line — a focus's notes, an activity's stikkord — with
+ * blank lines and any bullet the coach typed dropped.
+ */
+export function noteLines(notes: string) {
+  return notes.split("\n").map((line) => line.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean);
+}
 export function minutesLabel(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60); const rest = minutes % 60;

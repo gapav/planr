@@ -15,10 +15,10 @@ import { autoSessionTitle, buildSessionCopy, nextPosition, stationRotation, UNTI
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { DEFAULT_ROTATION_MINUTES } from "@/lib/types";
-import { FOCUS_MAX_WEEKS, FOCUS_NOTE_MAX_LENGTH, FOCUS_NOTES_MAX_LENGTH, FOCUS_TITLE_MAX_LENGTH, mondayOf, noteLines, overlappingFocus } from "@/lib/focus";
+import { FOCUS_MAX_WEEKS, FOCUS_NOTE_MAX_LENGTH, FOCUS_NOTES_MAX_LENGTH, FOCUS_TITLE_MAX_LENGTH, mondayOf, overlappingFocus } from "@/lib/focus";
 import { COACH_AVATAR_PEER, COACH_AVATAR_SELF, validTeamColors } from "@/lib/team-palette";
 import type { AdminAccount, AdminTeam, Exercise, ExerciseCollection, ExerciseInput, FocusPeriod, FocusPeriodInput, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionBlockKind, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
-import { initials, makeUuid } from "@/lib/utils";
+import { initials, makeUuid, noteLines } from "@/lib/utils";
 
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
 /** The two things a copy does not inherit: the name it is given, and its date. */

@@ -1,5 +1,5 @@
 import { monthLabel } from "./fixtures";
-import { minutesLabel } from "./utils";
+import { minutesLabel, noteLines } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile, SessionBlock, SessionItem, SessionTab } from "./types";
 
@@ -99,6 +99,34 @@ export function coachNameList(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   if (names.length > 3) return `${names.slice(0, 2).join(", ")} og ${names.length - 2} til`;
   return `${names.slice(0, -1).join(", ")} og ${names[names.length - 1]}`;
+}
+
+/** The title column's own check; the other two have none, so these are the dialog's. */
+export const ITEM_TITLE_MAX_LENGTH = 140;
+export const ITEM_DESCRIPTION_MAX_LENGTH = 400;
+export const ITEM_CUES_MAX_LENGTH = 1000;
+
+type ItemText = Pick<SessionItem, "title" | "description" | "coachingNotes">;
+
+/**
+ * What the activity dialog saves: only what changed, tidied the way a focus is
+ * — trimmed, with the stikkord one point per line and any bullet the coach
+ * typed dropped. A library exercise's title and description are the library's
+ * (the plan shows the current exercise over its own copy), so `fromLibrary`
+ * saves the stikkord alone. A blank title is never saved: the column refuses
+ * it. `null` when there is nothing to save.
+ */
+export function itemTextPatch(item: ItemText, draft: ItemText, fromLibrary: boolean): Partial<ItemText> | null {
+  const patch: Partial<ItemText> = {};
+  const coachingNotes = noteLines(draft.coachingNotes).join("\n");
+  if (coachingNotes !== item.coachingNotes) patch.coachingNotes = coachingNotes;
+  if (!fromLibrary) {
+    const title = draft.title.trim();
+    if (title && title !== item.title) patch.title = title;
+    const description = draft.description.trim();
+    if (description !== item.description) patch.description = description;
+  }
+  return Object.keys(patch).length ? patch : null;
 }
 
 export function validatePublish(session: PlannedSession) {

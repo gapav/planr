@@ -4,7 +4,7 @@ import { demoSessions } from "./demo-data";
 import { clockTime } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile } from "./types";
-import { assignedCoaches, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, coachNameList, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanProgress, sessionPlanSummary, splitSessionStart, splitSessionTime, toggleAssignedCoach, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
+import { assignedCoaches, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, coachNameList, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, itemTextPatch, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanProgress, sessionPlanSummary, splitSessionStart, splitSessionTime, toggleAssignedCoach, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -235,6 +235,32 @@ describe("coach assignment", () => {
     expect(coachNameList(["Gard", "Tonje"])).toBe("Gard og Tonje");
     expect(coachNameList(["Gard", "Tonje", "Erik"])).toBe("Gard, Tonje og Erik");
     expect(coachNameList(["Gard", "Tonje", "Erik", "Andreas"])).toBe("Gard, Tonje og 2 til");
+  });
+});
+
+describe("an activity's words", () => {
+  const item = { title: "Skudd", description: "", coachingNotes: "Skuddstasjon med progresjon" };
+
+  it("saves the stikkord one point per line, dropping blanks and typed bullets", () => {
+    const patch = itemTextPatch(item, { ...item, coachingNotes: "- Fra gulv\n\n• I luft \n  Etter mottak\n" }, false);
+    expect(patch).toEqual({ coachingNotes: "Fra gulv\nI luft\nEtter mottak" });
+  });
+
+  it("saves only what changed, trimmed", () => {
+    expect(itemTextPatch(item, { title: " Skudd ", description: " Progresjon mot fart. ", coachingNotes: item.coachingNotes }, false)).toEqual({ description: "Progresjon mot fart." });
+    expect(itemTextPatch(item, { ...item }, false)).toBeNull();
+  });
+
+  // The column refuses a blank title; the dialog keeps its save disabled, and
+  // this keeps the patch honest even so.
+  it("never saves a blank title", () => {
+    expect(itemTextPatch(item, { ...item, title: "   " }, false)).toBeNull();
+  });
+
+  // The plan shows the library's current exercise over its own copy, so a
+  // name or description saved here would never be seen.
+  it("leaves a library exercise's name and description alone", () => {
+    expect(itemTextPatch(item, { title: "Nytt navn", description: "Ny tekst", coachingNotes: "Høy arm" }, true)).toEqual({ coachingNotes: "Høy arm" });
   });
 });
 

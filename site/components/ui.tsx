@@ -83,6 +83,17 @@ export const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)
 export const textareaClass = `${inputClass} min-h-28 resize-y py-3 leading-6`;
 
 /**
+ * Points written one per line (see `noteLines`) as a bulleted list. Spans with
+ * list roles rather than a <ul>, because an activity card is itself a button
+ * and a list is not allowed inside one.
+ */
+export function PointList({ points, className }: { points: readonly string[]; className?: string }) {
+  return <span role="list" className={cn("grid gap-0.5", className)}>
+    {points.map((point, index) => <span role="listitem" key={index} className="flex gap-2"><span aria-hidden="true" className="shrink-0 opacity-60">•</span><span className="min-w-0">{point}</span></span>)}
+  </span>;
+}
+
+/**
  * A tone is a pair of colours rather than a pair of classes, so the exercise
  * library's filter rail can paint a selected row in the same hue as the tag it
  * filters for without either place owning the palette. The values themselves

@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FocusDialog } from "@/components/focus-dialog";
 import { dayKey } from "@/lib/fixtures";
-import { focusAt, focusOverlapsRange, focusSpanLabel, freeFocusSpan, noteLines, teamFocuses } from "@/lib/focus";
+import { focusAt, focusOverlapsRange, focusSpanLabel, freeFocusSpan, teamFocuses } from "@/lib/focus";
 import { autoSessionTitle, combineSessionStart, DEFAULT_SESSION_TIME } from "@/lib/session";
 import { fixtureMatchTeams, focusColumns, seasonAgendaDays, seasonMatchTeams, seasonMonthSpans, seasonStartYear, seasonWeeks, shiftDay, type SeasonAgendaItem, type SeasonMatchTeam, type SeasonWeek, weekMatchTeams } from "@/lib/season";
 import type { FocusPeriod, FocusPeriodInput, PlannedSession, TeamFixture } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, noteLines } from "@/lib/utils";
 
 type Selection = { type: "week"; index: number } | { type: "focus"; id: string };
 type DialogState = { focus: FocusPeriod } | { initial: FocusPeriodInput } | null;

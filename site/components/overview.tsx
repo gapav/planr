@@ -11,9 +11,9 @@ import { CourtArtwork } from "./court-artwork";
 import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewSalutation, overviewSessions } from "@/lib/overview";
 import { calendarDaysUntil } from "@/lib/session";
 import { dayKey } from "@/lib/fixtures";
-import { focusSpanLabel, focusWeekNumber, noteLines } from "@/lib/focus";
+import { focusSpanLabel, focusWeekNumber } from "@/lib/focus";
 import type { FocusPeriod } from "@/lib/types";
-import { cn, minutesLabel } from "@/lib/utils";
+import { cn, minutesLabel, noteLines } from "@/lib/utils";
 
 const dayFormat = new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long" });
 

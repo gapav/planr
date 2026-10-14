@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { demoExercises, demoFocusPeriods, demoSessions, demoTeams } from "@/lib/demo-data";
@@ -153,6 +153,67 @@ describe("session builder", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Kortere rotasjon" }));
     expect(updateBlock).toHaveBeenCalledWith(draft.id, stations.id, { rotationMinutes: 9 });
+  });
+
+  // A one-line note truncated on the card could not hold a station's
+  // progression. The words are now written like a focus: name, one sentence,
+  // and the stikkord one per line, shown as bullets.
+  it("edits a custom activity's name, description and stikkord in a dialog", async () => {
+    const custom = draft.blocks[2].items[0];
+    render(<SessionBuilder sessionId={draft.id} />);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^Rediger ${custom.title}:`) }));
+
+    const dialog = screen.getByRole("dialog", { name: "Rediger aktivitet" });
+    expect(within(dialog).getByRole("textbox", { name: "Navn" })).toHaveValue(custom.title);
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Beskrivelse" }), { target: { value: " Skuddstasjon med progresjon. " } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /^Stikkord/ }), { target: { value: "- Fra gulv\n\nI luft\nEtter mottak, i fart\n" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lagre" }));
+
+    expect(updateItem).toHaveBeenCalledExactlyOnceWith(draft.id, custom.blockId, custom.id, { description: "Skuddstasjon med progresjon.", coachingNotes: "Fra gulv\nI luft\nEtter mottak, i fart" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("asks only for the stikkord of a library exercise, and shows them as bullets", async () => {
+    render(<SessionBuilder sessionId={draft.id} />);
+    const card = screen.getByRole("button", { name: new RegExp(`^Rediger ${firstItem.title}:`) });
+    expect(within(card).getAllByRole("listitem").map((point) => point.textContent)).toEqual([`•${firstItem.coachingNotes}`]);
+    fireEvent.click(card);
+
+    const dialog = screen.getByRole("dialog", { name: firstItem.title });
+    expect(within(dialog).queryByRole("textbox", { name: "Navn" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox", { name: "Beskrivelse" })).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /^Stikkord/ }), { target: { value: "To baller etter tre minutter\nBytt retning på signal" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lagre" }));
+
+    expect(updateItem).toHaveBeenCalledExactlyOnceWith(draft.id, firstItem.blockId, firstItem.id, { coachingNotes: "To baller etter tre minutter\nBytt retning på signal" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("keeps the dialog open with the refusal when the save fails", async () => {
+    updateItem.mockRejectedValueOnce(new Error("Handlingen kunne ikke fullføres"));
+    render(<SessionBuilder sessionId={draft.id} />);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^Rediger ${firstItem.title}:`) }));
+    const dialog = screen.getByRole("dialog", { name: firstItem.title });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /^Stikkord/ }), { target: { value: "Nytt punkt" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lagre" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Handlingen kunne ikke fullføres");
+    expect(within(dialog).getByRole("textbox", { name: /^Stikkord/ })).toHaveValue("Nytt punkt");
+  });
+
+  it("does not save when nothing changed, and will not save a blank name", () => {
+    const custom = draft.blocks[2].items[0];
+    render(<SessionBuilder sessionId={draft.id} />);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^Rediger ${custom.title}:`) }));
+    const dialog = screen.getByRole("dialog", { name: "Rediger aktivitet" });
+
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Navn" }), { target: { value: "  " } });
+    expect(within(dialog).getByRole("button", { name: "Lagre" })).toBeDisabled();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Navn" }), { target: { value: custom.title } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lagre" }));
+
+    expect(updateItem).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   // The database refuses a blank title, so renaming «Ny aktivitet» used to

@@ -52,6 +52,15 @@ describe("dailySessionDigestEmail", () => {
     expect(mail?.text).toContain("- Firkant 4v2 (20 min)");
   });
 
+  it("lists the stikkord as bullets under a custom activity's description", () => {
+    const mail = dailySessionDigestEmail({ recipient, sessions: [session({ blocks: [{ title: "Hoveddel", notes: "", kind: "sequence", items: [
+      { title: "Skudd", description: "Progresjon mot fart & mottak.", durationMinutes: 15, coachingNotes: "Fra gulv\nI luft\nEtter mottak", assignedCoachIds: [] },
+    ] }] })], siteUrl });
+    expect(mail?.html).toContain("Progresjon mot fart &amp; mottak.");
+    expect(mail?.html).toContain("<li>Fra gulv</li><li>I luft</li><li>Etter mottak</li>");
+    expect(mail?.text).toContain("  - Skudd (15 min)\n    Progresjon mot fart & mottak.\n    • Fra gulv\n    • I luft\n    • Etter mottak");
+  });
+
   it("carries the current focus beside the session's own objective", () => {
     const mail = dailySessionDigestEmail({ recipient, sessions: [session({ focus: { title: "Forsvar 6-0", note: "Aktiv midtblokk & kontring." } })], siteUrl });
     expect(mail?.html).toContain(">Fokus</p>");

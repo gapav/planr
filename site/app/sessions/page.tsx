@@ -13,10 +13,10 @@ import { FocusDialog } from "@/components/focus-dialog";
 import { SeasonOverview } from "@/components/season-overview";
 import { Avatar, Button, EmptyState, Modal, Tag } from "@/components/ui";
 import { dayKey } from "@/lib/fixtures";
-import { focusAt, focusSpanLabel, freeFocusSpan, nextFocus, noteLines, weekOf } from "@/lib/focus";
+import { focusAt, focusSpanLabel, freeFocusSpan, nextFocus, weekOf } from "@/lib/focus";
 import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration, sessionPlanProgress, sessionPlanSummary, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import type { FocusPeriod, FocusPeriodInput, PlannedSession, SessionTab } from "@/lib/types";
-import { cn, minutesLabel, sessionDateParts } from "@/lib/utils";
+import { cn, minutesLabel, noteLines, sessionDateParts } from "@/lib/utils";
 
 const tabs: Array<{ id: SessionTab; label: string }> = [{ id: "upcoming", label: "Kommende" }, { id: "drafts", label: "Utkast" }, { id: "past", label: "Gjennomførte" }];
 

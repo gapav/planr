@@ -14,11 +14,11 @@ import { HelpTip } from "./help-tip";
 import { WorkoutSession } from "./live-session";
 import { CopySessionDialog, SessionMenu } from "./session-actions";
 import { TeamCrest } from "./team-crest";
-import { AvatarStack, Button, EmptyState, Tag } from "./ui";
+import { AvatarStack, Button, EmptyState, PointList, Tag } from "./ui";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
 import { assignedCoaches, blockClock, blockDuration, coachNameList, isStationBlock, sessionDuration, sessionSchedule, stationRotation } from "@/lib/session";
 import type { Profile, SessionItem } from "@/lib/types";
-import { clockTime, cn, formatSessionDate, minutesLabel } from "@/lib/utils";
+import { clockTime, cn, formatSessionDate, minutesLabel, noteLines } from "@/lib/utils";
 
 /**
  * `/sessions/<id>` is where the calendar sends a coach, so it reads the plan
@@ -94,7 +94,7 @@ export function SessionView({ sessionId, readOnly = false }: { sessionId: string
           {block.notes && <BlockNote notes={block.notes} />}
           <div className="grid gap-2.5 p-3 sm:p-4">{block.items.length ? block.items.map((item, itemIndex) => <button key={item.id} type="button" data-print="item" onClick={() => setPreviewItem(item)} aria-label={`Vis ${item.title}`} className="group flex items-start gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-3 text-left transition hover:border-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]">
             <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <ItemThumbnailPlaceholder item={item} />}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={14} /></span></span>{stations && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-[var(--paper)]">{itemIndex + 1}</span>}</span>
-            <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-3"><strong className="text-[15px] tracking-[-.015em]">{item.title}</strong>{!stations && <span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span>}</span>{item.description && <span className="clamp-2 mt-1 block text-sm leading-6 text-[var(--ink-soft)]">{item.description}</span>}{item.coachingNotes && <span data-print="cue" className="mt-2 block rounded-xl bg-[var(--warn-bg)] px-3 py-2"><span className="text-[10px] font-black uppercase tracking-[.11em] text-[var(--warn-ink)]">Stikkord</span><span className="mt-0.5 block text-sm font-semibold leading-6">{item.coachingNotes}</span></span>}<ItemCoach item={item} members={sessionTeam?.members ?? []} /></span>
+            <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-3"><strong className="text-[15px] tracking-[-.015em]">{item.title}</strong>{!stations && <span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span>}</span>{item.description && <span className="clamp-2 mt-1 block text-sm leading-6 text-[var(--ink-soft)]">{item.description}</span>}{item.coachingNotes && <span data-print="cue" className="mt-2 block rounded-xl bg-[var(--warn-bg)] px-3 py-2"><span className="text-[10px] font-black uppercase tracking-[.11em] text-[var(--warn-ink)]">Stikkord</span><PointList points={noteLines(item.coachingNotes)} className="mt-0.5 text-sm font-semibold leading-6" /></span>}<ItemCoach item={item} members={sessionTeam?.members ?? []} /></span>
           </button>) : <p className="py-6 text-center text-sm text-[var(--ink-soft)]">{stations ? "Ingen stasjoner i denne bolken." : "Ingen aktiviteter i denne bolken."}</p>}</div>
         </article>; })}</div> : <div className="mt-6">{readOnly ? <EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Laget har ikke lagt inn noen bolker i økten ennå." /> : <EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Økten har ingen bolker ennå. Åpne den i redigering for å bygge den opp." action={<Link href={`/sessions/${sessionId}/edit`}><Button><Pencil size={16} />Rediger økten</Button></Link>} />}</div>}
       </section>

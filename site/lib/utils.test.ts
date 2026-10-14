@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { COACH_AVATAR_PEER, COACH_AVATAR_SELF } from "./team-palette";
-import { minutesLabel, readableInk, sessionDateParts } from "./utils";
+import { minutesLabel, noteLines, readableInk, sessionDateParts } from "./utils";
+
+describe("noteLines", () => {
+  it("reads one point per line, dropping blanks and typed bullets", () => {
+    expect(noteLines("Midtblokk\n\n  - Kontring \n• Høy arm\n   ")).toEqual(["Midtblokk", "Kontring", "Høy arm"]);
+    expect(noteLines("")).toEqual([]);
+  });
+});
 
 describe("sessionDateParts", () => {
   it("splits a stored UTC timestamp into calendar-chip pieces", () => {
