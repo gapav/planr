@@ -24,7 +24,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { makePairs, makeTeams } from "@/lib/grouping";
 import { getExerciseEmbedUrl, mediaKindOf } from "@/lib/media";
-import { assignedCoach, blockClock, blockDuration, isStationBlock, sessionSchedule, stationRotation, suggestedGroupCount } from "@/lib/session";
+import { assignedCoaches, blockClock, blockDuration, coachNameList, isStationBlock, sessionSchedule, stationRotation, suggestedGroupCount } from "@/lib/session";
 import type { PlayerGroup, Profile, SessionGroupingKind, SessionItem, TeamPlayer } from "@/lib/types";
 import { clockTime, cn, formatSessionDate, minutesLabel } from "@/lib/utils";
 import { AppShell } from "./app-shell";
@@ -36,7 +36,7 @@ import { MediaCreditLine } from "./media-credit";
 import { MediaLinkCard } from "./media-link";
 import { CopySessionDialog, ReopenSessionDialog } from "./session-actions";
 import { TeamCrest } from "./team-crest";
-import { Avatar, Button, EmptyState, Modal, Tag } from "./ui";
+import { AvatarStack, Button, EmptyState, Modal, Tag } from "./ui";
 
 type SetupStep = "check-in" | "groups" | "result";
 
@@ -295,7 +295,7 @@ export function WorkoutSession({ sessionId }: { sessionId: string }) {
     </Modal>}
     <Modal open={overviewOpen} onClose={() => setOverviewOpen(false)} title="Øktoversikt" description={`${session.blocks.length} ${session.blocks.length === 1 ? "bolk" : "bolker"} · ${minutesLabel(session.plannedDurationMinutes)}`} size="lg">
       {session.objective && <section className="mb-4 rounded-2xl bg-[var(--paper)] p-4"><p className="text-[10px] font-black uppercase tracking-[.12em] text-[var(--accent)]">Mål for økten</p><p className="mt-1 text-sm font-semibold leading-6 text-[var(--ink-soft)]">{session.objective}</p></section>}
-      <div className="grid gap-3">{session.blocks.map((block, index) => <button key={block.id} type="button" onClick={() => showBlock(index)} aria-label={`Gå til ${block.title}`} className={cn("rounded-2xl border p-4 text-left transition hover:border-[var(--ink)]", index === safeBlockIndex ? "border-[var(--success-line)] bg-[var(--success-bg)]" : "border-[var(--line)] bg-[var(--surface-raised)]")}><div className="flex items-center gap-3"><span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-black", index === safeBlockIndex ? "bg-[var(--success-fill)] text-[var(--on-accent)]" : "bg-[var(--paper-deep)]")}>{index + 1}</span><span className="min-w-0 flex-1"><strong className="block truncate">{block.title}</strong><small className="text-[var(--ink-soft)]">{isStationBlock(block) ? `${block.items.length} ${block.items.length === 1 ? "stasjon" : "stasjoner"} × ${stationRotation(block)} min` : `${block.items.length} ${block.items.length === 1 ? "aktivitet" : "aktiviteter"}`}</small></span><span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{blockDuration(block)} min</span><ChevronRight size={17} className="shrink-0 text-[var(--ink-soft)]" /></div>{block.items.length > 0 && <ul className="mt-3 grid gap-1.5 pl-12 text-xs text-[var(--ink-soft)]">{block.items.map((item, itemIndex) => { const coach = assignedCoach(item, sessionTeam?.members ?? []); return <li key={item.id} className="flex items-start justify-between gap-3"><span>{isStationBlock(block) && <span className="font-bold">{itemIndex + 1}. </span>}{item.title}{coach && <span className="font-bold"> · {coach.fullName}</span>}</span>{!isStationBlock(block) && <span className="shrink-0 font-bold">{item.durationMinutes} min</span>}</li>; })}</ul>}</button>)}</div>
+      <div className="grid gap-3">{session.blocks.map((block, index) => <button key={block.id} type="button" onClick={() => showBlock(index)} aria-label={`Gå til ${block.title}`} className={cn("rounded-2xl border p-4 text-left transition hover:border-[var(--ink)]", index === safeBlockIndex ? "border-[var(--success-line)] bg-[var(--success-bg)]" : "border-[var(--line)] bg-[var(--surface-raised)]")}><div className="flex items-center gap-3"><span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-black", index === safeBlockIndex ? "bg-[var(--success-fill)] text-[var(--on-accent)]" : "bg-[var(--paper-deep)]")}>{index + 1}</span><span className="min-w-0 flex-1"><strong className="block truncate">{block.title}</strong><small className="text-[var(--ink-soft)]">{isStationBlock(block) ? `${block.items.length} ${block.items.length === 1 ? "stasjon" : "stasjoner"} × ${stationRotation(block)} min` : `${block.items.length} ${block.items.length === 1 ? "aktivitet" : "aktiviteter"}`}</small></span><span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{blockDuration(block)} min</span><ChevronRight size={17} className="shrink-0 text-[var(--ink-soft)]" /></div>{block.items.length > 0 && <ul className="mt-3 grid gap-1.5 pl-12 text-xs text-[var(--ink-soft)]">{block.items.map((item, itemIndex) => { const coaches = assignedCoaches(item, sessionTeam?.members ?? []); return <li key={item.id} className="flex items-start justify-between gap-3"><span>{isStationBlock(block) && <span className="font-bold">{itemIndex + 1}. </span>}{item.title}{coaches.length > 0 && <span className="font-bold"> · {coachNameList(coaches.map((coach) => coach.fullName))}</span>}</span>{!isStationBlock(block) && <span className="shrink-0 font-bold">{item.durationMinutes} min</span>}</li>; })}</ul>}</button>)}</div>
       {session.notes && <section className="mt-4 rounded-2xl border border-[var(--line)] p-4"><p className="text-[10px] font-black uppercase tracking-[.12em] text-[var(--accent)]">Øktnotater</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--ink-soft)]">{session.notes}</p></section>}
     </Modal>
     <Modal open={confirmUndoStart} onClose={() => { if (!undoingStart) setConfirmUndoStart(false); }} title="Vil du angre starten av økten?" description="Økten går tilbake til «Klar til start». Oppmøte og grupper beholdes, slik at du kan korrigere dem eller starte på nytt." size="sm">
@@ -332,9 +332,9 @@ function GroupsGrid({ groups, players }: { groups: PlayerGroup[]; players: TeamP
  * line on every card would bury the few that were handed to someone.
  */
 function ItemCoach({ item, members }: { item: SessionItem; members: Profile[] }) {
-  const coach = assignedCoach(item, members);
-  if (!coach) return null;
-  return <p className="mt-2 flex items-center gap-1.5"><Avatar name={coach.fullName} initials={coach.initials} color={coach.color} size="sm" /><span className="text-xs font-bold text-[var(--ink-soft)]">{coach.fullName} har denne</span></p>;
+  const coaches = assignedCoaches(item, members);
+  if (!coaches.length) return null;
+  return <p className="mt-2 flex items-center gap-1.5"><AvatarStack people={coaches} /><span className="text-xs font-bold text-[var(--ink-soft)]">{coachNameList(coaches.map((coach) => coach.fullName))} har denne</span></p>;
 }
 
 function ExerciseDetail({ item }: { item: SessionItem }) {

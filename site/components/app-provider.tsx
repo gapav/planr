@@ -3,14 +3,14 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { mapAdminAccount, mapAdminTeam, partitionSessionsByMembership, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
-import { authEventLoadsWorkspace, claimableInvitations, invitationUrl, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, passwordResetRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
+import { authEventLoadsWorkspace, claimableInvitations, invitationUrl, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
 import { demoCollections, demoExercises, demoFixtures, demoFocusPeriods, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { collectionNameError, normalizeCollectionName, sortCollections } from "@/lib/collections";
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { displayNameError, normalizeDisplayName } from "@/lib/profile";
 import { CONNECTION_LOST_MESSAGE, isInvitationAlreadyUsed, isTransportFailure, norwegianServerMessage } from "@/lib/server-messages";
-import { minimizePlayerName } from "@/lib/roster";
+import { planRosterImport } from "@/lib/roster";
 import { autoSessionTitle, buildSessionCopy, nextPosition, stationRotation, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -26,7 +26,7 @@ export interface SessionCopyInput { title: string; startsAt: string | null }
 /** How long a newly added activity is proposed to last. */
 const DEFAULT_ITEM_MINUTES = 10;
 type BlockPatch = Partial<Pick<SessionBlock, "title" | "notes" | "rotationMinutes">>;
-type ItemPatch = Partial<Pick<SessionItem, "title" | "description" | "durationMinutes" | "coachingNotes" | "assignedCoachId">>;
+type ItemPatch = Partial<Pick<SessionItem, "title" | "description" | "durationMinutes" | "coachingNotes" | "assignedCoachIds">>;
 
 const TEAM_LOGO_BUCKET = "team-logos";
 
@@ -130,7 +130,6 @@ interface GrepContextValue {
   signIn(email: string, password: string): Promise<void>;
   requestMagicLink(email: string, next?: string): Promise<void>;
   setPassword(password: string): Promise<void>;
-  requestPasswordReset(email: string): Promise<void>;
   signOut(): Promise<void>;
   addExercise(input: ExerciseInput): Promise<void>;
   updateExercise(id: string, input: ExerciseInput): Promise<void>;
@@ -230,7 +229,7 @@ interface DbExercise {
 interface DbItem {
   id: string; block_id: string; kind: SessionItem["kind"]; exercise_id: string | null; title: string; description: string;
   media_url: string | null; thumbnail_url: string | null; duration_minutes: number; coaching_notes: string;
-  assigned_coach_id: string | null; position: number; updated_by: string;
+  assigned_coach_ids: string[] | null; position: number; updated_by: string;
 }
 interface DbBlock { id: string; session_id: string; title: string; notes?: string; kind?: SessionBlockKind; rotation_minutes?: number | null; position: number; updated_by: string; session_items?: DbItem[]; }
 interface DbSession {
@@ -276,7 +275,7 @@ function mapSession(row: DbSession): PlannedSession {
         id: item.id, blockId: item.block_id, kind: item.kind, exerciseId: item.exercise_id, title: item.title,
         description: item.description, mediaUrl: item.media_url, thumbnailUrl: item.thumbnail_url,
         durationMinutes: item.duration_minutes, coachingNotes: item.coaching_notes,
-        assignedCoachId: item.assigned_coach_id ?? null, position: item.position, updatedBy: item.updated_by,
+        assignedCoachIds: item.assigned_coach_ids ?? [], position: item.position, updatedBy: item.updated_by,
       })),
     })) };
 }
@@ -593,16 +592,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
     });
     if (error && !isUnknownMagicLinkAddressError(error)) throw new Error(norwegianServerMessage(error.message, "Innloggingslenken kunne ikke sendes. Vent litt og prøv igjen."));
-  }, [supabase]);
-
-  // Supabase answers an unknown address with success, so nothing here reveals
-  // whether an account exists — the caller shows the same confirmation either
-  // way. A 429 is worth surfacing though: it is the email rate limit, and the
-  // coach needs to know to wait rather than to keep pressing the button.
-  const requestPasswordReset = useCallback(async (email: string) => {
-    if (!supabase) { setNotice("Demomodus — det ble ikke sendt noen e-post."); return; }
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: passwordResetRedirectUrl(window.location.origin) });
-    if (error) throw new Error(norwegianServerMessage(error.message, "E-posten kunne ikke sendes. Vent litt og prøv igjen."));
   }, [supabase]);
 
   // Accounts are created by an admin with a temporary password, so the first
@@ -1160,24 +1149,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const importPlayers = useCallback(async (input: TeamPlayerInput[]) => {
     if (!currentTeam) throw new Error("Velg et lag først");
     const teamPlayers = players.filter((player) => player.teamId === currentTeam.id);
-    const now = new Date().toISOString();
-    let added = 0; let updated = 0;
-    const imported = input.map((entry) => {
-      const fullName = minimizePlayerName(entry.fullName);
-      const normalizedName = fullName.toLocaleLowerCase("nb-NO");
-      const sameName = teamPlayers.filter((player) => player.fullName.toLocaleLowerCase("nb-NO") === normalizedName);
-      const existing = sameName.find((player) => player.jerseyNumber === entry.jerseyNumber) ?? (sameName.length === 1 ? sameName[0] : undefined);
-      if (existing) {
-        updated += 1;
-        return { ...existing, jerseyNumber: entry.jerseyNumber, fullName, updatedAt: now };
-      }
-      added += 1;
-      return { id: makeUuid(), teamId: currentTeam.id, jerseyNumber: entry.jerseyNumber, fullName, createdAt: now, updatedAt: now };
-    });
+    const { players: imported, added, updated } = planRosterImport(teamPlayers, input, { teamId: currentTeam.id, now: new Date().toISOString(), makeId: makeUuid });
     const importedIds = new Set(imported.map((player) => player.id));
-    setPlayers((current) => [...current.filter((player) => player.teamId !== currentTeam.id || !importedIds.has(player.id)), ...imported].sort((a, b) => a.fullName.localeCompare(b.fullName, "nb")));
     const rows = imported.map((player) => ({ id: player.id, team_id: player.teamId, full_name: player.fullName, jersey_number: player.jerseyNumber }));
     await persist(supabase ? () => supabase.from("team_players").upsert(rows, { onConflict: "id" }) : null);
+    // After the write, like `importFixtures`: a refused import leaves the list as it was.
+    setPlayers((current) => [...current.filter((player) => player.teamId !== currentTeam.id || !importedIds.has(player.id)), ...imported].sort((a, b) => a.fullName.localeCompare(b.fullName, "nb")));
     setNotice(`${added} ${added === 1 ? "spiller" : "spillere"} lagt til${updated ? `, ${updated} oppdatert` : ""}.`);
     return { added, updated };
   }, [currentTeam, persist, players, supabase]);
@@ -1378,7 +1355,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!currentTeam || !user) throw new Error("Velg et lag først"); const id = makeUuid(); const now = new Date().toISOString();
     const session: PlannedSession = { id, teamId: currentTeam.id, title: startsAt ? autoSessionTitle(startsAt) : UNTITLED_SESSION_TITLE, startsAt: startsAt ?? null, venue: "", plannedDurationMinutes: 90, objective: "", notes: "", status: "draft", blocks: [], createdBy: user.id, updatedBy: user.id, createdAt: now, updatedAt: now };
     setSessions((current) => [session, ...current]);
-    await persist(supabase ? () => supabase.from("sessions").insert({ id, team_id: currentTeam.id, title: session.title, starts_at: session.startsAt, planned_duration_minutes: 90, created_by: user.id, updated_by: user.id }) : null);
+    // A plan the database never got would sit in the calendar until the next
+    // load, and every block added to it would be refused on the foreign key.
+    try {
+      await persist(supabase ? () => supabase.from("sessions").insert({ id, team_id: currentTeam.id, title: session.title, starts_at: session.startsAt, planned_duration_minutes: 90, created_by: user.id, updated_by: user.id }) : null);
+    } catch (error) {
+      setSessions((current) => current.filter((entry) => entry.id !== id));
+      throw error;
+    }
     return id;
   }, [currentTeam, persist, supabase, user]);
 
@@ -1400,7 +1384,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
   }, [persist, supabase]);
-  const publishSession = useCallback(async (id: string) => { setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "published", updatedAt: new Date().toISOString() } : session)); await persist(supabase ? () => supabase.rpc("publish_session", { target_session_id: id }) : null); }, [persist, supabase]);
+  // `publish_session` re-checks the plan, and can disagree with the client: a
+  // date picked a moment before Publiser may not have landed yet. The builder
+  // disables the button once the status reads published, so a refusal left
+  // standing would strand the coach on «Publisert» with no way to retry.
+  const publishSession = useCallback(async (id: string) => {
+    let previous: PlannedSession | undefined;
+    setSessions((current) => current.map((session) => { if (session.id !== id) return session; previous = session; return { ...session, status: "published", updatedAt: new Date().toISOString() }; }));
+    try {
+      await persist(supabase ? () => supabase.rpc("publish_session", { target_session_id: id }) : null);
+    } catch (error) {
+      if (previous) { const { status, updatedAt } = previous; setSessions((current) => current.map((session) => session.id === id ? { ...session, status, updatedAt } : session)); }
+      throw error;
+    }
+  }, [persist, supabase]);
 
   const startWorkout = useCallback(async (id: string, groupingKind: SessionGroupingKind) => {
     if (!user) return;
@@ -1542,7 +1539,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // A station lasts one rotation, whatever the default activity length is —
     // `items_sync_station_duration` would overwrite anything else anyway.
     const durationMinutes = block && block.kind === "stations" ? stationRotation(block) : DEFAULT_ITEM_MINUTES;
-    const item: SessionItem = { id, blockId, kind: "exercise", exerciseId: exercise.id, title: exercise.name, description: exercise.description, mediaUrl: exercise.mediaUrl, thumbnailUrl: exercise.thumbnailUrl, durationMinutes, coachingNotes: "", assignedCoachId: null, position, updatedBy: user?.id ?? demoUser.id };
+    const item: SessionItem = { id, blockId, kind: "exercise", exerciseId: exercise.id, title: exercise.name, description: exercise.description, mediaUrl: exercise.mediaUrl, thumbnailUrl: exercise.thumbnailUrl, durationMinutes, coachingNotes: "", assignedCoachIds: [], position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
     try {
       await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: item.kind, exercise_id: exercise.id, title: item.title, description: item.description, media_url: item.mediaUrl, thumbnail_url: item.thumbnailUrl, duration_minutes: durationMinutes, position, updated_by: user?.id }) : null);
@@ -1555,7 +1552,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addCustomItem = useCallback(async (sessionId: string, blockId: string) => {
     const id = makeUuid(); const block = sessions.find((session) => session.id === sessionId)?.blocks.find((entry) => entry.id === blockId); const position = nextPosition(block?.items ?? []);
     const durationMinutes = block && block.kind === "stations" ? stationRotation(block) : DEFAULT_ITEM_MINUTES;
-    const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "Ny aktivitet", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes, coachingNotes: "", assignedCoachId: null, position, updatedBy: user?.id ?? demoUser.id };
+    const item: SessionItem = { id, blockId, kind: "custom", exerciseId: null, title: "Ny aktivitet", description: "", mediaUrl: null, thumbnailUrl: null, durationMinutes, coachingNotes: "", assignedCoachIds: [], position, updatedBy: user?.id ?? demoUser.id };
     setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((entry) => entry.id === blockId ? { ...entry, items: [...entry.items, item] } : entry) } : session));
     try {
       await persist(supabase ? () => supabase.from("session_items").insert({ id, block_id: blockId, kind: "custom", title: item.title, duration_minutes: durationMinutes, position, updated_by: user?.id }) : null);
@@ -1565,7 +1562,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [dropItem, persist, sessions, supabase, user]);
 
-  const updateItem = useCallback(async (sessionId: string, blockId: string, itemId: string, patch: ItemPatch) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.map((item) => item.id === itemId ? { ...item, ...patch, updatedBy: user?.id ?? item.updatedBy } : item) } : block) } : session)); const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.description !== undefined && { description: patch.description }), ...(patch.durationMinutes !== undefined && { duration_minutes: patch.durationMinutes }), ...(patch.coachingNotes !== undefined && { coaching_notes: patch.coachingNotes }), ...(patch.assignedCoachId !== undefined && { assigned_coach_id: patch.assignedCoachId }), updated_by: user?.id }; await persist(supabase ? () => supabase.from("session_items").update(row).eq("id", itemId) : null); }, [persist, supabase, user]);
+  const updateItem = useCallback(async (sessionId: string, blockId: string, itemId: string, patch: ItemPatch) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: block.items.map((item) => item.id === itemId ? { ...item, ...patch, updatedBy: user?.id ?? item.updatedBy } : item) } : block) } : session)); const row = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.description !== undefined && { description: patch.description }), ...(patch.durationMinutes !== undefined && { duration_minutes: patch.durationMinutes }), ...(patch.coachingNotes !== undefined && { coaching_notes: patch.coachingNotes }), ...(patch.assignedCoachIds !== undefined && { assigned_coach_ids: patch.assignedCoachIds }), updated_by: user?.id }; await persist(supabase ? () => supabase.from("session_items").update(row).eq("id", itemId) : null); }, [persist, supabase, user]);
   const deleteItem = useCallback(async (sessionId: string, blockId: string, itemId: string) => { dropItem(sessionId, blockId, itemId); await persist(supabase ? () => supabase.from("session_items").delete().eq("id", itemId) : null); }, [dropItem, persist, supabase]);
   const reorderItems = useCallback(async (sessionId: string, blockId: string, orderedIds: string[]) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: orderedIds.flatMap((id, position) => { const item = block.items.find((entry) => entry.id === id); return item ? [{ ...item, position }] : []; }) } : block) } : session)); await persist(supabase ? () => supabase.rpc("reorder_block_items", { target_block_id: blockId, ordered_item_ids: orderedIds }) : null); }, [persist, supabase]);
 
@@ -1596,7 +1593,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedAdminSessions = useMemo(() => resolveAll(adminSessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [adminSessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, focusPeriods, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, requestPasswordReset, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, focusPeriods, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

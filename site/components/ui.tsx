@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { Profile } from "@/lib/types";
 import { cn, readableInk } from "@/lib/utils";
 
 export function Button({ className, variant = "primary", size = "md", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger"; size?: "sm" | "md" | "lg" }) {
@@ -122,6 +123,11 @@ export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?
 
 export function Avatar({ name, initials, color, size = "md" }: { name: string; initials: string; color: string; size?: "sm" | "md" | "lg" }) {
   return <span title={name} aria-label={name} className={cn("inline-grid shrink-0 place-items-center rounded-full border-2 border-[var(--surface)] font-black shadow-sm", size === "sm" && "h-7 w-7 text-[10px]", size === "md" && "h-9 w-9 text-xs", size === "lg" && "h-11 w-11 text-sm")} style={{ backgroundColor: color, color: readableInk(color) }}>{initials}</span>;
+}
+
+/** Several people as one overlapping row — the coaches on an activity, say. */
+export function AvatarStack({ people, size = "sm" }: { people: readonly Pick<Profile, "id" | "fullName" | "initials" | "color">[]; size?: "sm" | "md" | "lg" }) {
+  return <span className={cn("inline-flex shrink-0 items-center", size === "sm" ? "-space-x-1.5" : "-space-x-2")}>{people.map((person) => <Avatar key={person.id} name={person.fullName} initials={person.initials} color={person.color} size={size} />)}</span>;
 }
 
 export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) {

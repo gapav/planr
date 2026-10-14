@@ -19,13 +19,15 @@ const firstItem = draft.blocks[0].items[0];
 const stations = draft.blocks[1];
 const updateItem = vi.fn();
 const updateBlock = vi.fn();
+const updateSession = vi.fn();
 
 describe("session builder", () => {
   beforeEach(() => {
     updateItem.mockReset();
     updateBlock.mockReset();
+    updateSession.mockReset();
     mocks.useSessionRealtime.mockReturnValue({ collaborators: [], connected: true });
-    mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock });
+    mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
   });
 
   // The header is the only thing that tells a coach whether their typing is
@@ -33,7 +35,7 @@ describe("session builder", () => {
   describe("save indicator", () => {
     function renderWith(saveState: string, connected = true) {
       mocks.useSessionRealtime.mockReturnValue({ collaborators: [], connected });
-      mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, user: null, saveState, isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock });
+      mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, user: null, saveState, isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
       render(<SessionBuilder sessionId={draft.id} />);
     }
 
@@ -74,7 +76,7 @@ describe("session builder", () => {
   });
 
   it("keeps the focus running on the session's day beside the session objective", () => {
-    mocks.useGrep.mockReturnValue({ sessions: [draft], focusPeriods: demoFocusPeriods, teams: demoTeams, exercises: demoExercises, user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock });
+    mocks.useGrep.mockReturnValue({ sessions: [draft], focusPeriods: demoFocusPeriods, teams: demoTeams, exercises: demoExercises, user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
     render(<SessionBuilder sessionId={draft.id} />);
 
     const focus = screen.getByText("Fokus · Forsvar 6-0").closest("details") as HTMLElement;
@@ -83,30 +85,57 @@ describe("session builder", () => {
     expect(within(focus).getByRole("link", { name: "Se sesongoverblikk" })).toHaveAttribute("href", "/sessions?mode=season&focus=focus-forsvar");
   });
 
-  it("offers the session team's coaches as the one responsible for an activity", () => {
+  it("lets a coach tick several of the session team's coaches onto one activity", () => {
     render(<SessionBuilder sessionId={draft.id} />);
-    const picker = screen.getByRole("combobox", { name: `Ansvarlig trener for ${firstItem.title}` }) as HTMLSelectElement;
+    fireEvent.click(screen.getByRole("button", { name: `Ansvarlig trener for ${firstItem.title}: Nora Vik` }));
+    const menu = screen.getByRole("menu", { name: `Ansvarlige trenere for ${firstItem.title}` });
 
-    expect(picker.value).toBe(firstItem.assignedCoachId);
-    expect(within(picker).getAllByRole("option").map((option) => option.textContent))
-      .toEqual(["Ingen ansvarlig trener", "Gard Pavel", "Nora Vik", "Sam Østby"]);
+    expect(within(menu).getAllByRole("menuitemcheckbox").map((row) => [row.getAttribute("aria-label"), row.getAttribute("aria-checked")]))
+      .toEqual([["Gard Pavel", "false"], ["Nora Vik", "true"], ["Sam Østby", "false"]]);
 
-    fireEvent.change(picker, { target: { value: "user-sam" } });
-    expect(updateItem).toHaveBeenCalledWith(draft.id, firstItem.blockId, firstItem.id, { assignedCoachId: "user-sam" });
+    fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Sam Østby" }));
+    expect(updateItem).toHaveBeenLastCalledWith(draft.id, firstItem.blockId, firstItem.id, { assignedCoachIds: ["user-nora", "user-sam"] });
+    // Ticking a second coach is the point, so the menu waits for it.
+    expect(menu).toBeInTheDocument();
 
-    fireEvent.change(picker, { target: { value: "" } });
-    expect(updateItem).toHaveBeenCalledWith(draft.id, firstItem.blockId, firstItem.id, { assignedCoachId: null });
+    fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Nora Vik" }));
+    expect(updateItem).toHaveBeenLastCalledWith(draft.id, firstItem.blockId, firstItem.id, { assignedCoachIds: [] });
+  });
+
+  it("names every coach on a shared station, and takes them all off at once", () => {
+    const shared = stations.items.find((item) => item.assignedCoachIds.length > 1)!;
+    render(<SessionBuilder sessionId={draft.id} />);
+
+    const trigger = screen.getByRole("button", { name: `Ansvarlig trener for ${shared.title}: Nora Vik og Sam Østby` });
+    expect(trigger).toHaveTextContent("Nora Vik og Sam Østby");
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fjern alle" }));
+    expect(updateItem).toHaveBeenCalledWith(draft.id, shared.blockId, shared.id, { assignedCoachIds: [] });
   });
 
   it("labels the coach picker as an action while nobody is responsible", () => {
-    const unassigned = draft.blocks[0].items.find((item) => !item.assignedCoachId)!;
+    const unassigned = draft.blocks[0].items.find((item) => !item.assignedCoachIds.length)!;
     render(<SessionBuilder sessionId={draft.id} />);
 
-    const assignedChip = screen.getByRole("combobox", { name: `Ansvarlig trener for ${firstItem.title}` }).parentElement!;
-    expect(assignedChip).toHaveTextContent("Nora Vik");
+    expect(screen.getByRole("button", { name: `Ansvarlig trener for ${unassigned.title}` })).toHaveTextContent("Sett ansvarlig trener");
+    fireEvent.click(screen.getByRole("button", { name: `Ansvarlig trener for ${unassigned.title}` }));
+    expect(screen.queryByRole("menuitem", { name: "Fjern alle" })).toBeNull();
+  });
 
-    const emptyChip = screen.getByRole("combobox", { name: `Ansvarlig trener for ${unassigned.title}` }).parentElement!;
-    expect(emptyChip).toHaveTextContent("Sett ansvarlig trener");
+  it("closes the coach menu on Escape and hands focus back to the chip", () => {
+    render(<SessionBuilder sessionId={draft.id} />);
+    const trigger = screen.getByRole("button", { name: `Ansvarlig trener for ${firstItem.title}: Nora Vik` });
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: `Ansvarlige trenere for ${firstItem.title}` })).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu", { name: `Ansvarlige trenere for ${firstItem.title}` })).toBeNull();
   });
 
   it("gives a stations block one rotation instead of a duration per station", () => {
@@ -155,5 +184,67 @@ describe("session builder", () => {
   it("keeps the minute field on an ordinary block", () => {
     render(<SessionBuilder sessionId={draft.id} />);
     expect(screen.getByRole("spinbutton", { name: `Varighet for ${firstItem.title}` })).toBeInTheDocument();
+  });
+
+  // Saving on every keystroke made an emptied field save — and show — 1, so
+  // backspacing «10» to type «8» landed on 18.
+  it("lets a coach clear the minutes and type new ones, saving once", () => {
+    render(<SessionBuilder sessionId={draft.id} />);
+    const minutes = screen.getByRole("spinbutton", { name: `Varighet for ${firstItem.title}` }) as HTMLInputElement;
+
+    fireEvent.change(minutes, { target: { value: "" } });
+    expect(minutes.value).toBe("");
+    fireEvent.change(minutes, { target: { value: "8" } });
+    expect(updateItem).not.toHaveBeenCalled();
+    fireEvent.blur(minutes);
+    expect(updateItem).toHaveBeenCalledExactlyOnceWith(draft.id, firstItem.blockId, firstItem.id, { durationMinutes: 8 });
+  });
+
+  it("clamps the minutes to what the database accepts, and puts back an emptied field", () => {
+    render(<SessionBuilder sessionId={draft.id} />);
+    const minutes = screen.getByRole("spinbutton", { name: `Varighet for ${firstItem.title}` }) as HTMLInputElement;
+
+    fireEvent.change(minutes, { target: { value: "500" } });
+    fireEvent.keyDown(minutes, { key: "Enter" });
+    fireEvent.blur(minutes);
+    expect(updateItem).toHaveBeenCalledExactlyOnceWith(draft.id, firstItem.blockId, firstItem.id, { durationMinutes: 180 });
+
+    updateItem.mockReset();
+    fireEvent.change(minutes, { target: { value: "" } });
+    fireEvent.blur(minutes);
+    expect(updateItem).not.toHaveBeenCalled();
+    expect(minutes.value).toBe(String(firstItem.durationMinutes));
+  });
+
+  // The header says «Alle endringer er lagret» while the timer runs, so leaving
+  // the page inside that half-second must not lose what was typed.
+  it("saves a pending edit when the builder goes away before the pause", () => {
+    vi.useFakeTimers();
+    try {
+      const { unmount } = render(<SessionBuilder sessionId={draft.id} />);
+      act(() => { vi.advanceTimersByTime(0); });
+      fireEvent.change(screen.getByRole("textbox", { name: "Økttittel" }), { target: { value: "Torsdag - Uke 42" } });
+      act(() => { vi.advanceTimersByTime(100); });
+      expect(updateSession).not.toHaveBeenCalled();
+      unmount();
+      expect(updateSession).toHaveBeenCalledExactlyOnceWith(draft.id, { title: "Torsdag - Uke 42" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("saves once when the field is left before the pause", () => {
+    vi.useFakeTimers();
+    try {
+      render(<SessionBuilder sessionId={draft.id} />);
+      act(() => { vi.advanceTimersByTime(0); });
+      const title = screen.getByRole("textbox", { name: "Økttittel" });
+      fireEvent.change(title, { target: { value: "Torsdag - Uke 42" } });
+      fireEvent.blur(title);
+      act(() => { vi.advanceTimersByTime(1000); });
+      expect(updateSession).toHaveBeenCalledExactlyOnceWith(draft.id, { title: "Torsdag - Uke 42" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

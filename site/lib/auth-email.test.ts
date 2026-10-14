@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authLinkSiteUrl, confirmLinkUrl, invitationEmail, loginEmail, passwordResetEmail } from "./auth-email";
+import { authLinkSiteUrl, confirmLinkUrl, invitationEmail, loginEmail } from "./auth-email";
 
 describe("authLinkSiteUrl", () => {
   it("returns administrator-issued links to localhost even with a production site URL configured", () => {
@@ -70,23 +70,5 @@ describe("loginEmail", () => {
     expect(subject).toBe("Logg inn på Grep");
     expect(html).toContain("Nettleseren husker deg");
     expect(text).toContain(link);
-  });
-});
-
-describe("passwordResetEmail", () => {
-  const link = "https://grep.team/auth/confirm?token_hash=abc&type=recovery";
-
-  it("says an administrator sent it, since the coach did not ask for it themselves", () => {
-    expect(passwordResetEmail({ link }).text).toContain("Systemadministratoren");
-  });
-
-  it("carries the link in both the button and the plain text fallback", () => {
-    const { html, text } = passwordResetEmail({ link });
-    expect(html).toContain(`href="${link.replace(/&/g, "&amp;")}"`);
-    expect(text).toContain(link);
-  });
-
-  it("does not read as an invitation to a team", () => {
-    expect(passwordResetEmail({ link }).subject).toBe("Velg et nytt passord i Grep");
   });
 });

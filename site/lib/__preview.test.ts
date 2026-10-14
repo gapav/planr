@@ -4,7 +4,7 @@ import { mapDigestSession, type SessionDigestRow } from "./session-digest";
 import { dailySessionDigestEmail } from "./session-email";
 
 const OUT = "/private/tmp/claude-501/-Users-gardpavels-code-plannr/0e45c27c-eb5c-46c7-8c65-f84ff8934186/scratchpad";
-const SELECT = "id,team_id,title,starts_at,venue,planned_duration_minutes,objective,notes,status,teams(name),session_blocks(title,notes,position,session_items(title,description,duration_minutes,coaching_notes,assigned_coach_id,position,kind,exercise_id,exercises(name)))";
+const SELECT = "id,team_id,title,starts_at,venue,planned_duration_minutes,objective,notes,status,teams(name),session_blocks(title,notes,position,session_items(title,description,duration_minutes,coaching_notes,assigned_coach_ids,position,kind,exercise_id,exercises(name)))";
 
 // A scaffold, not a test of anything: it renders the real letter for one
 // session so it can be read in a browser. Skipped unless you point it at a

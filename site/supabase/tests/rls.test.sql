@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(240);
+select plan(244);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -72,9 +72,10 @@ select throws_ok($$ insert into public.exercises (name, description, age_groups,
 select lives_ok($$ insert into public.exercises (id, name, description, age_groups, media_url, media_kind, created_by) values ('20000000-0000-0000-0000-000000000002', 'Multi-age exercise', 'This exercise suits two age bands.', array['10-12', '13-15'], 'https://example.com/exercise.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, 'an exercise can list several supported age groups');
 
 -- A plan with something in it, so `copy_session` has blocks, activities and an
--- assignment to carry over. The second activity is handed to a coach who leaves
--- the team before the copy is made: `validate_session_item_coach` would refuse
--- to insert that name again, so the copy has to drop it rather than fail.
+-- assignment to carry over. The second activity is shared with a coach who
+-- leaves the team before the copy is made: `validate_session_item_coach` would
+-- refuse to insert that name again, so the copy has to drop them rather than
+-- fail — and keep the colleague they shared it with.
 insert into public.team_memberships (team_id, profile_id, role)
 select id, '10000000-0000-0000-0000-000000000002', 'coach' from public.teams where id = current_setting('plannr.test_team')::uuid;
 
@@ -83,10 +84,10 @@ values
   ('60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Oppvarming', 'Rolig start.', 0, '10000000-0000-0000-0000-000000000001'),
   ('60000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', 'Hoveddel', '', 1, '10000000-0000-0000-0000-000000000001');
 
-insert into public.session_items (id, block_id, kind, exercise_id, title, description, duration_minutes, coaching_notes, assigned_coach_id, position, updated_by)
+insert into public.session_items (id, block_id, kind, exercise_id, title, description, duration_minutes, coaching_notes, assigned_coach_ids, position, updated_by)
 values
-  ('70000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'exercise', '20000000-0000-0000-0000-000000000001', 'Public test exercise', 'A useful public exercise description.', 12, 'Hold tempoet nede.', '10000000-0000-0000-0000-000000000001', 0, '10000000-0000-0000-0000-000000000001'),
-  ('70000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', 'custom', null, 'Spill med betingelser', '', 20, '', '10000000-0000-0000-0000-000000000002', 0, '10000000-0000-0000-0000-000000000001');
+  ('70000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'exercise', '20000000-0000-0000-0000-000000000001', 'Public test exercise', 'A useful public exercise description.', 12, 'Hold tempoet nede.', array['10000000-0000-0000-0000-000000000001']::uuid[], 0, '10000000-0000-0000-0000-000000000001'),
+  ('70000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', 'custom', null, 'Spill med betingelser', '', 20, '', array['10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001']::uuid[], 0, '10000000-0000-0000-0000-000000000001');
 
 set local role anon;
 select throws_ok($$ select count(*) from public.exercises $$, '42501', null, 'anonymous visitors cannot read exercises');
@@ -236,12 +237,12 @@ select ok((select created_by = '10000000-0000-0000-0000-000000000001' and update
 select is((select array_agg(title order by position) from public.session_blocks where session_id = current_setting('plannr.test_copy')::uuid), array['Oppvarming', 'Hoveddel']::text[], 'the blocks come along in their own order');
 select is((select notes from public.session_blocks where session_id = current_setting('plannr.test_copy')::uuid and position = 0), 'Rolig start.', 'a block keeps the note written on it');
 select is((select count(*)::integer from public.session_items item join public.session_blocks block on block.id = item.block_id where block.session_id = current_setting('plannr.test_copy')::uuid), 2, 'every activity comes along, under the block it belonged to');
-select ok((select item.exercise_id = '20000000-0000-0000-0000-000000000001' and item.duration_minutes = 12 and item.coaching_notes = 'Hold tempoet nede.' and item.assigned_coach_id = '10000000-0000-0000-0000-000000000001'
+select ok((select item.exercise_id = '20000000-0000-0000-0000-000000000001' and item.duration_minutes = 12 and item.coaching_notes = 'Hold tempoet nede.' and item.assigned_coach_ids = array['10000000-0000-0000-0000-000000000001']::uuid[]
   from public.session_items item join public.session_blocks block on block.id = item.block_id
   where block.session_id = current_setting('plannr.test_copy')::uuid and block.position = 0), 'an activity keeps its exercise, its minutes, its notes and a coach still on the team');
-select ok((select item.assigned_coach_id is null
+select is((select item.assigned_coach_ids
   from public.session_items item join public.session_blocks block on block.id = item.block_id
-  where block.session_id = current_setting('plannr.test_copy')::uuid and block.position = 1), 'an activity handed to a coach who has left starts out unassigned');
+  where block.session_id = current_setting('plannr.test_copy')::uuid and block.position = 1), array['10000000-0000-0000-0000-000000000001']::uuid[], 'an activity shared with a coach who has left keeps only the colleague still on the team');
 select is((select count(*)::integer from public.session_attendance where session_id = current_setting('plannr.test_copy')::uuid), 0, 'attendance stays with the evening it was taken in');
 select is((select count(*)::integer from public.session_groupings where session_id = current_setting('plannr.test_copy')::uuid), 0, 'the groups stay with the workout they were drawn for');
 select lives_ok($$ update public.sessions set title = 'Kopiert økt, omdøpt', updated_by = '10000000-0000-0000-0000-000000000001' where id = current_setting('plannr.test_copy')::uuid $$, 'a copy of a locked plan is not itself locked');
@@ -454,20 +455,23 @@ select is((select count(*)::integer from public.team_focus_periods), 0, 'an unre
 select throws_ok(format($$ insert into public.team_focus_periods (team_id, title, starts_on, weeks) values ('%s', 'Fremmed fokus', '2027-01-04', 2) $$, current_setting('plannr.test_team')), '42501', null, 'an unrelated coach cannot set another team focus');
 reset role;
 
--- 202609020025 put a responsible coach on each activity. The browser writes it
--- straight to PostgREST, so the "must be on this team" rule is a trigger rather
--- than a client-side check.
+-- 202609020025 put a responsible coach on each activity, and 202610140001 made
+-- that a set of coaches. The browser writes it straight to PostgREST, so the
+-- "must be on this team" rule is a trigger rather than a client-side check.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok(format($$ insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by) values ('30000000-0000-0000-0000-000000000003', '%s', 'Coach assignment test', now(), 'draft', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001') $$, current_setting('plannr.test_team')), 'a coach can draft a session for their own team');
 select lives_ok($$ insert into public.session_blocks (id, session_id, title, position, updated_by) values ('31000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000003', 'Hoveddel', 0, '10000000-0000-0000-0000-000000000001') $$, 'a coach can add a block to their own session');
 select lives_ok($$ insert into public.session_items (id, block_id, kind, title, duration_minutes, position, updated_by) values ('32000000-0000-0000-0000-000000000001', '31000000-0000-0000-0000-000000000001', 'custom', 'Kontring', 10, 0, '10000000-0000-0000-0000-000000000001') $$, 'an activity starts without a responsible coach');
-select ok((select assigned_coach_id is null from public.session_items where id = '32000000-0000-0000-0000-000000000001'), 'an activity nobody was given belongs to the whole coaching team');
-select lives_ok($$ update public.session_items set assigned_coach_id = '10000000-0000-0000-0000-000000000002', updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'a coach can hand an activity to another coach on the team');
-select throws_ok($$ update public.session_items set assigned_coach_id = '10000000-0000-0000-0000-000000000003', updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'P0001', 'Ansvarlig trener må være trener på laget', 'an activity cannot be handed to a coach outside the team');
-select throws_ok($$ insert into public.session_items (block_id, kind, title, duration_minutes, position, assigned_coach_id, updated_by) values ('31000000-0000-0000-0000-000000000001', 'custom', 'Skudd', 10, 1, '10000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001') $$, 'P0001', 'Ansvarlig trener må være trener på laget', 'the platform owner is not a coach on the team either');
+select ok((select assigned_coach_ids = '{}'::uuid[] from public.session_items where id = '32000000-0000-0000-0000-000000000001'), 'an activity nobody was given belongs to the whole coaching team');
+select lives_ok($$ update public.session_items set assigned_coach_ids = array['10000000-0000-0000-0000-000000000002']::uuid[], updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'a coach can hand an activity to another coach on the team');
+select lives_ok($$ update public.session_items set assigned_coach_ids = array['10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002']::uuid[], updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'a coach can put two coaches on one activity');
+select is((select assigned_coach_ids from public.session_items where id = '32000000-0000-0000-0000-000000000001'), array['10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001']::uuid[], 'a coach named twice is kept once, where they were first named');
+select throws_ok($$ update public.session_items set assigned_coach_ids = array['10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003']::uuid[], updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'P0001', 'Ansvarlig trener må være trener på laget', 'an activity cannot be handed to a coach outside the team, even alongside one on it');
+select throws_ok($$ insert into public.session_items (block_id, kind, title, duration_minutes, position, assigned_coach_ids, updated_by) values ('31000000-0000-0000-0000-000000000001', 'custom', 'Skudd', 10, 1, array['10000000-0000-0000-0000-000000000004']::uuid[], '10000000-0000-0000-0000-000000000001') $$, 'P0001', 'Ansvarlig trener må være trener på laget', 'the platform owner is not a coach on the team either');
+select throws_ok($$ update public.session_items set assigned_coach_ids = array[null]::uuid[], updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, '23514', null, 'a list of coaches cannot hold a blank');
 select lives_ok($$ update public.session_items set coaching_notes = 'Tre runder.', updated_by = '10000000-0000-0000-0000-000000000001' where id = '32000000-0000-0000-0000-000000000001' $$, 'an untouched assignment does not have to be re-validated on every edit');
-select is((select assigned_coach_id::text from public.session_items where id = '32000000-0000-0000-0000-000000000001'), '10000000-0000-0000-0000-000000000002', 'the assignment survives an edit of the rest of the activity');
+select is((select assigned_coach_ids from public.session_items where id = '32000000-0000-0000-0000-000000000001'), array['10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001']::uuid[], 'the assignment survives an edit of the rest of the activity');
 -- 202609130002 added stations blocks. The rotation belongs to the block, and
 -- the trigger pair mirrors it onto every station, so the sum of a block's
 -- activity minutes is `stations × rotation` for anything that reads the rows —
@@ -559,11 +563,18 @@ select throws_ok(
 -- above the ordinary membership invariant and must still revoke every seat.
 update public.team_memberships set role = 'admin' where profile_id = '10000000-0000-0000-0000-000000000005';
 update public.team_memberships set role = 'coach' where profile_id = '10000000-0000-0000-0000-000000000001';
+-- 202610140001: the deleted coach comes off every activity they were given —
+-- including one in a finished workout, which is locked and used to make the
+-- whole deletion fail.
+select set_config('plannr.unlocked_session', '30000000-0000-0000-0000-000000000001', true);
+update public.session_items set assigned_coach_ids = array['10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005']::uuid[] where id = '70000000-0000-0000-0000-000000000001';
+select set_config('plannr.unlocked_session', '', true);
 select lives_ok(
   $$ delete from auth.users where id = '10000000-0000-0000-0000-000000000005' $$,
   'a non-admin Auth identity can be permanently deleted even after authoring content'
 );
 select is((select count(*)::integer from auth.users where id = '10000000-0000-0000-0000-000000000005'), 0, 'permanent deletion removes the Auth identity');
+select is((select assigned_coach_ids from public.session_items where id = '70000000-0000-0000-0000-000000000001'), array['10000000-0000-0000-0000-000000000001']::uuid[], 'permanent deletion takes the coach off every activity, even in a finished workout');
 select is((select full_name from public.profiles where id = '10000000-0000-0000-0000-000000000005'), 'Slettet bruker', 'the historical profile is anonymized');
 select ok((select deleted_at is not null from public.profiles where id = '10000000-0000-0000-0000-000000000005'), 'the tombstone records when deletion happened');
 select is((select count(*)::integer from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000005'), 0, 'permanent deletion revokes every team membership');

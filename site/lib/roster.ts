@@ -1,4 +1,4 @@
-import type { TeamPlayerInput } from "./types";
+import type { TeamPlayer, TeamPlayerInput } from "./types";
 
 const aliases = {
   fullName: ["navn", "full name", "fullname", "name", "spiller", "player", "medlem", "member"],
@@ -70,4 +70,41 @@ export function parseRosterRows(rows: readonly (readonly unknown[])[]): RosterPa
   }
   if (!players.length) throw new Error("Regnearket inneholdt ingen spillerrader.");
   return { players, skippedRows, headerRow: headerIndex + 1 };
+}
+
+export interface RosterImportPlan { players: TeamPlayer[]; added: number; updated: number }
+
+/**
+ * Which imported rows update a player the team already has, and which add one.
+ *
+ * A row updates the existing player with the same minimized name and jersey
+ * number; failing that, the team's only player of that name (the jersey
+ * changed). Each existing player is matched at most once. Two "Emma H." with no
+ * jersey number otherwise both resolved to the first one, the upsert carried the
+ * same id twice, and Postgres refused the whole import — every re-import after
+ * it, too. Exact matches are settled before the fallback so a namesake row
+ * cannot take the player whose jersey actually matches.
+ */
+export function planRosterImport(existing: readonly TeamPlayer[], input: readonly TeamPlayerInput[], options: { teamId: string; now: string; makeId(): string }): RosterImportPlan {
+  const key = (name: string) => name.toLocaleLowerCase("nb-NO");
+  const rows = input.map((entry) => ({ entry, fullName: minimizePlayerName(entry.fullName) }));
+  const claimed = new Set<string>();
+  const matches = new Map<number, TeamPlayer>();
+  rows.forEach(({ entry, fullName }, index) => {
+    const match = existing.find((player) => !claimed.has(player.id) && key(player.fullName) === key(fullName) && player.jerseyNumber === entry.jerseyNumber);
+    if (match) { claimed.add(match.id); matches.set(index, match); }
+  });
+  rows.forEach(({ fullName }, index) => {
+    if (matches.has(index)) return;
+    const namesakes = existing.filter((player) => key(player.fullName) === key(fullName));
+    if (namesakes.length === 1 && !claimed.has(namesakes[0].id)) { claimed.add(namesakes[0].id); matches.set(index, namesakes[0]); }
+  });
+  let added = 0; let updated = 0;
+  const players = rows.map(({ entry, fullName }, index): TeamPlayer => {
+    const match = matches.get(index);
+    if (match) { updated += 1; return { ...match, jerseyNumber: entry.jerseyNumber, fullName, updatedAt: options.now }; }
+    added += 1;
+    return { id: options.makeId(), teamId: options.teamId, jerseyNumber: entry.jerseyNumber, fullName, createdAt: options.now, updatedAt: options.now };
+  });
+  return { players, added, updated };
 }

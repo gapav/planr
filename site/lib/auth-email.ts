@@ -13,7 +13,7 @@ import { emailShell, escapeHtml } from "./email-shell";
  */
 
 /** The link types `app/auth/confirm` knows how to verify. */
-export type AuthLinkType = "invite" | "magiclink" | "recovery";
+export type AuthLinkType = "invite" | "magiclink";
 
 /**
  * The origin for an administrator-issued auth link.
@@ -68,28 +68,6 @@ export function loginEmail({ link }: { link: string }): AuthEmail {
       link,
     }),
     text: `Åpne den sikre engangslenken for å logge inn på Grep. Nettleseren husker deg, så du trenger vanligvis ikke en ny e-post neste gang.\n\n${link}\n\n${plainFooter}`,
-  };
-}
-
-/**
- * The email an administrator sends a coach who cannot get in.
- *
- * `recovery` is the same `generateLink` call the invitation uses, and lands on
- * the same page — `app/auth/confirm` forwards a recovery link to
- * `/account/password`. So resetting a password needs no Supabase SMTP, no
- * template and no trip to the dashboard, exactly like inviting.
- */
-export function passwordResetEmail({ link }: { link: string }): AuthEmail {
-  return {
-    subject: "Velg et nytt passord i Grep",
-    html: shell({
-      eyebrow: "Nytt passord",
-      heading: "Velg et nytt passord",
-      lead: "Systemadministratoren har sendt deg en lenke for å velge et nytt passord i Grep. Trykk på knappen under, så velger du det selv.",
-      action: "Velg nytt passord",
-      link,
-    }),
-    text: `Systemadministratoren har sendt deg en lenke for å velge et nytt passord i Grep.\n\n${link}\n\n${plainFooter}`,
   };
 }
 

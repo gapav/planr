@@ -23,15 +23,15 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Make database changes only by creating or editing SQL files in `supabase/migrations/`. Do not claim that a migration has been applied.
 - Keep migrations ordered by their timestamped filename and safe to execute through the Supabase SQL editor.
 - Treat migrations that may already have been applied as immutable. If their application status is unclear, ask before editing them or add a new forward migration.
-- After changing database SQL, identify the exact migration file the user must apply manually and mention any required ordering.
+- After changing database SQL, run `npm run db:bootstrap` so `supabase/prod_bootstrap.sql` matches the migrations — `scripts/build-bootstrap.test.ts` fails the suite otherwise — then identify the exact migration file the user must apply manually and mention any required ordering. Never suggest applying `prod_bootstrap.sql` to a database being restored from a backup; it is for an empty project only.
 - Update `supabase/tests/rls.test.sql` when grants, policies, roles, or data-access behavior change. Do not run `supabase test db` unless the user explicitly asks and confirms a disposable local Supabase instance is available.
 
 ## Implementation conventions
 
 - Read the relevant installed Next.js guide required by the generated rule above before changing framework code.
-- Keep server-only Supabase access in `lib/supabase/server.ts` and browser access in `lib/supabase/client.ts`; do not expose secrets through `NEXT_PUBLIC_*` variables.
+- Browser access goes through `lib/supabase/client.ts`, the only writer of the auth cookie. Nothing server-side reads the session: `lib/supabase/server.ts` has no callers, and each API route that needs Supabase builds its own `createClient` — with the caller's bearer token wherever there is a caller, so RLS still applies, and with `SUPABASE_SECRET_KEY` only in the three routes allowed to hold it (see the root `CLAUDE.md`). Do not expose secrets through `NEXT_PUBLIC_*` variables.
 - Preserve row-level security and least-privilege grants for all database changes.
-- Add or update focused Vitest coverage for changed behavior. Tests live beside the corresponding modules using `*.test.ts` or `*.test.tsx`.
+- Add or update focused Vitest coverage for changed behavior. Tests live beside the corresponding modules using `*.test.ts` or `*.test.tsx`; API route tests run in the node environment with `@supabase/supabase-js` mocked.
 - Avoid editing generated output, dependency directories, or environment files containing credentials.
 - Preserve unrelated user changes in the working tree.
 

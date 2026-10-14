@@ -7,7 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { ArrowLeft, Calendar, Check, ChevronDown, CirclePlay, Clock3, Eye, GripVertical, LayoutGrid, Library, MapPin, MoreVertical, Pencil, Plus, Radio, Search, Sparkles, Trash2, TriangleAlert, UserRoundPlus, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "./app-shell";
 import { blockGlyph, blockPresets } from "./block-presets";
 import { ShortlistChips, useShortlistIds } from "./collections";
@@ -19,12 +19,13 @@ import { ExerciseDetail, sessionItemDetailSubject } from "./exercise-detail";
 import { ExerciseThumbnail, ItemThumbnailPlaceholder } from "./exercise-thumbnail";
 import { WorkoutSession } from "./live-session";
 import { SessionStartFields } from "./session-start-fields";
-import { Avatar, Button, EmptyState, Field, inputClass, Modal, Tag, textareaClass } from "./ui";
+import { Avatar, AvatarStack, Button, EmptyState, Field, inputClass, Modal, Tag, textareaClass } from "./ui";
+import { useDismissable } from "@/hooks/use-dismissable";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
 import { countExerciseFacets, filterExercises, type ExerciseShortlist } from "@/lib/exercises";
 import { dayKey } from "@/lib/fixtures";
 import { focusAt, noteLines } from "@/lib/focus";
-import { assignedCoach, autoSessionTitle, blockClock, blockDuration, coachAssignmentOptions, combineSessionStart, isAutoSessionTitle, isStationBlock, sessionDuration, sessionSchedule, splitSessionStart, stationRotation, validatePublish } from "@/lib/session";
+import { autoSessionTitle, blockClock, blockDuration, coachAssignmentOptions, coachNameList, combineSessionStart, isAutoSessionTitle, isStationBlock, sessionDuration, sessionSchedule, splitSessionStart, stationRotation, toggleAssignedCoach, validatePublish } from "@/lib/session";
 import { MIN_STATIONS } from "@/lib/types";
 import type { Exercise, ExerciseAgeGroup, ExerciseCategory, PlannedSession, Profile, SaveState, SessionBlock, SessionBlockKind, SessionItem } from "@/lib/types";
 import { clockTime, cn, minutesLabel } from "@/lib/utils";
@@ -48,6 +49,9 @@ function SaveIndicator({ saveState, connected }: { saveState: SaveState; connect
 /** The rotations the stepper moves between — a minute at a time, around the six a coach starts from. */
 const MIN_ROTATION_MINUTES = 1;
 const MAX_ROTATION_MINUTES = 60;
+/** `session_items.duration_minutes` is checked `between 1 and 180`. */
+const MIN_ITEM_MINUTES = 1;
+const MAX_ITEM_MINUTES = 180;
 
 /**
  * `/sessions/<id>/edit`. The read-only view lives at `/sessions/<id>`, which is
@@ -99,10 +103,10 @@ export function SessionBuilder({ sessionId }: { sessionId: string }) {
     void store.updateSession(sessionId, { startsAt, ...(startsAt && isAutoSessionTitle(stableSession.title) ? { title: autoSessionTitle(startsAt) } : {}) });
   }
   async function addBlock(title: string, kind: SessionBlockKind = "sequence") { const id = await store.addBlock(sessionId, title, kind); setActiveBlockId(id); setBlockMenu(false); }
-  async function publish() { const issues = validatePublish(stableSession); if (issues.length) { setPublishIssues(issues); return; } setPublishing(true); try { await store.publishSession(sessionId); } finally { setPublishing(false); } }
+  async function publish() { const issues = validatePublish(stableSession); if (issues.length) { setPublishIssues(issues); return; } setPublishing(true); try { await store.publishSession(sessionId); } catch { /* The provider rolls the status back and shows the notice. */ } finally { setPublishing(false); } }
   function blocksDragEnd(event: DragEndEvent) { const { active, over } = event; if (!over || active.id === over.id) return; const oldIndex = stableSession.blocks.findIndex((block) => block.id === active.id); const newIndex = stableSession.blocks.findIndex((block) => block.id === over.id); void store.reorderBlocks(sessionId, arrayMove(stableSession.blocks, oldIndex, newIndex).map((block) => block.id)); }
 
-  return <AppShell><div className="min-h-screen pb-24"><header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--paper)]/92 px-4 py-3 backdrop-blur-xl sm:px-7"><div className="mx-auto flex max-w-[1380px] items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><Link href="/sessions" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl hover:bg-[var(--hover-wash-strong)]" aria-label="Tilbake til øktkalenderen"><ArrowLeft size={20} /></Link><div className="min-w-0"><p className="truncate text-sm font-black">{session.title}</p><div className="mt-0.5 flex items-center gap-2 text-[11px] font-semibold text-[var(--ink-soft)]"><SaveIndicator saveState={store.saveState} connected={connected} /></div></div></div><div className="flex items-center gap-2"><div className="hidden items-center -space-x-2 sm:flex">{collaborators.map((person) => <Avatar key={person.id} {...person} name={person.fullName} />)}{collaborators.length > 0 && <span className="ml-4 text-xs font-bold text-[var(--ink-soft)]">{collaborators.length} redigerer</span>}</div><Button variant="secondary" className="hidden xl:inline-flex"><UserRoundPlus size={17} />Inviter trener</Button><Link href={`/sessions/${sessionId}/live`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)]"><CirclePlay size={17} /><span className="hidden sm:inline">Start økten</span><span className="sm:hidden">Start</span></Link><Button onClick={() => void publish()} disabled={publishing || session.status === "published"}>{session.status === "published" ? <><Check size={17} /><span className="hidden sm:inline">Publisert</span></> : publishing ? "Publiserer…" : "Publiser"}</Button></div></div></header>
+  return <AppShell><div className="min-h-screen pb-24"><header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--paper)]/92 px-4 py-3 backdrop-blur-xl sm:px-7"><div className="mx-auto flex max-w-[1380px] items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><Link href="/sessions" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl hover:bg-[var(--hover-wash-strong)]" aria-label="Tilbake til øktkalenderen"><ArrowLeft size={20} /></Link><div className="min-w-0"><p className="truncate text-sm font-black">{session.title}</p><div className="mt-0.5 flex items-center gap-2 text-[11px] font-semibold text-[var(--ink-soft)]"><SaveIndicator saveState={store.saveState} connected={connected} /></div></div></div><div className="flex items-center gap-2"><div className="hidden items-center -space-x-2 sm:flex">{collaborators.map((person) => <Avatar key={person.id} {...person} name={person.fullName} />)}{collaborators.length > 0 && <span className="ml-4 text-xs font-bold text-[var(--ink-soft)]">{collaborators.length} redigerer</span>}</div><Link href={`/sessions/${sessionId}/live`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)]"><CirclePlay size={17} /><span className="hidden sm:inline">Start økten</span><span className="sm:hidden">Start</span></Link><Button onClick={() => void publish()} disabled={publishing || session.status === "published"}>{session.status === "published" ? <><Check size={17} /><span className="hidden sm:inline">Publisert</span></> : publishing ? "Publiserer…" : "Publiser"}</Button></div></div></header>
     <div className="mx-auto grid max-w-[1380px] gap-7 px-4 pt-7 sm:px-7 xl:grid-cols-[minmax(0,1fr)_330px]"><main className="min-w-0"><section className="rounded-[26px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(16,32,29,.04)] sm:p-7"><div className="flex items-center justify-between gap-3"><div><div className="flex items-center gap-2"><Tag tone={session.status === "draft" ? "orange" : "green"}>{session.status === "draft" ? "Øktutkast" : "Publisert"}</Tag><HelpTip topic="session-publish" /></div><AutoField className="mt-3 text-3xl font-black tracking-[-.045em] sm:text-4xl" value={session.title} onSave={(value) => store.updateSession(sessionId, { title: value })} ariaLabel="Økttittel" /></div><MoreVertical className="text-[var(--ink-soft)]" size={20} /></div><div className="mt-7 grid gap-5 border-t border-[var(--line)] pt-6 sm:grid-cols-2"><Field label="Dato og klokkeslett"><SessionStartFields date={start.date} time={start.time} onChange={saveStart} /></Field><Field label="Sted"><div className="relative min-w-0"><MapPin className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={17} /><DebouncedInput className={`${inputClass} pl-10`} value={session.venue} placeholder="Bane eller sted" onSave={(value) => store.updateSession(sessionId, { venue: value })} /></div></Field><Field label="Planlagt varighet"><div className="relative min-w-0"><Clock3 className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={17} /><select className={`${inputClass} appearance-none pl-10`} value={session.plannedDurationMinutes} onChange={(event) => void store.updateSession(sessionId, { plannedDurationMinutes: Number(event.target.value) })}>{[45, 60, 75, 90, 105, 120].map((minutes) => <option key={minutes} value={minutes}>{minutesLabel(minutes)}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-3.5 text-[var(--ink-soft)]" size={17} /></div></Field><Field label="Mål for økten"><DebouncedInput className={inputClass} value={session.objective} placeholder="Hva skal laget bli bedre på?" onSave={(value) => store.updateSession(sessionId, { objective: value })} />{focus && <details className="session-month-focus"><summary>Fokus · {focus.title}</summary>{focus.note.trim() && <p>{focus.note}</p>}{noteLines(focus.notes).length > 0 && <ul>{noteLines(focus.notes).map((point, index) => <li key={index}>{point}</li>)}</ul>}<Link href={`/sessions?mode=season&focus=${focus.id}`}>Se sesongoverblikk</Link></details>}</Field></div></section>
       <section className="mt-8"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.15em] text-[var(--accent)]">Øktplan</p><div className="mt-2 flex items-center gap-2.5"><h2 className="text-3xl font-black tracking-[-.045em]">Planlegg økten</h2><HelpTip topic="session-builder" /></div></div><div className="relative"><Button variant="secondary" onClick={() => setBlockMenu((value) => !value)}><Plus size={18} />Legg til bolk<ChevronDown size={16} /></Button>{blockMenu && <div className="absolute right-0 top-13 z-10 w-[19rem] rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-2 shadow-xl">{blockPresets.map((preset) => <BlockMenuItem key={preset.title} icon={preset.icon} title={preset.title} description={preset.description} onClick={() => void addBlock(preset.title, preset.kind)} />)}
           <div className="my-1 border-t border-[var(--line)]" />
@@ -134,7 +138,7 @@ function SortableBlockCard({ block, index, session, clock, active, collaborators
     <label className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[.11em] text-[var(--ink-soft)]"><span>Rotasjon</span>
       <span className="inline-flex items-center rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] p-0.5">
         <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-lg font-bold hover:bg-[var(--hover-wash-strong)] disabled:opacity-40" onClick={() => setRotation(rotation - 1)} disabled={rotation <= MIN_ROTATION_MINUTES} aria-label="Kortere rotasjon">−</button>
-        <input type="number" min={MIN_ROTATION_MINUTES} max={MAX_ROTATION_MINUTES} value={rotation} onChange={(event) => setRotation(Number(event.target.value))} aria-label={`Rotasjon i ${block.title}`} className="h-8 w-11 border-0 bg-transparent text-center text-sm font-black normal-case tracking-normal text-[var(--ink)] outline-none" />
+        <MinutesInput min={MIN_ROTATION_MINUTES} max={MAX_ROTATION_MINUTES} value={rotation} onCommit={setRotation} aria-label={`Rotasjon i ${block.title}`} className="h-8 w-11 border-0 bg-transparent text-center text-sm font-black normal-case tracking-normal text-[var(--ink)] outline-none" />
         <span className="pr-1 text-xs font-bold normal-case tracking-normal text-[var(--ink-soft)]">min</span>
         <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-lg font-bold hover:bg-[var(--hover-wash-strong)] disabled:opacity-40" onClick={() => setRotation(rotation + 1)} disabled={rotation >= MAX_ROTATION_MINUTES} aria-label="Lengre rotasjon">+</button>
       </span>
@@ -159,23 +163,53 @@ function SortableItemCard({ item, block, session, station, onPreview }: { item: 
   // team currently selected in the sidebar — a coach can open a plan belonging
   // to either of their teams.
   const members = store.teams.find((team) => team.id === session.teamId)?.members ?? [];
-  return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .65 : 1 }} className={cn("grid items-start gap-2 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-2.5", station ? "grid-cols-[28px_44px_minmax(0,1fr)_34px] sm:grid-cols-[32px_54px_minmax(0,1fr)_36px]" : "grid-cols-[28px_44px_minmax(0,1fr)_66px_34px] sm:grid-cols-[32px_54px_minmax(0,1fr)_84px_36px]")}><button {...attributes} {...listeners} className="grid h-10 touch-manipulation select-none place-items-center text-[var(--ink-soft)] [-webkit-touch-callout:none]" aria-label={`Dra ${item.title}`}><GripVertical size={17} /></button><button type="button" onClick={onPreview} aria-label={`Vis ${item.title}`} className="group/media relative h-11 w-11 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <ItemThumbnailPlaceholder item={item} />}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={14} /></span></span>{station && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-[var(--paper)]">{station}</span>}</button><div className="min-w-0">{fromLibrary ? <p className="flex h-8 items-center truncate px-1 text-sm font-black" title="Tittelen hentes fra øvelsesbanken">{item.title}</p> : <DebouncedInput className="h-8 w-full rounded-lg border-0 bg-transparent px-1 text-sm font-black outline-none focus:bg-[var(--paper)]" value={item.title} onSave={(value) => store.updateItem(session.id, block.id, item.id, { title: value })} aria-label={station ? `Tittel på stasjon ${station}` : "Tittel på aktiviteten"} required maxLength={140} />}<DebouncedInput className="h-7 w-full truncate rounded-lg border-0 bg-transparent px-1 text-xs text-[var(--ink-soft)] outline-none focus:bg-[var(--paper)]" value={item.coachingNotes} placeholder="Legg til trenernotat …" onSave={(value) => store.updateItem(session.id, block.id, item.id, { coachingNotes: value })} /><CoachPicker item={item} members={members} onChange={(coachId) => void store.updateItem(session.id, block.id, item.id, { assignedCoachId: coachId })} /></div>{station ? null : <label className="relative"><input type="number" min="1" max="180" className="h-10 w-full rounded-xl border border-[var(--line)] bg-[var(--paper)] px-2 pr-7 text-right text-sm font-black outline-none" value={item.durationMinutes} onChange={(event) => void store.updateItem(session.id, block.id, item.id, { durationMinutes: Math.max(1, Number(event.target.value)) })} aria-label={`Varighet for ${item.title}`} /><span className="pointer-events-none absolute right-2 top-3 text-[10px] font-bold text-[var(--ink-soft)]">m</span></label>}<Button variant="ghost" size="sm" className="px-2" aria-label={station ? `Fjern stasjon ${station}` : `Fjern ${item.title}`} onClick={() => void store.deleteItem(session.id, block.id, item.id)}><Trash2 size={15} /></Button></div>;
+  return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .65 : 1 }} className={cn("grid items-start gap-2 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-2.5", station ? "grid-cols-[28px_44px_minmax(0,1fr)_34px] sm:grid-cols-[32px_54px_minmax(0,1fr)_36px]" : "grid-cols-[28px_44px_minmax(0,1fr)_66px_34px] sm:grid-cols-[32px_54px_minmax(0,1fr)_84px_36px]")}><button {...attributes} {...listeners} className="grid h-10 touch-manipulation select-none place-items-center text-[var(--ink-soft)] [-webkit-touch-callout:none]" aria-label={`Dra ${item.title}`}><GripVertical size={17} /></button><button type="button" onClick={onPreview} aria-label={`Vis ${item.title}`} className="group/media relative h-11 w-11 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <ItemThumbnailPlaceholder item={item} />}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={14} /></span></span>{station && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-[var(--paper)]">{station}</span>}</button><div className="min-w-0">{fromLibrary ? <p className="flex h-8 items-center truncate px-1 text-sm font-black" title="Tittelen hentes fra øvelsesbanken">{item.title}</p> : <DebouncedInput className="h-8 w-full rounded-lg border-0 bg-transparent px-1 text-sm font-black outline-none focus:bg-[var(--paper)]" value={item.title} onSave={(value) => store.updateItem(session.id, block.id, item.id, { title: value })} aria-label={station ? `Tittel på stasjon ${station}` : "Tittel på aktiviteten"} required maxLength={140} />}<DebouncedInput className="h-7 w-full truncate rounded-lg border-0 bg-transparent px-1 text-xs text-[var(--ink-soft)] outline-none focus:bg-[var(--paper)]" value={item.coachingNotes} placeholder="Legg til trenernotat …" onSave={(value) => store.updateItem(session.id, block.id, item.id, { coachingNotes: value })} /><CoachPicker item={item} members={members} onChange={(coachIds) => void store.updateItem(session.id, block.id, item.id, { assignedCoachIds: coachIds })} /></div>{station ? null : <label className="relative"><MinutesInput min={MIN_ITEM_MINUTES} max={MAX_ITEM_MINUTES} className="h-10 w-full rounded-xl border border-[var(--line)] bg-[var(--paper)] px-2 pr-7 text-right text-sm font-black outline-none" value={item.durationMinutes} onCommit={(minutes) => void store.updateItem(session.id, block.id, item.id, { durationMinutes: minutes })} aria-label={`Varighet for ${item.title}`} /><span className="pointer-events-none absolute right-2 top-3 text-[10px] font-bold text-[var(--ink-soft)]">m</span></label>}<Button variant="ghost" size="sm" className="px-2" aria-label={station ? `Fjern stasjon ${station}` : `Fjern ${item.title}`} onClick={() => void store.deleteItem(session.id, block.id, item.id)}><Trash2 size={15} /></Button></div>;
 }
 
 /**
- * Who runs this activity. The control has to read as a button: an unassigned
- * item shows a dashed call to action, an assigned one a solid chip with the
- * coach's avatar and a clear-out entry in the list. The native <select> is
- * kept — laid invisibly over the chip — so keyboard, screen readers and the
- * mobile wheel picker all keep working without a custom menu.
+ * Who runs this activity: one coach, a pair at a busy station, or nobody — in
+ * which case the whole coaching team does. The answer is a set, so this is a
+ * menu of checkboxes rather than a select, and it stays open while coaches are
+ * ticked, as the shortlist menu does: putting two on a station is two taps,
+ * not two trips through a picker. The trigger reads as a button either way — a
+ * dashed call to action while nobody is named, a solid chip with their avatars
+ * once somebody is.
+ *
+ * A coach who has since left the team stays ticked under a neutral name
+ * (`coachAssignmentOptions`), so the chip never claims nobody is responsible
+ * while the stored assignment says otherwise, and they can still be taken off.
  */
-function CoachPicker({ item, members, onChange }: { item: SessionItem; members: readonly Profile[]; onChange(coachId: string | null): void }) {
-  const coach = assignedCoach(item, members);
-  return <span className={cn("relative mt-1 inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border pl-1 pr-2 text-xs font-bold transition focus-within:ring-[3px] focus-within:ring-[rgba(240,100,46,.35)]", coach ? "border-[var(--line)] bg-[var(--paper)] text-[var(--ink)] hover:border-[var(--ink)]" : "border-dashed border-[var(--warn-line)] bg-[var(--warn-bg)] text-[var(--warn-ink)] hover:border-[var(--accent)] hover:bg-[var(--warn-bg-strong)]")}>
-    {coach ? <Avatar name={coach.fullName} initials={coach.initials} color={coach.color} size="sm" /> : <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--warn-bg-strong)]"><UserRoundPlus size={13} /></span>}
-    <span className="truncate">{coach ? coach.fullName : "Sett ansvarlig trener"}</span>
-    <ChevronDown size={14} className="shrink-0 opacity-55" />
-    <select className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0" value={item.assignedCoachId ?? ""} onChange={(event) => onChange(event.target.value || null)} aria-label={`Ansvarlig trener for ${item.title}`}><option value="">Ingen ansvarlig trener</option>{coachAssignmentOptions(item, members).map((member) => <option key={member.id} value={member.id}>{member.fullName}</option>)}</select>
+function CoachPicker({ item, members, onChange }: { item: SessionItem; members: readonly Profile[]; onChange(coachIds: string[]): void }) {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const triggerId = `coach-picker-${item.id}`;
+  useDismissable(open, `[data-coach-picker="${item.id}"]`, close, () => document.getElementById(triggerId)?.focus());
+  const options = coachAssignmentOptions(item, members);
+  const chosen = options.filter((option) => item.assignedCoachIds.includes(option.id));
+  const names = coachNameList(chosen.map((coach) => coach.fullName));
+  return <span data-coach-picker={item.id} className="relative mt-1 inline-flex max-w-full">
+    <button type="button" id={triggerId} aria-haspopup="true" aria-expanded={open} aria-label={`Ansvarlig trener for ${item.title}${chosen.length ? `: ${names}` : ""}`} onClick={() => setOpen(!open)} className={cn("inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border pl-1 pr-2 text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]", chosen.length ? "border-[var(--line)] bg-[var(--paper)] text-[var(--ink)] hover:border-[var(--ink)]" : "border-dashed border-[var(--warn-line)] bg-[var(--warn-bg)] text-[var(--warn-ink)] hover:border-[var(--accent)] hover:bg-[var(--warn-bg-strong)]", open && chosen.length > 0 && "border-[var(--ink)]")}>
+      {chosen.length ? <AvatarStack people={chosen.slice(0, 3)} /> : <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--warn-bg-strong)]"><UserRoundPlus size={13} /></span>}
+      <span className="truncate">{chosen.length ? names : "Sett ansvarlig trener"}</span>
+      <ChevronDown size={14} className={cn("shrink-0 opacity-55 transition", open && "rotate-180")} />
+    </button>
+    {open && <div role="menu" aria-label={`Ansvarlige trenere for ${item.title}`} className="grep-pop grep-pop-left absolute left-0 top-[calc(100%+6px)] z-30 w-56 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-1.5 text-left shadow-xl">
+      <p aria-hidden="true" className="px-2.5 pb-1 pt-1.5 text-[10px] font-black uppercase tracking-[.09em] text-[var(--ink-soft)]">Ansvarlige trenere</p>
+      {options.length ? <ul role="none" className="max-h-64 overflow-y-auto overscroll-contain thin-scrollbar">
+        {options.map((coach, index) => {
+          const checked = item.assignedCoachIds.includes(coach.id);
+          return <li role="none" key={coach.id}><button type="button" role="menuitemcheckbox" aria-checked={checked} aria-label={coach.fullName} onClick={() => onChange(toggleAssignedCoach(item.assignedCoachIds, coach.id))} style={{ animationDelay: `${Math.min(index * 14, 90)}ms` }} className="grep-pop-row flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-sm font-semibold hover:bg-[var(--hover-wash-strong)]">
+            <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-md border transition", checked ? "border-[var(--accent)] bg-[var(--accent-fill)] text-[var(--on-accent)]" : "border-[var(--line)] bg-[var(--surface-raised)]")}>{checked && <Check size={13} strokeWidth={3} />}</span>
+            <Avatar name={coach.fullName} initials={coach.initials} color={coach.color} size="sm" />
+            <span className="min-w-0 flex-1 truncate">{coach.fullName}</span>
+          </button></li>;
+        })}
+      </ul> : <p className="px-2.5 pb-2 text-sm leading-5 text-[var(--ink-soft)]">Laget har ingen trenere ennå.</p>}
+      {chosen.length > 1 && <>
+        <div role="separator" className="my-1.5 h-px bg-[var(--line)]" />
+        <button type="button" role="menuitem" onClick={() => onChange([])} className="flex w-full items-center rounded-xl px-2.5 py-2 text-left text-sm font-bold text-[var(--ink-soft)] hover:bg-[var(--hover-wash-strong)] hover:text-[var(--ink)]">Fjern alle</button>
+      </>}
+    </div>}
   </span>;
 }
 
@@ -200,6 +234,27 @@ function ExercisePicker({ open, blockId, sessionId, onClose }: { open: boolean; 
     <ExerciseDetail key={preview?.id ?? "none"} exercise={open ? preview : null} onClose={() => setPreview(null)} /></>;
 }
 
+/**
+ * A minutes field that saves when the coach is done with it — on blur or
+ * Enter — clamped to what the database accepts. Saving every keystroke made it
+ * impossible to retype: an emptied field saved 1 and showed it, so backspacing
+ * «10» to type «8» landed on 18, and a number past the column's check was
+ * refused while the screen kept showing it. An emptied field puts the saved
+ * value back. While nobody is typing it shows the stored value, so a
+ * collaborator's change still comes through.
+ */
+function MinutesInput({ value, min, max, onCommit, onBlur, onKeyDown, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "min" | "max" | "type"> & { value: number; min: number; max: number; onCommit(minutes: number): void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  function commit() {
+    if (draft === null) return;
+    const typed = Math.round(Number(draft));
+    const minutes = draft.trim() && Number.isFinite(typed) ? Math.min(max, Math.max(min, typed)) : value;
+    setDraft(null);
+    if (minutes !== value) onCommit(minutes);
+  }
+  return <input {...props} type="number" min={min} max={max} value={draft ?? value} onChange={(event) => setDraft(event.target.value)} onBlur={(event) => { commit(); onBlur?.(event); }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); onKeyDown?.(event); }} />;
+}
+
 function AutoField({ value, onSave, className, ariaLabel, required, maxLength }: { value: string; onSave(value: string): Promise<void>; className?: string; ariaLabel: string; required?: boolean; maxLength?: number }) {
   return <DebouncedInput value={value} onSave={onSave} aria-label={ariaLabel} required={required} maxLength={maxLength} className={cn("w-full rounded-lg border-0 bg-transparent px-1 outline-none focus:bg-[var(--paper)]", className)} />;
 }
@@ -208,18 +263,35 @@ function AutoField({ value, onSave, className, ariaLabel, required, maxLength }:
 // emptying the field, and a pause there used to save the blank title — refused
 // with «Handlingen kunne ikke fullføres» while the name typed next saved fine.
 // A blank field is never saved, and leaving it blank puts the saved title back.
-function DebouncedInput({ value, onSave, onBlur, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & { value: string; onSave(value: string): Promise<void> }) {
-  const [local, setLocal] = useState(value); const saveRef = useRef(onSave);
-  const blank = Boolean(props.required) && !local.trim();
+// Saves `local` once typing pauses. An edit still waiting on the timer when the
+// coach leaves the field — or the page: the back arrow is one tap away — is
+// saved then rather than dropped, since the header has been saying «Alle
+// endringer er lagret» the whole time. `skip` holds back a value that must not
+// be saved at all.
+function useDebouncedSave(local: string, value: string, skip: boolean, onSave: (value: string) => Promise<void>) {
+  const saveRef = useRef(onSave); const pending = useRef<string | null>(null);
   useEffect(() => { saveRef.current = onSave; }, [onSave]);
-  useEffect(() => { const timer = window.setTimeout(() => setLocal(value), 0); return () => window.clearTimeout(timer); }, [value]);
-  useEffect(() => { if (local === value || blank) return; const timer = window.setTimeout(() => void saveRef.current(local), 550); return () => window.clearTimeout(timer); }, [blank, local, value]);
-  return <input {...props} value={local} onChange={(event) => setLocal(event.target.value)} onBlur={(event) => { if (blank) setLocal(value); onBlur?.(event); }} />;
+  // The timer goes through `flush` too, so a blur that already saved leaves it nothing to do.
+  const flush = useCallback(() => { const next = pending.current; if (next === null) return; pending.current = null; void saveRef.current(next); }, []);
+  useEffect(() => {
+    if (local === value || skip) { pending.current = null; return; }
+    pending.current = local;
+    const timer = window.setTimeout(flush, 550);
+    return () => window.clearTimeout(timer);
+  }, [flush, local, skip, value]);
+  useEffect(() => flush, [flush]);
+  return flush;
 }
-function DebouncedTextarea({ value, onSave, ...props }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange"> & { value: string; onSave(value: string): Promise<void> }) {
-  const [local, setLocal] = useState(value); const saveRef = useRef(onSave);
-  useEffect(() => { saveRef.current = onSave; }, [onSave]);
+function DebouncedInput({ value, onSave, onBlur, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & { value: string; onSave(value: string): Promise<void> }) {
+  const [local, setLocal] = useState(value);
+  const blank = Boolean(props.required) && !local.trim();
   useEffect(() => { const timer = window.setTimeout(() => setLocal(value), 0); return () => window.clearTimeout(timer); }, [value]);
-  useEffect(() => { if (local === value) return; const timer = window.setTimeout(() => void saveRef.current(local), 550); return () => window.clearTimeout(timer); }, [local, value]);
-  return <textarea {...props} value={local} onChange={(event) => setLocal(event.target.value)} />;
+  const flush = useDebouncedSave(local, value, blank, onSave);
+  return <input {...props} value={local} onChange={(event) => setLocal(event.target.value)} onBlur={(event) => { if (blank) setLocal(value); else flush(); onBlur?.(event); }} />;
+}
+function DebouncedTextarea({ value, onSave, onBlur, ...props }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange"> & { value: string; onSave(value: string): Promise<void> }) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => { const timer = window.setTimeout(() => setLocal(value), 0); return () => window.clearTimeout(timer); }, [value]);
+  const flush = useDebouncedSave(local, value, false, onSave);
+  return <textarea {...props} value={local} onChange={(event) => setLocal(event.target.value)} onBlur={(event) => { flush(); onBlur?.(event); }} />;
 }

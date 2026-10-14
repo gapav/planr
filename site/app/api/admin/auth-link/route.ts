@@ -30,6 +30,14 @@ import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/config";
  * only when the email did not go out, so the console can offer it for the
  * administrator to pass on by hand; it is a single-use token for that one
  * address. Resend is optional — see the send step below.
+ *
+ * A team admin is only ever handed the link for an account this call created.
+ * They may reserve a coach seat for any address (202609020027), and for one
+ * that already has an account `generateLink` falls back to `magiclink` — a
+ * link that signs in as whoever owns it. Returning that would let a team admin
+ * reserve a seat for the global admin's address and sign in as them. That
+ * coach does not need the link anyway: they sign in as usual, and the provider
+ * claims the seat for them (`claimableInvitations`).
  */
 
 const secretKey = process.env.SUPABASE_SECRET_KEY;
@@ -116,6 +124,9 @@ export async function POST(request: Request) {
 
   const next = invitationToken ? `/invite/${invitationToken}` : "/sessions";
   const link = confirmLinkUrl(authLinkSiteUrl(siteUrl, request.url), generated.data.properties.hashed_token, type, next);
+  // See the header: a link into an account that already existed goes to its owner's inbox or nowhere.
+  const handOver = isGlobalAdmin || type === "invite" ? { link } : {};
+  const existingAccount = "Treneren har allerede en konto i Grep. Be dem logge inn som vanlig, så blir de med på laget automatisk.";
 
   // Sending is optional. Minting the link is this route's job; delivering it is
   // a convenience on top, and a project with no verified sending domain — or no
@@ -123,7 +134,7 @@ export async function POST(request: Request) {
   // administrator passes the link on themselves. Refusing to mint because the
   // mailer is absent would break the whole feature to protect a nicety.
   if (!resendApiKey || !resendFrom) {
-    return Response.json({ link, emailed: false, emailError: "E-post er ikke satt opp, så lenken må sendes til treneren manuelt." });
+    return Response.json({ ...handOver, emailed: false, emailError: "link" in handOver ? "E-post er ikke satt opp, så lenken må sendes til treneren manuelt." : existingAccount });
   }
 
   const { subject, html, text } = intent === "login"
@@ -140,8 +151,8 @@ export async function POST(request: Request) {
   if (!sent?.ok) {
     const detail = await sent?.json().then((payload: { message?: string }) => payload.message).catch(() => null);
     // The account exists either way, so the link comes back rather than being
-    // lost with the failed send.
-    return Response.json({ link, emailed: false, emailError: detail ?? "E-posten kunne ikke sendes." });
+    // lost with the failed send — to whoever may hold it.
+    return Response.json({ ...handOver, emailed: false, emailError: "link" in handOver ? detail ?? "E-posten kunne ikke sendes." : existingAccount });
   }
 
   // Withheld on success: it is a live single-use credential and the email

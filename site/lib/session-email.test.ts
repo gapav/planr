@@ -13,8 +13,8 @@ function session(overrides: Partial<DigestSession> = {}): DigestSession {
     blocks: [{
       title: "Hoveddel", notes: "", kind: "sequence",
       items: [
-        { title: "Firkant 4v2", durationMinutes: 20, coachingNotes: "Høyt tempo", assignedCoachId: "coach-2" },
-        { title: "Avslutninger", durationMinutes: 15, coachingNotes: "", assignedCoachId: "coach-1" },
+        { title: "Firkant 4v2", durationMinutes: 20, coachingNotes: "Høyt tempo", assignedCoachIds: ["coach-2"] },
+        { title: "Avslutninger", durationMinutes: 15, coachingNotes: "", assignedCoachIds: ["coach-1"] },
       ],
     }],
     ...overrides,
@@ -73,9 +73,9 @@ describe("dailySessionDigestEmail", () => {
       blocks: [{
         title: "Stasjoner", notes: "", kind: "stations",
         items: [
-          { title: "Skudd fra kant", durationMinutes: 10, coachingNotes: "", assignedCoachId: "coach-1" },
-          { title: "Finter", durationMinutes: 10, coachingNotes: "", assignedCoachId: null },
-          { title: "Keeper", durationMinutes: 10, coachingNotes: "", assignedCoachId: null },
+          { title: "Skudd fra kant", durationMinutes: 10, coachingNotes: "", assignedCoachIds: ["coach-1"] },
+          { title: "Finter", durationMinutes: 10, coachingNotes: "", assignedCoachIds: [] },
+          { title: "Keeper", durationMinutes: 10, coachingNotes: "", assignedCoachIds: [] },
         ],
       }],
     });
@@ -99,6 +99,16 @@ describe("dailySessionDigestEmail", () => {
     expect(html.match(/du har ansvar/gi)).toHaveLength(1);
     expect(text).toContain("- Avslutninger (15 min) — du har ansvar");
     expect(text).not.toContain("- Firkant 4v2 (20 min) — du har ansvar");
+  });
+
+  it("marks an activity this coach shares with a colleague as theirs too", () => {
+    const shared = session({ blocks: [{ title: "Stasjoner", notes: "", kind: "stations", items: [
+      { title: "Skudd", durationMinutes: 10, coachingNotes: "", assignedCoachIds: ["coach-2", "coach-1"] },
+      { title: "Finter", durationMinutes: 10, coachingNotes: "", assignedCoachIds: ["coach-2"] },
+    ] }] });
+    const { html, text } = dailySessionDigestEmail({ recipient, sessions: [shared], siteUrl })!;
+    expect(html.match(/du har ansvar/gi)).toHaveLength(1);
+    expect(text).toContain("- 1. Skudd — du har ansvar");
   });
 
   it("links straight to the session, and to the list when there are several", () => {

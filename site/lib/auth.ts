@@ -118,24 +118,6 @@ export function claimableInvitations(
     new Date(invitation.expiresAt).getTime() > now.getTime());
 }
 
-/**
- * Where Supabase should send a coach after they follow a password reset email.
- *
- * `/auth/confirm` is the one page that can take a Supabase link of any type: it
- * calls `verifyOtp` on the token hash, which needs no grant flow, so it sidesteps
- * the PKCE pinning described there. A recovery link is a request to choose a new
- * password, and that page already forwards `type=recovery` on to
- * `/account/password`.
- *
- * This only matters for a Supabase email template still on the default
- * `{{ .ConfirmationURL }}`; the token-hash template the project uses builds the
- * same URL itself. It is sent either way so the allow-list entry and the
- * template agree.
- */
-export function passwordResetRedirectUrl(origin: string): string {
-  return `${origin.replace(/\/+$/, "")}/auth/confirm?type=recovery`;
-}
-
 /** When the workspace was last loaded, and for whom. */
 export interface WorkspaceLoad { userId: string; at: number }
 

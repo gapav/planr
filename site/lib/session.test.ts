@@ -4,7 +4,7 @@ import { demoSessions } from "./demo-data";
 import { clockTime } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile } from "./types";
-import { assignedCoach, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanProgress, sessionPlanSummary, splitSessionStart, splitSessionTime, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
+import { assignedCoaches, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, coachNameList, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanProgress, sessionPlanSummary, splitSessionStart, splitSessionTime, toggleAssignedCoach, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -208,18 +208,33 @@ describe("coach assignment", () => {
     { id: "coach-2", email: "b@example.com", fullName: "Bo Ness", initials: "BN", color: COACH_AVATAR_PEER },
   ];
   it("reads no responsible coach when the whole team runs the activity", () => {
-    expect(assignedCoach({ assignedCoachId: null }, members)).toBeNull();
-    expect(coachAssignmentOptions({ assignedCoachId: null }, members)).toEqual(members);
+    expect(assignedCoaches({ assignedCoachIds: [] }, members)).toEqual([]);
+    expect(coachAssignmentOptions({ assignedCoachIds: [] }, members)).toEqual(members);
   });
-  it("resolves the assigned coach from the current team", () => {
-    expect(assignedCoach({ assignedCoachId: "coach-2" }, members)?.fullName).toBe("Bo Ness");
-    expect(coachAssignmentOptions({ assignedCoachId: "coach-2" }, members)).toEqual(members);
+  it("resolves the assigned coaches from the current team", () => {
+    expect(assignedCoaches({ assignedCoachIds: ["coach-2"] }, members).map((coach) => coach.fullName)).toEqual(["Bo Ness"]);
+    expect(coachAssignmentOptions({ assignedCoachIds: ["coach-2"] }, members)).toEqual(members);
+  });
+  it("lists a pair in the team's order, whichever was ticked first", () => {
+    expect(assignedCoaches({ assignedCoachIds: ["coach-2", "coach-1"] }, members).map((coach) => coach.id)).toEqual(["coach-1", "coach-2"]);
   });
   it("keeps a coach who has left the team on the activity they were given", () => {
-    expect(assignedCoach({ assignedCoachId: "coach-9" }, members)).toBeNull();
-    const options = coachAssignmentOptions({ assignedCoachId: "coach-9" }, members);
+    expect(assignedCoaches({ assignedCoachIds: ["coach-9", "coach-1"] }, members).map((coach) => coach.id)).toEqual(["coach-1"]);
+    const options = coachAssignmentOptions({ assignedCoachIds: ["coach-9", "coach-1"] }, members);
     expect(options).toHaveLength(3);
     expect(options[2]).toMatchObject({ id: "coach-9", fullName: "Trener utenfor laget" });
+  });
+  it("ticks a coach on, and off again, without disturbing the others", () => {
+    expect(toggleAssignedCoach([], "coach-1")).toEqual(["coach-1"]);
+    expect(toggleAssignedCoach(["coach-1"], "coach-2")).toEqual(["coach-1", "coach-2"]);
+    expect(toggleAssignedCoach(["coach-1", "coach-2"], "coach-1")).toEqual(["coach-2"]);
+  });
+  it("names the coaches the way a coach would say them", () => {
+    expect(coachNameList([])).toBe("");
+    expect(coachNameList(["Gard"])).toBe("Gard");
+    expect(coachNameList(["Gard", "Tonje"])).toBe("Gard og Tonje");
+    expect(coachNameList(["Gard", "Tonje", "Erik"])).toBe("Gard, Tonje og Erik");
+    expect(coachNameList(["Gard", "Tonje", "Erik", "Andreas"])).toBe("Gard, Tonje og 2 til");
   });
 });
 
@@ -378,13 +393,12 @@ describe("copying a session", () => {
     it("falls back to the source title when the field was left blank", () => {
       expect(copy({ title: "   " }).title).toBe(demoSessions[0].title);
     });
-    it("keeps an activity's coach, but not one who has left the team", () => {
-      const assigned = demoSessions[0].blocks.flatMap((block) => block.items).filter((item) => item.assignedCoachId);
-      expect(assigned.length).toBeGreaterThan(0);
-      const kept = copy({ memberIds: ["user-gard", "user-nora", "user-sam"] }).blocks.flatMap((block) => block.items).filter((item) => item.assignedCoachId);
-      expect(kept).toHaveLength(assigned.length);
-      const dropped = copy({ memberIds: ["user-gard"] }).blocks.flatMap((block) => block.items).filter((item) => item.assignedCoachId);
-      expect(dropped.map((item) => item.assignedCoachId)).toEqual(["user-gard"]);
+    it("keeps an activity's coaches, but not one who has left the team", () => {
+      const coachesOf = (session: PlannedSession) => session.blocks.flatMap((block) => block.items).map((item) => item.assignedCoachIds);
+      const source = coachesOf(demoSessions[0]);
+      expect(source.some((ids) => ids.length > 1)).toBe(true);
+      expect(coachesOf(copy({ memberIds: ["user-gard", "user-nora", "user-sam"] }))).toEqual(source);
+      expect(coachesOf(copy({ memberIds: ["user-gard", "user-nora"] }))).toEqual(source.map((ids) => ids.filter((id) => id !== "user-sam")));
     });
   });
 });

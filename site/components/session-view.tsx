@@ -14,9 +14,9 @@ import { HelpTip } from "./help-tip";
 import { WorkoutSession } from "./live-session";
 import { CopySessionDialog, SessionMenu } from "./session-actions";
 import { TeamCrest } from "./team-crest";
-import { Avatar, Button, EmptyState, Tag } from "./ui";
+import { AvatarStack, Button, EmptyState, Tag } from "./ui";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
-import { assignedCoach, blockClock, blockDuration, isStationBlock, sessionDuration, sessionSchedule, stationRotation } from "@/lib/session";
+import { assignedCoaches, blockClock, blockDuration, coachNameList, isStationBlock, sessionDuration, sessionSchedule, stationRotation } from "@/lib/session";
 import type { Profile, SessionItem } from "@/lib/types";
 import { clockTime, cn, formatSessionDate, minutesLabel } from "@/lib/utils";
 
@@ -113,9 +113,9 @@ export function SessionView({ sessionId, readOnly = false }: { sessionId: string
  * few that were handed to someone.
  */
 function ItemCoach({ item, members }: { item: SessionItem; members: Profile[] }) {
-  const coach = assignedCoach(item, members);
-  if (!coach) return null;
-  return <span className="mt-2 flex items-center gap-1.5"><Avatar name={coach.fullName} initials={coach.initials} color={coach.color} size="sm" /><span className="text-xs font-bold text-[var(--ink-soft)]">{coach.fullName}</span></span>;
+  const coaches = assignedCoaches(item, members);
+  if (!coaches.length) return null;
+  return <span className="mt-2 flex items-center gap-1.5"><AvatarStack people={coaches} /><span className="text-xs font-bold text-[var(--ink-soft)]">{coachNameList(coaches.map((coach) => coach.fullName))}</span></span>;
 }
 
 function Detail({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

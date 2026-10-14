@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, passwordResetRedirectUrl, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
+import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
 import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
@@ -163,16 +163,6 @@ describe("keepSelectedTeamId", () => {
 
   it("prefers the live selection over the remembered one", () => {
     expect(keepSelectedTeamId("j2016", ["j2016", "g2014"], "g2014")).toBe("j2016");
-  });
-});
-
-describe("passwordResetRedirectUrl", () => {
-  it("sends a recovery link through the page that can verify a token hash", () => {
-    expect(passwordResetRedirectUrl("https://grep.team")).toBe("https://grep.team/auth/confirm?type=recovery");
-  });
-
-  it("does not double the slash when the origin has a trailing one", () => {
-    expect(passwordResetRedirectUrl("https://grep.team/")).toBe("https://grep.team/auth/confirm?type=recovery");
   });
 });
 

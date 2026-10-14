@@ -89,7 +89,7 @@ export function digestSubject(sessions: readonly DigestSession[]): string {
  * at a different indent.
  */
 function itemLine(item: DigestSession["blocks"][number]["items"][number], recipientId: string, station?: number): string {
-  const mine = item.assignedCoachId === recipientId;
+  const mine = item.assignedCoachIds.includes(recipientId);
   const badge = mine
     ? `<div style="margin:8px 0 0"><span style="display:inline-block;padding:3px 9px;background:#FFF0E7;border-radius:999px;color:#684535;font-size:11px;font-weight:900;letter-spacing:.8px;text-transform:uppercase">Du har ansvar</span></div>`
     : "";
@@ -199,7 +199,7 @@ function sessionText(session: DigestSession, recipientId: string, siteUrl: strin
     if (stations && block.items.length) lines.push(`  ${block.items.length} stasjoner × ${minutesLabel(block.items[0].durationMinutes)} — laget roterer.`);
     if (block.notes.trim()) lines.push(`  ${block.notes.trim()}`);
     for (const [index, item] of block.items.entries()) {
-      const mine = item.assignedCoachId === recipientId ? " — du har ansvar" : "";
+      const mine = item.assignedCoachIds.includes(recipientId) ? " — du har ansvar" : "";
       lines.push(stations ? `  - ${index + 1}. ${item.title}${mine}` : `  - ${item.title} (${minutesLabel(item.durationMinutes)})${mine}`);
       if (item.coachingNotes.trim()) lines.push(`    ${item.coachingNotes.trim()}`);
     }

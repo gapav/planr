@@ -15,7 +15,7 @@ import {
 
 /** A plan whose activities add up to `minutes`, in one block. */
 function planOf(minutes: number): DigestSession["blocks"] {
-  return [{ title: "Hoveddel", notes: "", kind: "sequence", items: [{ title: "Pasningsdrill", durationMinutes: minutes, coachingNotes: "", assignedCoachId: null }] }];
+  return [{ title: "Hoveddel", notes: "", kind: "sequence", items: [{ title: "Pasningsdrill", durationMinutes: minutes, coachingNotes: "", assignedCoachIds: [] }] }];
 }
 
 // Fully built by default, so the tests about days and recipients are not
@@ -100,7 +100,7 @@ describe("digestSessionsForDay", () => {
   it("counts a stations block by its stations, as the calendar bar does", () => {
     const stations: DigestSession["blocks"] = [{
       title: "Stasjoner", notes: "", kind: "stations",
-      items: [1, 2, 3].map((n) => ({ title: `Stasjon ${n}`, durationMinutes: 25, coachingNotes: "", assignedCoachId: null })),
+      items: [1, 2, 3].map((n) => ({ title: `Stasjon ${n}`, durationMinutes: 25, coachingNotes: "", assignedCoachIds: [] })),
     }];
     expect(digestSessionsForDay([session({ startsAt: "2026-12-15T16:00:00.000Z", blocks: stations })], day)).toHaveLength(1);
   });
@@ -169,8 +169,8 @@ describe("mapDigestSession", () => {
     session_blocks: [
       {
         title: "Hoveddel", notes: "", position: 1, session_items: [
-          { title: "Lagret navn", description: "", duration_minutes: 20, coaching_notes: "", assigned_coach_id: null, position: 1, kind: "exercise", exercise_id: "ex-1", exercises: { name: "Firkant 4v2" } },
-          { title: "Egen aktivitet", description: "", duration_minutes: 10, coaching_notes: "Høyt tempo", assigned_coach_id: "coach-2", position: 0, kind: "custom", exercise_id: null, exercises: null },
+          { title: "Lagret navn", description: "", duration_minutes: 20, coaching_notes: "", assigned_coach_ids: null, position: 1, kind: "exercise", exercise_id: "ex-1", exercises: { name: "Firkant 4v2" } },
+          { title: "Egen aktivitet", description: "", duration_minutes: 10, coaching_notes: "Høyt tempo", assigned_coach_ids: ["coach-2"], position: 0, kind: "custom", exercise_id: null, exercises: null },
         ],
       },
       { title: "Oppvarming", notes: "Rolig start", position: 0, session_items: [] },
@@ -184,6 +184,11 @@ describe("mapDigestSession", () => {
 
   it("keeps the stored title for a custom activity", () => {
     expect(mapDigestSession(row)?.blocks[1].items[0].title).toBe("Egen aktivitet");
+  });
+
+  it("carries the activity's coaches, and reads a missing list as nobody named", () => {
+    const mapped = mapDigestSession(row);
+    expect(mapped?.blocks[1].items.map((item) => item.assignedCoachIds)).toEqual([["coach-2"], []]);
   });
 
   it("orders blocks and items by position, not by the order postgrest returned them", () => {

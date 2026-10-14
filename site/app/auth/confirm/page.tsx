@@ -14,7 +14,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 // is deliberately exchanged only after a real button click: security scanners
 // often open links while inspecting an email, and must not consume a one-time
 // login before the coach reaches it.
-const linkTypes = ["invite", "recovery", "signup", "magiclink", "email", "email_change"] as const;
+const linkTypes = ["invite", "signup", "magiclink", "email", "email_change"] as const;
 type LinkType = (typeof linkTypes)[number];
 
 function isLinkType(value: string | null): value is LinkType {

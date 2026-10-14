@@ -48,7 +48,8 @@ export interface DigestItem {
   title: string;
   durationMinutes: number;
   coachingNotes: string;
-  assignedCoachId: string | null;
+  /** Empty when the whole coaching team runs it. */
+  assignedCoachIds: string[];
 }
 
 export interface DigestBlock {
@@ -253,7 +254,7 @@ export interface SessionDigestRow {
       description: string | null;
       duration_minutes: number | null;
       coaching_notes: string | null;
-      assigned_coach_id: string | null;
+      assigned_coach_ids: string[] | null;
       position: number;
       kind: string;
       exercise_id: string | null;
@@ -312,7 +313,7 @@ export function mapDigestSession(row: SessionDigestRow): DigestSession | null {
             title: exercise?.name ?? item.title,
             durationMinutes: item.duration_minutes ?? 0,
             coachingNotes: item.coaching_notes ?? "",
-            assignedCoachId: item.assigned_coach_id,
+            assignedCoachIds: item.assigned_coach_ids ?? [],
           };
         }),
     }));

@@ -58,7 +58,7 @@ const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
 const SESSION_SELECT =
   "id, team_id, title, starts_at, venue, planned_duration_minutes, objective, notes, status, teams(name), " +
-  "session_blocks(title, notes, kind, position, session_items(title, description, duration_minutes, coaching_notes, assigned_coach_id, position, kind, exercise_id, exercises(name)))";
+  "session_blocks(title, notes, kind, position, session_items(title, description, duration_minutes, coaching_notes, assigned_coach_ids, position, kind, exercise_id, exercises(name)))";
 
 const COACH_SELECT = "team_id, profile_id, profiles(id, email, full_name, session_digest_email, deleted_at)";
 

@@ -64,23 +64,41 @@ export function deriveSessionTab(session: PlannedSession, now = new Date()): Ses
 // keep showing an assignment instead of silently reading as unassigned.
 const DEPARTED_COACH_NAME = "Trener utenfor laget";
 
-/** The coach running an activity, or null when the whole coaching team does. */
-export function assignedCoach(item: Pick<SessionItem, "assignedCoachId">, members: readonly Profile[]): Profile | null {
-  if (!item.assignedCoachId) return null;
-  return members.find((member) => member.id === item.assignedCoachId) ?? null;
+/**
+ * The coaches running an activity, in the team's own order rather than the
+ * order they were ticked, so the same pair always reads the same way. Empty
+ * when the whole coaching team does — and a coach who has left the team is
+ * left out, since there is no name to show for them.
+ */
+export function assignedCoaches(item: Pick<SessionItem, "assignedCoachIds">, members: readonly Profile[]): Profile[] {
+  return members.filter((member) => item.assignedCoachIds.includes(member.id));
 }
 
 /**
- * Who the picker offers for one activity: the team's coaches, plus the coach
- * the item already names when they have since left the team. Without that last
- * entry the select would fall back to its empty option and read as "nobody is
- * responsible" — while the stored assignment quietly stayed put, and touching
- * any other field on the row saved it again.
+ * Who the picker offers for one activity: the team's coaches, plus any coach
+ * the item already names who has since left the team. Without those the menu
+ * would show them unticked — reading as "not responsible" while the stored
+ * assignment quietly stayed put — and they could never be taken off.
  */
-export function coachAssignmentOptions(item: Pick<SessionItem, "assignedCoachId">, members: readonly Profile[]): Profile[] {
-  const assignedId = item.assignedCoachId;
-  if (!assignedId || members.some((member) => member.id === assignedId)) return [...members];
-  return [...members, { id: assignedId, email: "", fullName: DEPARTED_COACH_NAME, initials: "?", color: "#8b9692" }];
+export function coachAssignmentOptions(item: Pick<SessionItem, "assignedCoachIds">, members: readonly Profile[]): Profile[] {
+  const departed = item.assignedCoachIds.filter((id) => !members.some((member) => member.id === id));
+  return [...members, ...departed.map((id) => ({ id, email: "", fullName: DEPARTED_COACH_NAME, initials: "?", color: "#8b9692" }))];
+}
+
+/** The activity's coaches with one ticked or unticked; a new one goes last. */
+export function toggleAssignedCoach(assignedCoachIds: readonly string[], coachId: string): string[] {
+  return assignedCoachIds.includes(coachId) ? assignedCoachIds.filter((id) => id !== coachId) : [...assignedCoachIds, coachId];
+}
+
+/**
+ * Names as a coach would say them: «Gard», «Gard og Tonje», «Gard, Tonje og
+ * Erik». Past three the tail is counted rather than spelled out — the chip it
+ * sits in is a single line, and a fourth name would only be cut off.
+ */
+export function coachNameList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length > 3) return `${names.slice(0, 2).join(", ")} og ${names.length - 2} til`;
+  return `${names.slice(0, -1).join(", ")} og ${names[names.length - 1]}`;
 }
 
 export function validatePublish(session: PlannedSession) {
@@ -358,13 +376,13 @@ export function sessionCopyDefaults(session: PlannedSession, now = new Date(), t
  * one the coach just chose, the status is always a fresh draft, and attendance
  * and groups stay behind with the evening they belong to.
  *
- * `memberIds` drops an activity's coach once they have left the team, matching
+ * `memberIds` drops any of an activity's coaches who have left the team, matching
  * the database, where `validate_session_item_coach` would refuse the insert and
  * take the whole copy down with it. Left out, every assignment is kept.
  */
 export function buildSessionCopy(source: PlannedSession, options: { id: string; title: string; startsAt: string | null; userId: string; makeId(): string; memberIds?: readonly string[]; now?: Date }): PlannedSession {
   const now = (options.now ?? new Date()).toISOString();
-  const keepsCoach = (coachId: string | null) => coachId !== null && (options.memberIds?.includes(coachId) ?? true);
+  const keepsCoach = (coachId: string) => options.memberIds?.includes(coachId) ?? true;
   return {
     ...source,
     id: options.id,
@@ -377,7 +395,7 @@ export function buildSessionCopy(source: PlannedSession, options: { id: string; 
       const blockId = options.makeId();
       return {
         ...block, id: blockId, sessionId: options.id, updatedBy: options.userId,
-        items: block.items.map((item) => ({ ...item, id: options.makeId(), blockId, assignedCoachId: keepsCoach(item.assignedCoachId) ? item.assignedCoachId : null, updatedBy: options.userId })),
+        items: block.items.map((item) => ({ ...item, id: options.makeId(), blockId, assignedCoachIds: item.assignedCoachIds.filter(keepsCoach), updatedBy: options.userId })),
       };
     }),
   };
