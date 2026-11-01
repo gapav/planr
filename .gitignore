@@ -6,3 +6,7 @@ node_modules/
 
 # Disaster-recovery dumps: personal data, never committed.
 backups/
+
+# Personal Claude Code settings and notes.
+.claude/settings.local.json
+CLAUDE.local.md

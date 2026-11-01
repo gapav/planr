@@ -4,9 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository layout
 
-All application code lives in `site/`. The repo root holds the docs — `IMPLEMENTATION_PLAN.md` (the product/architecture/acceptance checklist for the v1 build), `DISASTER_RECOVERY.md`, `DEPLOYMENT.md` — and the `Makefile` plus `scripts/*.sh` behind backup and restore. `DEPLOYMENT.md` predates magic-link sign-in and still describes password-only auth with no email at all; where it disagrees with this file or the code, it is the one that is out of date. The stray root `app/` directory (nothing but a `.DS_Store`) is untracked — ignore it.
+All application code lives in `site/`. At the root:
+
+- `DEPLOYMENT.md` — **where Grep runs** (production, development, previews),
+  the launch runbook, and the **migration ledger** (which migration is applied
+  where).
+- `DISASTER_RECOVERY.md`, the `Makefile` and `scripts/*.sh` — backup and
+  restore.
+- `docs/` — `decisions.md` (numbered, append-only, from November 2026) and
+  `v1-plan.md` (the v1 checklist, archived).
+- `work/` — one file per change, conventions in `work/README.md`; ideas in
+  `work/backlog.md`. `/spec` writes an item, `/ship` finishes one, `/release`
+  takes finished work to production.
+- `.claude/rules/` — notes for one area each, loaded when you open its files.
+
+The stray root `app/` directory (nothing but a `.DS_Store`) is untracked — ignore it.
 
 `site/AGENTS.md` (aliased by `site/CLAUDE.md`) holds the detailed working rules and is auto-loaded when editing files there. Its non-negotiables are repeated below because they are easy to violate.
+
+Spenst (`~/code/spenst`) copies Grep's visual layer — tokens, shell, UI
+primitives — as code and shares nothing else. Nothing here depends on it.
 
 ## Commands
 
@@ -52,7 +69,8 @@ for it and pass it through the environment.
 
 ## Hard rules
 
-- **Never mutate a database.** No `supabase db push/reset/start`, no applying migrations. The user applies SQL manually in the Supabase dashboard. Make schema changes only by adding/editing files in `site/supabase/migrations/`, and never claim a migration has been applied. Treat already-shipped migrations as immutable — add a forward migration instead, regenerate the bootstrap (above), and tell the user exactly which file to run and in what order.
+- **Never mutate a database.** No `supabase db push/reset/start`, no applying migrations. The user applies SQL manually in the Supabase dashboard. Make schema changes only by adding/editing files in `site/supabase/migrations/`, and never claim a migration has been applied. Treat already-shipped migrations as immutable — the ledger in `DEPLOYMENT.md` says which have shipped — add a forward migration instead, regenerate the bootstrap (above), and tell the user exactly which file to run and in what order. The Supabase CLI in `site/` is linked to **production** (`grep-prod`), so any `supabase db …` command would act on real data; settings deny them.
+- **A push to `main` deploys production** (Vercel's production branch). Commit and push only when told.
 - **This is Next.js 16**, not the version in your training data. `middleware.ts` is now `proxy.ts` (exporting `proxy`), and page props use the generated `LayoutProps<"/">` / `PageProps` types. Read the relevant guide under `site/node_modules/next/dist/docs/` before changing framework code.
 - **Player data is privacy-minimized by design.** Imports keep only `"Firstname L."` plus jersey number — enforced both in `lib/roster.ts` (`minimizePlayerName`) and by a DB trigger (`202609020004`). Do not widen this without an explicit instruction.
 - Keep secrets out of `NEXT_PUBLIC_*`. Only the site URL, Supabase URL and publishable key are public. `SUPABASE_SECRET_KEY` is read by exactly three routes — `app/api/admin/auth-link`, `app/api/admin/accounts` and `app/api/cron/daily-session-digest` — each for something RLS cannot express (see *Security model*). `RESEND_API_KEY`/`RESEND_FROM` are read by the routes that send mail: auth-link, the cron, `app/api/support` and `app/api/interest`. `CRON_SECRET` is read only by the cron. Do not read the secret key anywhere else, and do not add another privileged route without a reason that survives the "why can't RLS do this?" question.
@@ -75,21 +93,13 @@ If `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are absen
 
 ### Auth
 
-**Passwordless and invitation-only.** `/sign-in` sends a magic link (`requestMagicLink` → `signInWithOtp` with `shouldCreateUser: false`), so nobody can sign themselves up, and an unknown address gets the same confirmation as a known one. Password sign-in is offered only on localhost. A coach may still set a password («Bytt passord» in the account menu opens `/account/password`), but nothing requires one and there is no password reset: a coach who cannot get in asks for a new link, so there is nothing to recover. `/auth/confirm` accordingly accepts no `recovery` links. `profiles.must_set_password` has been inert since `202609020027` (default false, its trigger dropped); nothing diverts on it, though `/account/password` still reads it. `internalPath` keeps every `next` same-origin.
-
-**Onboarding is driven from the app, not from the Supabase dashboard.** A global admin invites from `/admin` (`adminInviteMember`, and `createTeam` for a team's first administrator). A team admin may invite *coaches* to their own team from `/team` (`TeamInvitationsCard`, which calls the same `adminInviteMember`). Either way the seat is reserved through RLS first, then `app/api/admin/auth-link/route.ts` is called. That route verifies the caller's access token, checks `is_global_admin` or team-admin membership under their own RLS, refuses unless an unaccepted, unexpired invitation for that address and team already exists, and only then uses `SUPABASE_SECRET_KEY` to call `auth.admin.generateLink`. It builds the link itself from the returned `hashed_token` and sends it through the Resend HTTP API — so **no Supabase SMTP, email template or redirect allow-list entry is involved**, and the secret key never leaves the server. `generateLink` falls back from `invite` to `magiclink` when the address already has an account.
-
-**A team admin is never handed the link for an account that already existed.** That fallback link signs in as its owner, and a team admin can reserve a seat for any address — the global admin's included. Such a coach is mailed when a mailer is configured; otherwise the route answers without a link, and the coach signs in as usual and the provider claims the seat for them. Only a global admin may receive an existing account's link, and only they may use the `login` intent. `route.test.ts` pins this.
-
-The route serves two intents, `invite` and `login`, and nothing else — a coach who cannot get in requests a magic link on `/sign-in`, or a global admin sends a fresh `login` link from `/admin`.
-
-Resend is optional, and a send that does not happen is not an error: minting the link is the route's job, delivering it a convenience on top. When `RESEND_API_KEY`/`RESEND_FROM` are unset, or the send fails, the route still answers 200 with `{ link, emailed: false, emailError }` (minus `link` under the team-admin rule above), and the console offers the link for the administrator to pass on by hand. A non-2xx means the link itself could not be made — so the client reads `emailed` from the payload rather than inferring it from the status. That fallback is the primary path until a sending domain is verified in Resend. It hands over the *auth* link, which signs the coach in and lands on the seat in one step; the card falls back to `/invite/<token>` only when there is none, which works only for someone who can already sign in.
-
-Both kinds of link land on `app/auth/confirm/page.tsx`, which calls `verifyOtp` on the token hash — and only after a real click, because mail scanners open links and must not spend a one-time login. The page exists because `createBrowserClient` pins `flowType: "pkce"` *after* spreading its options — it cannot be overridden — while a dashboard-style link comes back through `/auth/v1/verify` as an implicit `#access_token=…` fragment, which auth-js rejects as "Not a valid PKCE flow url." and the coach silently lands signed out. `verifyOtp` needs no grant flow. The page waits for the provider's `user` to match the verified id before navigating, because `/account/password` answers a null user by bouncing to sign-in and spending the link for nothing. The auth-link route builds its URL itself (`confirmLinkUrl`); the magic links `/sign-in` asks for are mailed by Supabase, so their template must use the same token-hash form — it lives in `supabase/templates/magic-link.html` and is pushed to production through `supabase/config.toml`. Those need custom SMTP, since Supabase's built-in sender only delivers to project members: production has it, the development project does not.
-
-The `/invite/<token>` link is a fallback, not the path. `invitations_read` lets a coach select the invitation addressed to their own email including its token, so the provider claims anything waiting for that address once the workspace loads (`claimableInvitations` in `lib/auth.ts`). Membership writes — adding, changing a role, removing — have been global-admin-only since `202609020021`; `202609020027` gave team admins back the invitations alone: reserving *coach* seats on their own team, and revoking any invitation there still pending. So `/team` is the roster, logo, coach list and, for a team admin, coach invitations; roles and removals live in `/admin`.
-
-**The browser client is the only writer of the auth cookie.** `proxy.ts` is a pass-through: nothing server-side reads the session (`lib/supabase/server.ts` has no callers, there are no server actions), so refreshing there only added a second racer for one rotating refresh token — concurrent RSC/prefetch proxy runs lose the race, and @supabase/ssr answers a rejected refresh by clearing the auth cookies, silently signing out a healthy browser. Do not reintroduce a server-side refresh without deciding who the single writer is. Browser client: `lib/supabase/client.ts`; server: `lib/supabase/server.ts`.
+Passwordless and invitation-only: `/sign-in` sends a magic link with
+`shouldCreateUser: false`, and an account only comes into being from an
+invitation, minted by `app/api/admin/auth-link/route.ts` once the seat is
+reserved through RLS. The browser client (`lib/supabase/client.ts`) is the
+only writer of the auth cookie — `proxy.ts` is a pass-through on purpose.
+The full account, including why a team admin is never handed an existing
+account's link, is in `.claude/rules/auth.md`.
 
 ### Security model lives in Postgres, not in the app
 
@@ -103,34 +113,19 @@ DB triggers (`broadcast_session_change`) push every session/block/item write to 
 
 ### Session lifecycle
 
-`draft → published → in_progress → completed`. The ways back are `undo_session_start` (in progress → published) and `reopen_session` (completed → published, keeping attendance and groups); `copy_session` starts a new draft from a plan in any state, leaving attendance and groups behind. The UI's Drafts/Upcoming/Past tabs are derived, not stored — see `deriveSessionTab` in `lib/session.ts` (in progress is always upcoming, completed always past, and a published plan is past once `startsAt + plannedDurationMinutes` has gone by). `validatePublish` gates publishing client-side, and `publish_session` plus `validate_session_publish_transition` re-check it in the DB — so the client can be overruled, which is why `publishSession` rolls back. Once `start_session` (or `start_session_without_setup`) succeeds, `prevent_in_progress_session_changes` locks the plan's rows, and keeps a completed plan locked too; each transition RPC lifts the lock for its own session for one transaction through `plannr.unlocked_session`. `start_session` itself re-validates that the saved groups still exactly match the present players. Dates are stored in UTC.
-
-Session items (and warm-up routine items) **copy** the exercise's display data (title, description, media, thumbnail) at insert time, but the library wins on screen: `resolveSessionDisplay` / `resolveWarmupRoutineDisplay` in `lib/exercises.ts` overlay the current exercise as the provider hands `sessions` and `warmupRoutines` to consumers. Nothing is rewritten in the database, so the stored copy is the fallback once an exercise is archived or deleted, and an `in_progress` session stays locked. `durationMinutes` and `coachingNotes` belong to the plan; the title of a linked item is therefore read-only in the builder and the warm-up dialog.
+`draft → published → in_progress → completed`, with the ways back
+(`undo_session_start`, `reopen_session`) and `copy_session` as RPCs. Once a
+workout starts, `prevent_in_progress_session_changes` locks the plan. The
+Drafts/Upcoming/Past tabs are derived, not stored (`deriveSessionTab`), and
+items copy the exercise's display data while the library wins on screen.
+Details in `.claude/rules/sessions.md`.
 
 ### The morning session email
 
-The one scheduled job: `app/api/cron/daily-session-digest/route.ts`, called by
-Vercel Cron (`site/vercel.json`, `0 5 * * *`) and authenticated by `CRON_SECRET`
-rather than by a user token — that early nobody is signed in, which is why it reads
-with `SUPABASE_SECRET_KEY` like the auth-link route. Vercel schedules in UTC, so
-the mail goes out at 07:00 Oslo time in summer and 06:00 in winter; "today" is
-still worked out in `Europe/Oslo` (`clubDay`), so only the hour moves. It mails every coach on a
-team training that day the whole plan. The rules live in `lib/session-digest.ts`
-and the letter in `lib/session-email.ts`, both pure and tested; the route only
-wires them together. `lib/email-shell.ts` is the envelope both it and
-`lib/auth-email.ts` render into.
-
-Three invariants: **drafts never mail** (the status filter is the only thing
-preventing a letter about a session `start_session` would refuse), **nor does a
-plan that is mostly empty** — `digestSessionsForDay` needs
-`sessionPlanProgress` (the calendar's bar) at `DIGEST_MIN_PLAN_PROGRESS` (80 %)
-or more, since publishing only requires one block — and **sending
-is idempotent** — the job claims each (session, coach) pair in
-`session_email_log` (migration `202609020033`) before sending and only mails the
-claims the database granted, giving a claim back when a send fails. A run with
-no Resend key claims nothing, so it stays a dry run. `?dry=1` reports recipients
-without claiming. `profiles.session_digest_email` is the per-coach opt-out,
-toggled from `/team`.
+One Vercel cron job, `app/api/cron/daily-session-digest`, authenticated by
+`CRON_SECRET` and reading with `SUPABASE_SECRET_KEY`. Drafts never mail, nor
+does a plan less than 80 % built, and sending is idempotent. Details in
+`.claude/rules/morning-email.md`.
 
 ### Media
 
@@ -147,13 +142,9 @@ Tailwind v4 (`@import "tailwindcss"` in `app/globals.css`) with the palette as C
 - `--accent` is the purple as text/borders/rings; `--accent-fill` is the purple under a white label. They differ in dark.
 - Colours that stay hex on purpose: team accents in `lib/team-palette.ts` (stored by the importer; their tints are `--team-*-tint` variables), coach avatar colours (`readableInk` measures them), and the emails (`lib/email-shell.ts`, `lib/session-email.ts`), which are always light.
 
-The `@media print` block at the foot of `globals.css` is how a plan reaches
-someone with no account — «Skriv ut» in the session menu is just `window.print()`
-on `/sessions/<id>`. It works off `data-print` attributes in `session-view.tsx`
-rather than the utility classes, so the two move together: `hide` drops chrome,
-`item` keeps an activity whole across a page break, `block-head` stops a heading
-being orphaned, and `cue` gives the Stikkord box a border, because browsers only
-print backgrounds if the reader asks for them.
+Printing a plan («Skriv ut») is the `@media print` block at the foot of
+`globals.css` with `data-print` attributes in `session-view.tsx` — see
+`.claude/rules/print.md`.
 
 ## Tests
 

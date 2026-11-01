@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm run lint)",
+      "Bash(npm run build)",
+      "Bash(npm run db:bootstrap)",
+      "Bash(npx vitest run)",
+      "Bash(npx vitest run *)",
+      "Bash(make bootstrap)",
+      "Bash(make test)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)"
+    ],
+    "ask": [
+      "Bash(git push)",
+      "Bash(git push *)",
+      "Bash(supabase test db)",
+      "Bash(supabase test db *)"
+    ],
+    "deny": [
+      "Bash(supabase db *)",
+      "Bash(supabase migration *)",
+      "Bash(supabase start)",
+      "Bash(supabase start *)",
+      "Bash(supabase link *)",
+      "Bash(supabase config push *)",
+      "Bash(npm run supabase:config:push*)",
+      "Bash(npx supabase *)",
+      "Bash(psql *)",
+      "Bash(pg_restore *)",
+      "Bash(make restore)",
+      "Bash(bash scripts/restore.sh*)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)",
+      "Read(**/.env.keys)",
+      "Read(./backups/**)",
+      "Edit(**/supabase/prod_bootstrap.sql)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/protect-applied-migrations.sh",
+            "args": []
+          }
+        ]
+      }
+    ]
+  }
+}

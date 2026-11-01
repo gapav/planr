@@ -4,7 +4,7 @@ A collaborative handball session planner built with Next.js and Supabase.
 
 ## What is included
 
-- Public, searchable exercise library with author-controlled editing and media previews.
+- Searchable exercise library for signed-in coaches, with author-controlled editing and media previews.
 - Passwordless email sign-in with long-lived Supabase sessions and one-time magic links.
 - Multi-team workspaces with admin/coach roles and email-bound invitations.
 - Privacy-minimized Hoopit `.xls` and `.xlsx` roster imports that retain only first name, surname initial and jersey number.

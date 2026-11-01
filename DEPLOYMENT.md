@@ -1,5 +1,27 @@
 # Deploying Plannr
 
+## Where Grep runs
+
+As of 1 November 2026. Change this section whenever any of it changes.
+
+| Environment | App | Supabase | Mail |
+| --- | --- | --- | --- |
+| Production | Vercel Hobby, `https://grep.team`, deployed from `main` | `grep-prod` (`fbbqdutatetfkybvlozx`) | Resend; custom SMTP for sign-in links |
+| Development | `npm run dev` with `site/.env.local` | `planr-dev` (`hgjboxsgemvgrlyemudt`) | Supabase's built-in sender (project members only) |
+| Previews | Vercel branch previews, no Supabase variables | none: demo mode | none |
+
+- **A push to `main` deploys production.**
+- **The Supabase CLI in `site/` is linked to `grep-prod`**
+  (`site/supabase/.temp/linked-project.json`), so a `supabase db …` command
+  would act on production. The project settings deny them.
+- The code is `gapav/planr` on GitHub, private.
+- Production's secrets are in Vercel; development's are in `site/.env.local`,
+  which agents are denied reading. Section 4 lists every variable.
+- Which migration is applied where: the [ledger](#migration-ledger) at the
+  end of this file.
+
+The rest of this file is the runbook from the first launch.
+
 Free-tier rollout, passwordless, invitation-only. There is no recurring cost at
 all unless you want a nicer URL than `*.vercel.app`.
 
@@ -340,8 +362,9 @@ arrives, the console shows you the link to pass on yourself.
 
 **Schema changes after launch.** Applied migrations are immutable. Add a new
 numbered file in `site/supabase/migrations/`, run `npm --prefix site run
-db:bootstrap`, back up, run the new migration in the SQL Editor, *then* deploy the
-frontend that depends on it. Never the other way round — a frontend that writes a
+db:bootstrap`, back up, run the new migration in the SQL Editor, mark it
+`applied` in the [ledger](#migration-ledger), *then* deploy the frontend that
+depends on it. Never the other way round — a frontend that writes a
 column the database does not have fails with `Could not find the '<column>' column
 of '<table>' in the schema cache`.
 
@@ -373,3 +396,63 @@ and [data-processing agreements](https://www.datatilsynet.no/rettigheter-og-plik
 4. Create your own account in the dashboard, make it global admin, sign in.
 5. Smoke test with fake data, two coaches, on a phone.
 6. Create the real teams, invite the coaches, import the rosters.
+
+## Migration ledger
+
+The maintainer applies migrations by hand in the Supabase SQL editor: on
+`planr-dev` first, then on `grep-prod` after `make backup`. Update this table
+whenever one is applied. Each cell is `applied`, `pending` or `unknown`.
+
+An `applied` migration is immutable: write a new forward migration instead.
+A hook (`.claude/hooks/protect-applied-migrations.sh`) refuses edits to
+`applied` files and asks first for `unknown` ones or files missing from the
+table.
+
+| Migration | dev | prod |
+| --- | --- | --- |
+| `202609020001_initial.sql` | applied | applied |
+| `202609020002_exercise_categories.sql` | applied | applied |
+| `202609020003_player_rosters_and_live_sessions.sql` | applied | applied |
+| `202609020004_minimize_player_names.sql` | applied | applied |
+| `202609020005_optional_exercise_media.sql` | applied | applied |
+| `202609020006_in_progress_session_status.sql` | applied | applied |
+| `202609020007_start_session_workflow.sql` | applied | applied |
+| `202609020008_session_block_notes.sql` | applied | applied |
+| `202609020009_completed_session_status.sql` | applied | applied |
+| `202609020010_finish_session_workflow.sql` | applied | applied |
+| `202609020011_password_auth.sql` | applied | applied |
+| `202609020012_shooting_skills_exercise_category.sql` | applied | applied |
+| `202609020013_exercise_video_uploads.sql` | applied | applied |
+| `202609020014_undo_session_start.sql` | applied | applied |
+| `202609020016_norwegian_messages_image_uploads_and_skip_setup.sql` | applied | applied |
+| `202609020017_team_logos.sql` | applied | applied |
+| `202609020018_admin_roles.sql` | applied | applied |
+| `202609020019_team_fixtures.sql` | applied | applied |
+| `202609020020_warmup_routines.sql` | applied | applied |
+| `202609020021_membership_is_global_admin_only.sql` | applied | applied |
+| `202609020022_exercise_favorites.sql` | applied | applied |
+| `202609020023_exercise_age_groups.sql` | applied | applied |
+| `202609020024_month_focus.sql` | applied | applied |
+| `202609020025_session_item_coach.sql` | applied | applied |
+| `202609020026_auth_hardening.sql` | applied | applied |
+| `202609020027_passwordless_team_invitations.sql` | applied | applied |
+| `202609020028_clear_legacy_pending_invitations.sql` | applied | applied |
+| `202609020029_clear_never_signed_in_auth_users.sql` | applied | applied |
+| `202609020030_account_lifecycle.sql` | applied | applied |
+| `202609020031_require_auth_for_exercises.sql` | applied | applied |
+| `202609020032_reopen_and_copy_session.sql` | applied | applied |
+| `202609020033_session_digest_email.sql` | applied | applied |
+| `202609130001_fixture_team_colours.sql` | applied | applied |
+| `202609130002_station_blocks.sql` | applied | applied |
+| `202609130003_profile_display_name.sql` | applied | applied |
+| `202609130004_admin_set_display_name.sql` | applied | applied |
+| `202609170001_exercise_collections.sql` | applied | applied |
+| `202609250001_global_admin_reads_sessions.sql` | applied | applied |
+| `202610050001_exercise_link_media.sql` | applied | applied |
+| `202610080001_station_rotation_as_definer.sql` | applied | applied |
+| `202610080003_focus_periods.sql` | applied | applied |
+| `202610140001_session_item_coaches.sql` | applied | applied |
+
+The maintainer confirmed every row on 1 November 2026. There is no
+`202609020015` and no `202610080002`. `202609020033` ran in production as a
+second `202609020032` before it was renamed (see `DISASTER_RECOVERY.md`).

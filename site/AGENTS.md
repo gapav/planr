@@ -22,7 +22,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - The user applies database migrations manually in the Supabase dashboard. Never run commands that apply, push, reset, or otherwise mutate a local or remote Supabase database.
 - Make database changes only by creating or editing SQL files in `supabase/migrations/`. Do not claim that a migration has been applied.
 - Keep migrations ordered by their timestamped filename and safe to execute through the Supabase SQL editor.
-- Treat migrations that may already have been applied as immutable. If their application status is unclear, ask before editing them or add a new forward migration.
+- Treat applied migrations as immutable. The ledger at the end of the root `DEPLOYMENT.md` says which are applied, and a hook refuses edits to them. If a file is missing from the ledger, ask before editing it, or add a new forward migration.
 - After changing database SQL, run `npm run db:bootstrap` so `supabase/prod_bootstrap.sql` matches the migrations — `scripts/build-bootstrap.test.ts` fails the suite otherwise — then identify the exact migration file the user must apply manually and mention any required ordering. Never suggest applying `prod_bootstrap.sql` to a database being restored from a backup; it is for an empty project only.
 - Update `supabase/tests/rls.test.sql` when grants, policies, roles, or data-access behavior change. Do not run `supabase test db` unless the user explicitly asks and confirms a disposable local Supabase instance is available.
 

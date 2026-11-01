@@ -1,5 +1,12 @@
 # Grep Handball — Implementation Plan and Checklist
 
+> **Archived on 1 November 2026** (it was `IMPLEMENTATION_PLAN.md`). This was
+> the checklist for the v1 build, and it is kept for the record; nothing here
+> is updated any more. Its two open acceptance checks are now
+> `work/0002-v1-acceptance.md`. Where it disagrees with `CLAUDE.md`,
+> `CLAUDE.md` is right. That includes the paragraph below: sign-in is by
+> magic link (`202609020027`), not email and password.
+
 ## Summary
 
 Build a responsive collaborative web app for handball coaches, on a portable
