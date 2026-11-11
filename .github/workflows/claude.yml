@@ -85,10 +85,9 @@ jobs:
                .github/pull_request_template.md. Merging deploys production, so the
                "Before merging" list must name every migration file (in order),
                environment variable and setting the change needs.
-      # No PR came of it (the agent asked questions, or the run failed): the card
-      # goes back to Ready. With a PR, the board's own workflow has already moved
-      # it to In review.
-      - name: Card → Ready if there is no PR
+      # With a PR the card goes to In review; without one (the agent asked
+      # questions, or the run failed) it goes back to Ready.
+      - name: Card → In review, or back to Ready
         if: always()
         continue-on-error: true
         env:
@@ -100,7 +99,7 @@ jobs:
           if [ "$prs" = "0" ]; then
             .github/scripts/project-status.sh ${{ github.event.issue.number }} "Ready"
           else
-            echo "PR open for #${{ github.event.issue.number }}; leaving the card to the board."
+            .github/scripts/project-status.sh ${{ github.event.issue.number }} "In review"
           fi
 
   respond:
