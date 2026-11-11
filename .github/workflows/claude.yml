@@ -38,6 +38,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: site/package-lock.json
+      - name: Card → In progress
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+        run: .github/scripts/project-status.sh ${{ github.event.issue.number }} "In progress"
       - run: npm ci
         working-directory: site
       - uses: anthropics/claude-code-action@v1
@@ -80,6 +85,23 @@ jobs:
                .github/pull_request_template.md. Merging deploys production, so the
                "Before merging" list must name every migration file (in order),
                environment variable and setting the change needs.
+      # No PR came of it (the agent asked questions, or the run failed): the card
+      # goes back to Ready. With a PR, the board's own workflow has already moved
+      # it to In review.
+      - name: Card → Ready if there is no PR
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_TOKEN: ${{ github.token }}
+        run: |
+          prs=$(GH_TOKEN="$PR_TOKEN" gh pr list --repo "$GITHUB_REPOSITORY" --state open --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("agent/${{ github.event.issue.number }}-"))] | length')
+          if [ "$prs" = "0" ]; then
+            .github/scripts/project-status.sh ${{ github.event.issue.number }} "Ready"
+          else
+            echo "PR open for #${{ github.event.issue.number }}; leaving the card to the board."
+          fi
 
   respond:
     if: |
