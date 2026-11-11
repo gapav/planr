@@ -58,32 +58,28 @@ jobs:
             files you touch. Their hard rules hold without exception: never touch a
             database, never edit an applied migration, never push to `main`.
 
+            The issue is the spec: its "Done when" lines are what you must prove.
+
             0. If the issue is too vague to build safely — no checkable "Done when",
                or a choice only the maintainer can make — do not guess. Comment on
                the issue with the specific questions (`gh issue comment`) and stop.
-            1. Work item: take the next free number NNNN in work/ (highest existing
-               id + 1, four digits) and write work/NNNN-short-name.md from the
-               template in work/README.md, filled from the issue. Add
-               `issue: ${{ github.event.issue.number }}` to the front matter and set
-               status `doing`.
-            2. Branch: `git switch -c agent/NNNN-short-name`.
-            3. Build it. New behaviour in lib/ comes with a focused test. A schema
+            1. Branch: `git switch -c agent/${{ github.event.issue.number }}-short-name`.
+            2. Build it. New behaviour in lib/ comes with a focused test. A schema
                change is a new file in site/supabase/migrations/ plus
-               `npm run db:bootstrap`, a `pending` row in the DEPLOYMENT.md ledger,
-               an rls.test.sql update if access changes, and a manual step.
-            4. Finish the way /ship does (.claude/skills/ship/SKILL.md): from site/
+               `npm run db:bootstrap`, a `pending` row (dev and prod) in the
+               DEPLOYMENT.md ledger, and an rls.test.sql update if access changes.
+            3. Finish the way /ship does (.claude/skills/ship/SKILL.md): from site/
                run `npm run lint`, `npm test`, `npm run build` and fix failures; run
-               the spec-reviewer agent, and the db-reviewer agent if anything under
-               site/supabase/ or site/app/api/ changed; fix what they find; tick the
-               proven "Done when" lines with evidence, add a dated log line, set the
-               status to `review`.
-            5. Commit (stage files by name, message `NNNN: summary`), push with
-               `git push -u origin agent/NNNN-short-name`, and open the PR with
-               `gh pr create --base main`. Title `NNNN: summary`. Body: first line
-               `Closes #${{ github.event.issue.number }}`, then what changed, the
-               check results, what the reviewers found, "Done when" lines left
-               unticked and why, and the manual steps (exact migration files, in
-               order: planr-dev, then backup, then grep-prod).
+               the spec-reviewer agent with the issue text, and the db-reviewer
+               agent if anything under site/supabase/ or site/app/api/ changed; fix
+               what they find.
+            4. Commit (stage files by name, message `summary (#${{ github.event.issue.number }})`),
+               push with `git push -u origin agent/${{ github.event.issue.number }}-short-name`,
+               and open the PR with `gh pr create --base main`, title
+               `summary (#${{ github.event.issue.number }})`, body filled in from
+               .github/pull_request_template.md. Merging deploys production, so the
+               "Before merging" list must name every migration file (in order),
+               environment variable and setting the change needs.
 
   respond:
     if: |

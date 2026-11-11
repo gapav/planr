@@ -13,10 +13,17 @@ All application code lives in `site/`. At the root:
   restore.
 - `docs/` — `decisions.md` (numbered, append-only, from November 2026) and
   `v1-plan.md` (the v1 checklist, archived).
-- `work/` — one file per change, conventions in `work/README.md`; ideas in
-  `work/backlog.md`. `/spec` writes an item, `/ship` finishes one, `/release`
-  takes finished work to production.
+- `.github/` — CI (lint, test, build on every PR), the Claude agent
+  workflow, and the issue and PR templates.
 - `.claude/rules/` — notes for one area each, loaded when you open its files.
+
+Work is tracked as **GitHub issues on the project board** (Backlog → Ready →
+In progress → In review → Done), not in files (decision 1). `/spec` writes an
+issue; labelling it `agent` has Claude build it in Actions and open a PR
+(`@claude` in a comment asks for changes); `/ship` turns a locally built
+change into a PR; `/release` takes a PR to production. **Merging a PR deploys
+production**, so every migration it carries is applied (dev → backup → prod)
+before the merge — the PR's *Before merging* list says which.
 
 The stray root `app/` directory (nothing but a `.DS_Store`) is untracked — ignore it.
 
@@ -30,7 +37,7 @@ primitives — as code and shares nothing else. Nothing here depends on it.
 Run everything from `site/` with `npm`:
 
 ```bash
-npm run dev            # next dev
+npm run dev            # next dev, pinned to port 3000: the dev project's sign-in redirects expect it
 npm run build          # next build --webpack (Webpack is deliberate; keeps builds working in constrained envs)
 npm run lint           # eslint (flat config)
 npm test               # vitest run
@@ -43,6 +50,9 @@ npm run db:bootstrap   # regenerate supabase/prod_bootstrap.sql (`make bootstrap
 After adding or editing a migration, run `npm run db:bootstrap`:
 `scripts/build-bootstrap.test.ts` fails the suite when the checked-in
 `prod_bootstrap.sql` has drifted from `supabase/migrations/`.
+
+Running the app against `planr-dev`, signing in on localhost, and trying the
+server routes: the `run-locally` skill.
 
 `supabase test db` runs the pgTAP RLS suite but needs a disposable local Supabase CLI instance — only run it when the user explicitly asks and confirms.
 
