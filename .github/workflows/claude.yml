@@ -1,0 +1,119 @@
+name: Claude
+
+# Two ways in:
+#   build   — add the `agent` label to an issue: Claude builds it and opens a PR.
+#   respond — write `@claude …` in an issue or PR comment or review: Claude
+#             answers or pushes fixes to that PR's branch.
+# Only the repository owner can trigger either. Claude never pushes to `main`
+# (a push there deploys production) and has no database credentials.
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  build:
+    if: github.event_name == 'issues' && github.event.label.name == 'agent' && github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      group: claude-issue-${{ github.event.issue.number }}
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+        working-directory: site
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
+          claude_args: >-
+            --model claude-opus-5-5
+            --max-turns 150
+            --allowedTools "Edit,Write,Read,Glob,Grep,Task,TodoWrite,Bash(npm ci),Bash(npm test),Bash(npm run lint),Bash(npm run build),Bash(npm run db:bootstrap),Bash(npx vitest run *),Bash(git status *),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(git add *),Bash(git commit *),Bash(git checkout -b *),Bash(git switch -c *),Bash(git push -u origin agent/*),Bash(git push origin agent/*),Bash(gh issue view *),Bash(gh issue comment *),Bash(gh pr create *),Bash(gh pr view *),Bash(ls *),Bash(cat *)"
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE: #${{ github.event.issue.number }} — ${{ github.event.issue.title }}
+
+            You are building this issue end to end, unattended, and finishing with
+            a pull request. Read the issue with `gh issue view ${{ github.event.issue.number }} --comments`.
+            Follow CLAUDE.md, site/AGENTS.md and the .claude/rules/ notes for the
+            files you touch. Their hard rules hold without exception: never touch a
+            database, never edit an applied migration, never push to `main`.
+
+            0. If the issue is too vague to build safely — no checkable "Done when",
+               or a choice only the maintainer can make — do not guess. Comment on
+               the issue with the specific questions (`gh issue comment`) and stop.
+            1. Work item: take the next free number NNNN in work/ (highest existing
+               id + 1, four digits) and write work/NNNN-short-name.md from the
+               template in work/README.md, filled from the issue. Add
+               `issue: ${{ github.event.issue.number }}` to the front matter and set
+               status `doing`.
+            2. Branch: `git switch -c agent/NNNN-short-name`.
+            3. Build it. New behaviour in lib/ comes with a focused test. A schema
+               change is a new file in site/supabase/migrations/ plus
+               `npm run db:bootstrap`, a `pending` row in the DEPLOYMENT.md ledger,
+               an rls.test.sql update if access changes, and a manual step.
+            4. Finish the way /ship does (.claude/skills/ship/SKILL.md): from site/
+               run `npm run lint`, `npm test`, `npm run build` and fix failures; run
+               the spec-reviewer agent, and the db-reviewer agent if anything under
+               site/supabase/ or site/app/api/ changed; fix what they find; tick the
+               proven "Done when" lines with evidence, add a dated log line, set the
+               status to `review`.
+            5. Commit (stage files by name, message `NNNN: summary`), push with
+               `git push -u origin agent/NNNN-short-name`, and open the PR with
+               `gh pr create --base main`. Title `NNNN: summary`. Body: first line
+               `Closes #${{ github.event.issue.number }}`, then what changed, the
+               check results, what the reviewers found, "Done when" lines left
+               unticked and why, and the manual steps (exact migration files, in
+               order: planr-dev, then backup, then grep-prod).
+
+  respond:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.author_association == 'OWNER') ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.author_association == 'OWNER') ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && github.event.review.author_association == 'OWNER')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+        working-directory: site
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          branch_prefix: agent/
+          claude_args: >-
+            --model claude-opus-5-5
+            --max-turns 80
+            --allowedTools "Edit,Write,Read,Glob,Grep,Task,TodoWrite,Bash(npm ci),Bash(npm test),Bash(npm run lint),Bash(npm run build),Bash(npm run db:bootstrap),Bash(npx vitest run *),Bash(git status *),Bash(git diff *),Bash(git log *),Bash(git show *)"

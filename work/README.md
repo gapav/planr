@@ -30,6 +30,11 @@ renumbered. Ideas that nobody has specced yet are one line each in
   push to `main` deploys production, so finished work is pushed by
   `/release`, not along the way.
 - **A done item is closed.** Follow-ups are new items, not edits to old ones.
+- **GitHub issues are the other way in.** An issue labelled `agent` is built
+  by Claude in Actions (`.github/workflows/claude.yml`): it writes the item
+  here with `issue: N` in the front matter, builds it on an `agent/NNNN-…`
+  branch, and opens a PR that closes the issue. The item arrives in `review`;
+  `/release` takes it from there as usual.
 
 ## Template
 
