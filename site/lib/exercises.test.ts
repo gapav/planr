@@ -405,6 +405,8 @@ describe("undertema", () => {
     expect(formatSubtopic("forsvar.teknikk")).toBe("Teknikk");
     expect(formatSubtopic("angrep.ballbehandling")).toBe("Teknikk");
     expect(formatSubtopic("malvakt.teknikk")).toBe("Teknikk");
+    // Leker's small-sided games are shown as «Ballspill» under their old key.
+    expect(formatSubtopic("leker.smalagsspill")).toBe("Ballspill");
     expect(subtopicsOf("Leker")).toEqual(["leker.oppvarming", "leker.smalagsspill"]);
   });
 

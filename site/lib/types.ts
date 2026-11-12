@@ -55,7 +55,7 @@ export const EXERCISE_SUBTOPICS = {
   ],
   Leker: [
     { key: "leker.oppvarming", label: "Oppvarmingsleker", short: "Oppvarming" },
-    { key: "leker.smalagsspill", label: "Smålagsspill", short: "Smålagsspill" },
+    { key: "leker.smalagsspill", label: "Ballspill", short: "Ballspill" },
   ],
 } as const satisfies Record<ExerciseCategory, readonly { key: string; label: string; short: string }[]>;
 export type ExerciseSubtopic = (typeof EXERCISE_SUBTOPICS)[ExerciseCategory][number]["key"];

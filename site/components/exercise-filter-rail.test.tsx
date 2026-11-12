@@ -210,6 +210,14 @@ describe("undertema in the rail", () => {
     expect(subtopicList("Forsvar")).not.toBeInTheDocument();
   });
 
+  it("lists Leker's subtopics as Oppvarmingsleker, then Ballspill", () => {
+    renderRail(state({ categories: ["Leker"] }));
+    expect([...subtopicList("Leker")!.querySelectorAll("button")].map((button) => button.getAttribute("aria-label")?.split(" — ")[0])).toEqual([
+      "Oppvarmingsleker",
+      "Ballspill",
+    ]);
+  });
+
   // The structure is the point: an empty subtopic is shown, greyed with 0.
   it("shows an empty subtopic greyed out rather than hiding it", () => {
     const onChange = renderRail(state({ categories: ["Angrep"] }));
@@ -305,6 +313,12 @@ describe("ActiveExerciseFilters", () => {
 
     expect(screen.getByRole("button", { name: "Fjern filteret Angrep › Teknikk" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fjern filteret Forsvar › Teknikk" })).toBeInTheDocument();
+  });
+
+  it("names Leker's small-sided games «Ballspill» on the chip", () => {
+    render(<ActiveExerciseFilters filters={state({ categories: ["Leker"], subtopics: ["leker.smalagsspill"] })} shortlistLabel={null} onChange={vi.fn()} onReset={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Fjern filteret Leker › Ballspill" })).toBeInTheDocument();
   });
 
   it("offers one reset for all of them", () => {
