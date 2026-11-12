@@ -9,15 +9,17 @@ import { FixtureImport } from "@/components/fixture-import";
 import { HelpTip } from "@/components/help-tip";
 import { MatchCalendar, type MatchCalendarHandle } from "@/components/match-calendar";
 import { PageHeading } from "@/components/page-heading";
-import { Button, EmptyState } from "@/components/ui";
+import { Button, EmptyState, LoadingState } from "@/components/ui";
 
 export default function MatchesPage() {
-  const { currentTeam, fixtures, clearFixtures } = useGrep();
+  const { currentTeam, fixtures, clearFixtures, workspaceLoaded } = useGrep();
   const [importing, setImporting] = useState(false);
   const calendar = useRef<MatchCalendarHandle>(null);
   const isAdmin = currentTeam?.role === "admin";
   const teamFixtures = useMemo(() => fixtures.filter((fixture) => fixture.teamId === currentTeam?.id), [fixtures, currentTeam]);
 
+  // Teams arrive with the workspace, so "no team" is only an answer once it has.
+  if (!workspaceLoaded) return <AppShell><div className="grep-page"><LoadingState>Henter kamper …</LoadingState></div></AppShell>;
   if (!currentTeam) return <AppShell><div className="grep-page"><EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag ennå" body="Når du blir invitert til et lag, finner du kampene deres her." action={<Link href="/" className="grep-text-link">Til oversikten</Link>} /></div></AppShell>;
 
   return <AppShell><div className="grep-page grep-matches">

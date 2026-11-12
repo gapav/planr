@@ -14,7 +14,7 @@ import { HelpTip } from "./help-tip";
 import { WorkoutSession } from "./live-session";
 import { CopySessionDialog, SessionMenu } from "./session-actions";
 import { TeamCrest } from "./team-crest";
-import { AvatarStack, Button, EmptyState, PointList, Tag } from "./ui";
+import { AvatarStack, Button, EmptyState, LoadingState, PointList, Tag } from "./ui";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
 import { assignedCoaches, blockClock, blockDuration, coachNameList, isStationBlock, sessionDuration, sessionSchedule, stationRotation } from "@/lib/session";
 import type { Profile, SessionItem } from "@/lib/types";
@@ -51,7 +51,9 @@ export function SessionView({ sessionId, readOnly = false }: { sessionId: string
   // a broadcast from whoever is editing refreshes the plan under them.
   // A read-only admin is not a collaborator: the topic would refuse them anyway.
   useSessionRealtime(sessionId, readOnly ? null : store.user, null, () => store.reloadSession(sessionId), store.isDemoMode);
-  if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<Calendar size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." action={<Link href="/sessions" className="font-bold underline">Tilbake til øktkalenderen</Link>} /></div></AppShell>;
+  // The morning email's link and a refresh both land here before the workspace
+  // has loaded; only a settled workspace can say the plan is gone.
+  if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20">{store.workspaceLoaded ? <EmptyState icon={<Calendar size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." action={<Link href="/sessions" className="font-bold underline">Tilbake til øktkalenderen</Link>} /> : <LoadingState>Henter økten …</LoadingState>}</div></AppShell>;
 
   const sessionTeam = readOnly ? store.adminTeams.find((team) => team.id === session.teamId) : store.teams.find((team) => team.id === session.teamId);
   const backHref = readOnly ? `/admin/teams/${session.teamId}?vis=sessions` : "/sessions";

@@ -465,7 +465,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .overview-no-team h2 { margin: 18px 0 12px; font-size: 24px; font-weight: 600; }
 .overview-no-team p { margin-bottom: 24px; max-width: 400px; line-height: 1.65; color: var(--grep-muted); }
 .overview-error { padding: 14px 18px; margin-bottom: var(--overview-gap); border: 1px solid var(--danger-line); border-radius: 12px; color: var(--danger-ink); background: var(--danger-bg); }
-.overview-loading { min-height: 260px; padding: 32px; border: 1px solid var(--grep-line); border-radius: 17px; color: var(--grep-muted); }
+.grep-loading { min-height: 260px; padding: 32px; border: 1px solid var(--grep-line); border-radius: 17px; color: var(--grep-muted); }
+.grep-loading-compact { min-height: 0; padding: 32px 24px; border: 0; text-align: center; }
 .grep-text-link { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
 @media (min-width: 640px) {
   .overview { padding: 0 40px 48px; }

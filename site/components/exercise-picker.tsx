@@ -8,7 +8,7 @@ import { categoryPresentation } from "./exercise-category-filter";
 import { ExerciseDetail } from "./exercise-detail";
 import { ActiveExerciseFilters, RailBody } from "./exercise-filter-rail";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
-import { Button, inputClass, Modal, Tag } from "./ui";
+import { Button, inputClass, LoadingState, Modal, Tag } from "./ui";
 import { collectionsForTeam } from "@/lib/collections";
 import { countExerciseFacets, emptyExerciseFilterState, filterExercises, formatSubtopic, shortlistExerciseIds, teamAgeGroup, type ExerciseFilterState } from "@/lib/exercises";
 import type { Exercise } from "@/lib/types";
@@ -35,7 +35,7 @@ export function ExercisePicker({ open, sessionId, blockId, blockTitle, teamId, o
   teamId: string;
   onClose(): void;
 }) {
-  const { exercises, user, teams, currentTeam, favoriteExerciseIds, collections, addExerciseItem } = useGrep();
+  const { exercises, exercisesLoaded, user, teams, currentTeam, favoriteExerciseIds, collections, addExerciseItem } = useGrep();
   const team = teams.find((entry) => entry.id === teamId) ?? currentTeam ?? null;
   const [filters, setFilters] = useState<ExerciseFilterState>(emptyExerciseFilterState);
   // As in the library: the band the team's name implies until the coach
@@ -90,7 +90,7 @@ export function ExercisePicker({ open, sessionId, blockId, blockTitle, teamId, o
           <p aria-live="polite" className="mt-3 text-xs font-semibold text-[var(--ink-soft)]">{filtered.length === exercises.length ? `${filtered.length} ${filtered.length === 1 ? "øvelse" : "øvelser"}` : `${filtered.length} av ${exercises.length} øvelser`}</p>
           {filtered.length ? <ul className="grep-picker-list thin-scrollbar">
             {filtered.map((exercise) => <li key={exercise.id}><PickerRow exercise={exercise} added={added[exercise.id] ?? 0} onAdd={() => void add(exercise)} onPreview={() => setPreview(exercise)} /></li>)}
-          </ul> : <div className="mt-3 rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv et annet tema, en annen aldersgruppe eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Nullstill filtre</Button></div>}
+          </ul> : !exercisesLoaded ? <LoadingState compact>Henter øvelser …</LoadingState> : <div className="mt-3 rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv et annet tema, en annen aldersgruppe eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Nullstill filtre</Button></div>}
         </div>
       </div>
       <div className="grep-picker-foot">

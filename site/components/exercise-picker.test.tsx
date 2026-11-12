@@ -19,9 +19,24 @@ function renderPicker(onClose = vi.fn()) {
 describe("ExercisePicker", () => {
   beforeEach(() => {
     addExerciseItem.mockReset().mockResolvedValue(undefined);
-    mocks.useGrep.mockReturnValue({ exercises: demoExercises, user: null, teams: demoTeams, currentTeam: demoTeams[0], favoriteExerciseIds: [], collections: [], addExerciseItem });
+    mocks.useGrep.mockReturnValue({ exercises: demoExercises, exercisesLoaded: true, user: null, teams: demoTeams, currentTeam: demoTeams[0], favoriteExerciseIds: [], collections: [], addExerciseItem });
   });
   afterEach(cleanup);
+
+  // Decision 9: the library loads on its own, after the rest of the workspace.
+  it("says the exercises are loading, not that none were found, before the library has loaded", () => {
+    mocks.useGrep.mockReturnValue({ exercises: [], exercisesLoaded: false, user: null, teams: demoTeams, currentTeam: demoTeams[0], favoriteExerciseIds: [], collections: [], addExerciseItem });
+    renderPicker();
+    expect(screen.getByRole("status")).toHaveTextContent("Henter øvelser …");
+    expect(screen.queryByText("Fant ingen øvelser")).not.toBeInTheDocument();
+  });
+
+  it("still says none were found once an empty library has loaded", () => {
+    mocks.useGrep.mockReturnValue({ exercises: [], exercisesLoaded: true, user: null, teams: demoTeams, currentTeam: demoTeams[0], favoriteExerciseIds: [], collections: [], addExerciseItem });
+    renderPicker();
+    expect(screen.getByText("Fant ingen øvelser")).toBeInTheDocument();
+    expect(screen.queryByText("Henter øvelser …")).not.toBeInTheDocument();
+  });
 
   it("names the bolk the exercises go into", () => {
     renderPicker();

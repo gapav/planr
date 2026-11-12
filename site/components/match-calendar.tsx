@@ -8,7 +8,7 @@ import { fixturePalette, savedTeamColors, teamPalette } from "@/lib/team-palette
 import type { Ref } from "react";
 import type { TeamFixture, WarmupRoutine } from "@/lib/types";
 import { useGrep } from "./app-provider";
-import { Button, EmptyState, Modal, Tag } from "./ui";
+import { Button, EmptyState, LoadingState, Modal, Tag } from "./ui";
 import { WarmupDialog, WarmupSummaryButton } from "./warmup-dialog";
 import { warmupSchedule } from "@/lib/warmup";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,7 @@ export interface MatchCalendarHandle { openWarmup(): void }
 export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup, onImport, ref }: { fixtures: TeamFixture[]; canManage: boolean; canEditWarmup: boolean; onImport?: () => void; ref?: Ref<MatchCalendarHandle> }) {
   const colors = useMemo(() => savedTeamColors(rawFixtures), [rawFixtures]);
   const fixtures = useMemo(() => rawFixtures.map((fixture) => ({ ...fixture, ourTeamColors: colors })), [rawFixtures, colors]);
-  const { removeFixture, warmupRoutines } = useGrep();
+  const { removeFixture, warmupRoutines, workspaceLoaded } = useGrep();
   // Which day is "today" depends on the reader's clock and zone, so the server
   // renders no highlight at all rather than the server's own answer — the
   // browser fills it in on hydration.
@@ -107,6 +107,8 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
   // Importing is a once-a-season job, so it lives in the settings drawer on the
   // matches page rather than the header — except here, where an empty calendar
   // makes it the only thing worth doing.
+  // No fixtures before the workspace has loaded means "not here yet".
+  if (!fixtures.length && !workspaceLoaded) return <LoadingState>Henter kamper …</LoadingState>;
   if (!fixtures.length) return <EmptyState icon={<CalendarDays size={22} />} title="Ingen kamper i kalenderen" body="Importer terminlisten fra turneringssystemet, og velg hvilke av lagene i avdelingen som er deres." action={onImport && <Button onClick={onImport}><Upload size={18} />Importer kamper</Button>} />;
 
   return <>

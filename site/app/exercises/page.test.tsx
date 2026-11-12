@@ -20,8 +20,8 @@ vi.mock("@/components/help-tip", () => ({ HelpTip: () => null }));
 const base = demoExercises[0];
 const exercise = (id: string, extra: Partial<Exercise>): Exercise => ({ ...base, id, name: id, createdBy: "someone-else", createdByName: "Kari", ...extra });
 
-function renderLibrary(exercises: Exercise[]) {
-  mocks.useGrep.mockReturnValue({ exercises, user: demoUser, currentTeam: null, archiveExercise: vi.fn(), favoriteExerciseIds: [], collections: [], createCollection: vi.fn() });
+function renderLibrary(exercises: Exercise[], exercisesLoaded = true) {
+  mocks.useGrep.mockReturnValue({ exercises, exercisesLoaded, user: demoUser, currentTeam: null, archiveExercise: vi.fn(), favoriteExerciseIds: [], collections: [], createCollection: vi.fn() });
   render(<ExercisesPage />);
 }
 const card = (name: string) => screen.getByRole("heading", { name }).closest("article") as HTMLElement;
@@ -29,6 +29,23 @@ const topic = (name: string) => card(name).querySelector("[data-card-topic]") as
 const ages = (name: string) => card(name).querySelector("[data-card-ages]") as HTMLElement;
 const visible = (element: HTMLElement) => Array.from(element.querySelectorAll("[aria-hidden='true']")).map((node) => node.textContent).join("");
 const filled = (name: string) => Array.from(ages(name).querySelectorAll("[data-band]")).map((node) => node.getAttribute("data-filled") === "true");
+
+// Decision 9: the library loads on its own, after the rest of the workspace.
+describe("before the library has loaded", () => {
+  beforeEach(() => mocks.useGrep.mockReset());
+
+  it("says the exercises are loading, not that none were found", () => {
+    renderLibrary([], false);
+    expect(screen.getByRole("status")).toHaveTextContent("Henter øvelser …");
+    expect(screen.queryByText("Fant ingen øvelser")).not.toBeInTheDocument();
+  });
+
+  it("still says none were found once an empty library has loaded", () => {
+    renderLibrary([]);
+    expect(screen.getByText("Fant ingen øvelser")).toBeInTheDocument();
+    expect(screen.queryByText("Henter øvelser …")).not.toBeInTheDocument();
+  });
+});
 
 describe("the library card", () => {
   beforeEach(() => mocks.useGrep.mockReset());

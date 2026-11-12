@@ -4,7 +4,7 @@ Numbered and append-only. Code, docs, issues and pull requests cite them by numb
 (“decision 3”), so a number is never reused or renumbered. To change one, add
 a new decision and strike the old one through with a pointer to it. Record
 only what the maintainer decided; a proposal waits under open questions or in
-an issue. The next number is **9**; 5 and 6 are held by decisions still in
+an issue. The next number is **10**; 5 and 6 are held by decisions still in
 review.
 
 Decisions made before November 2026 are not back-filled. They are recorded
@@ -105,6 +105,21 @@ linked from the issue).
   exercise «Lagt til»; «Ferdig» closes it.
 - Age opens on the band the plan's team implies, as the library does.
 - The warm-up dialog's picker is unchanged for now.
+
+## 9. No screen says "nothing here" before the first load has answered (2026-11-12)
+
+Issue #26. Until the provider's first load has settled, an empty list or a
+missing session means "not here yet", so every empty and not-found state waits
+for its flag and shows `LoadingState` from `site/components/ui.tsx` instead —
+short status text («Henter økter …»), `role="status"`. `workspaceLoaded`
+covers everything `loadPrivateData` fetches; `exercisesLoaded` covers the
+library, which `loadExercises` fetches on its own. Both latch true once the
+first load settles, success or failure, and start true in demo mode.
+
+- No skeletons, and no caching the workspace on the device.
+- A failed load still settles to the empty state.
+- Refetches after the first load (Realtime, after an RPC) never show the
+  loading state again.
 
 ## Open questions
 

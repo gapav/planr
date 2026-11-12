@@ -11,7 +11,7 @@ import { ExerciseAgeGroupFilter } from "./exercise-age-group-filter";
 import { ExerciseCategoryFilter } from "./exercise-category-filter";
 import { ExerciseDetail, sessionItemDetailSubject, type ExerciseDetailSubject } from "./exercise-detail";
 import { ExerciseThumbnail, linkedCategory } from "./exercise-thumbnail";
-import { Button, Field, Modal, Tag, inputClass, textareaClass } from "./ui";
+import { Button, Field, LoadingState, Modal, Tag, inputClass, textareaClass } from "./ui";
 import { cn, minutesLabel } from "@/lib/utils";
 
 function activityLabel(count: number) {
@@ -182,7 +182,7 @@ function EditRow({ item, index, routineId, first, last, onMove }: { item: Warmup
 }
 
 function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDone(): void; onPreview(subject: ExerciseDetailSubject): void }) {
-  const { exercises, addWarmupExercise } = useGrep();
+  const { exercises, exercisesLoaded, addWarmupExercise } = useGrep();
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<ExerciseCategory[]>([]);
   const [ageGroups, setAgeGroups] = useState<ExerciseAgeGroup[]>([]);
@@ -212,7 +212,7 @@ function PickPane({ routine, onDone, onPreview }: { routine: WarmupRoutine; onDo
     {filtered.length ? <div className="grid max-h-[50vh] grid-cols-1 gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]">
       <button type="button" className="group/media relative h-20 w-24 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]" aria-label={`Vis detaljer for ${exercise.name}`} onClick={() => onPreview(exercise)}><ExerciseThumbnail exercise={exercise} className="h-full w-full" /><span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={15} /></span></span></button>
       <button type="button" className="min-w-0 flex-1 text-left" aria-label={`Legg ${exercise.name} til i oppvarmingen`} onClick={() => void add(exercise)}><span className="text-[10px] font-black uppercase tracking-[.08em] text-[var(--accent)]">{exercise.category}</span><strong className="mt-1 block text-sm">{exercise.name}</strong><span className="clamp-2 mt-1 text-xs leading-5 text-[var(--ink-soft)]">{exercise.description}</span></button>
-    </div>)}</div> : <div className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv en annen kategori eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Nullstill filtre</Button></div>}
+    </div>)}</div> : !exercisesLoaded ? <LoadingState compact>Henter øvelser …</LoadingState> : <div className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv en annen kategori eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Nullstill filtre</Button></div>}
     <div className="flex justify-between"><Button variant="ghost" onClick={onDone}>Tilbake</Button><span className="self-center text-xs text-[var(--ink-soft)]">Aktiviteten legges nederst, med fem minutter som varighet</span></div>
   </div>;
 }

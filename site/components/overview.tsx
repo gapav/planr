@@ -8,6 +8,7 @@ import { AccountMenu } from "./account-menu";
 import { useGrep } from "./app-provider";
 import { AppShell } from "./app-shell";
 import { CourtArtwork } from "./court-artwork";
+import { LoadingState } from "./ui";
 import { overviewFixture, overviewFocus, overviewHeadline, overviewHeadlines, overviewSalutation, overviewSessions } from "@/lib/overview";
 import { calendarDaysUntil } from "@/lib/session";
 import { dayKey } from "@/lib/fixtures";
@@ -74,7 +75,7 @@ export function Overview() {
       <div className="overview-court-crop"><CourtArtwork /></div>
     </header>
     {error && <p role="alert" className="overview-error">{error}</p>}
-    {loading ? <div className="overview-loading" role="status">Henter lagets økter …</div> : !currentTeam ?
+    {loading ? <LoadingState>Henter lagets økter …</LoadingState> : !currentTeam ?
       <section className="overview-card overview-no-team"><Users size={26} /><h2>Velkommen til trenerrommet</h2><p>Når du blir invitert til et lag, finner du øktplanene og trenerteamet her.</p>{user?.isGlobalAdmin && <Link className="grep-action" href="/admin">Administrer lag<ArrowRight size={18} /></Link>}</section> : <>
       <div className="overview-cards">
         <section className="overview-card overview-next" aria-labelledby="next-session-heading">
