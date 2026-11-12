@@ -16,45 +16,48 @@ export type ExerciseAgeGroup = (typeof EXERCISE_AGE_GROUPS)[number];
  * Undertema: the second level under each topic, and the single source of the
  * list (decision 4). The keys are stable and qualified by topic — "Teknikk" is
  * both `forsvar.teknikk` and `malvakt.teknikk` — and the label is only what the
- * UI shows. `exercises_subtopics_check` (202611120001) holds the same list, so
- * adding or renaming one is a migration as well as an edit here. There is no
- * third level.
+ * UI shows. `short` is the library card's label (decision 5): the topic chip
+ * sits right beside it there, so «Angrep · 1 mot 1» says what «Angrepsspill
+ * 1 mot 1» repeats. Everywhere else — the filter rail, the detail view — keeps
+ * `label`. `exercises_subtopics_check` (202611120001) holds the same keys, so
+ * adding or renaming one is a migration as well as an edit here; a label or
+ * short label is not. There is no third level.
  */
 export const EXERCISE_SUBTOPICS = {
   Forsvar: [
-    { key: "forsvar.teknikk", label: "Teknikk" },
-    { key: "forsvar.1-mot-1", label: "Forsvarsspill 1 mot 1" },
-    { key: "forsvar.sma-grupper", label: "Forsvarsspill i små grupper" },
+    { key: "forsvar.teknikk", label: "Teknikk", short: "Teknikk" },
+    { key: "forsvar.1-mot-1", label: "Forsvarsspill 1 mot 1", short: "1 mot 1" },
+    { key: "forsvar.sma-grupper", label: "Forsvarsspill i små grupper", short: "Små grupper" },
   ],
   Angrep: [
-    { key: "angrep.ballbehandling", label: "Ballbehandling" },
-    { key: "angrep.kast-og-mottak", label: "Kast og mottak" },
-    { key: "angrep.finter", label: "Finter" },
-    { key: "angrep.1-mot-1", label: "Angrepsspill 1 mot 1" },
-    { key: "angrep.sma-grupper", label: "Angrepsspill i små grupper" },
+    { key: "angrep.ballbehandling", label: "Ballbehandling", short: "Ballbehandling" },
+    { key: "angrep.kast-og-mottak", label: "Kast og mottak", short: "Kast og mottak" },
+    { key: "angrep.finter", label: "Finter", short: "Finter" },
+    { key: "angrep.1-mot-1", label: "Angrepsspill 1 mot 1", short: "1 mot 1" },
+    { key: "angrep.sma-grupper", label: "Angrepsspill i små grupper", short: "Små grupper" },
   ],
   Skuddferdigheter: [
-    { key: "skudd.gulvet", label: "Skudd fra gulvet" },
-    { key: "skudd.lufta", label: "Skudd fra lufta" },
-    { key: "skudd.posisjon", label: "Posisjonsspesifikke skudd" },
+    { key: "skudd.gulvet", label: "Skudd fra gulvet", short: "Fra gulvet" },
+    { key: "skudd.lufta", label: "Skudd fra lufta", short: "Fra lufta" },
+    { key: "skudd.posisjon", label: "Posisjonsspesifikke skudd", short: "Posisjonsspesifikke" },
   ],
   Målvakt: [
-    { key: "malvakt.teknikk", label: "Teknikk" },
-    { key: "malvakt.motorikk", label: "Motorikk og koordinasjon" },
-    { key: "malvakt.fysisk", label: "Fysiske forutsetninger" },
+    { key: "malvakt.teknikk", label: "Teknikk", short: "Teknikk" },
+    { key: "malvakt.motorikk", label: "Motorikk og koordinasjon", short: "Motorikk" },
+    { key: "malvakt.fysisk", label: "Fysiske forutsetninger", short: "Fysikk" },
   ],
   Fysisk: [
-    { key: "fysisk.koordinasjon", label: "Koordinasjon og balanse" },
-    { key: "fysisk.hurtighet", label: "Hurtighet og spenst" },
-    { key: "fysisk.styrke", label: "Styrke" },
-    { key: "fysisk.utholdenhet", label: "Utholdenhet" },
-    { key: "fysisk.skadeforebygging", label: "Skadeforebygging" },
+    { key: "fysisk.koordinasjon", label: "Koordinasjon og balanse", short: "Koordinasjon" },
+    { key: "fysisk.hurtighet", label: "Hurtighet og spenst", short: "Hurtighet" },
+    { key: "fysisk.styrke", label: "Styrke", short: "Styrke" },
+    { key: "fysisk.utholdenhet", label: "Utholdenhet", short: "Utholdenhet" },
+    { key: "fysisk.skadeforebygging", label: "Skadeforebygging", short: "Skadeforebygging" },
   ],
   Leker: [
-    { key: "leker.oppvarming", label: "Oppvarmingsleker" },
-    { key: "leker.smalagsspill", label: "Smålagsspill" },
+    { key: "leker.oppvarming", label: "Oppvarmingsleker", short: "Oppvarming" },
+    { key: "leker.smalagsspill", label: "Smålagsspill", short: "Smålagsspill" },
   ],
-} as const satisfies Record<ExerciseCategory, readonly { key: string; label: string }[]>;
+} as const satisfies Record<ExerciseCategory, readonly { key: string; label: string; short: string }[]>;
 export type ExerciseSubtopic = (typeof EXERCISE_SUBTOPICS)[ExerciseCategory][number]["key"];
 /** Every key, in topic order then list order — the canonical order of a stored or linked list. */
 export const EXERCISE_SUBTOPIC_KEYS: readonly ExerciseSubtopic[] = EXERCISE_CATEGORIES.flatMap((category) => EXERCISE_SUBTOPICS[category].map((entry) => entry.key));
