@@ -200,7 +200,7 @@ describe("undertema in the rail", () => {
     const list = subtopicList("Angrep")!;
     expect(list).toBeInTheDocument();
     expect([...list.querySelectorAll("button")].map((button) => button.getAttribute("aria-label"))).toEqual([
-      "Ballbehandling — 0 øvelser",
+      "Teknikk — 0 øvelser",
       "Kast og mottak — 0 øvelser",
       "Finter — 0 øvelser",
       "Angrepsspill 1 mot 1 — 0 øvelser",
@@ -285,7 +285,7 @@ describe("ActiveExerciseFilters", () => {
     expect(onChange).toHaveBeenLastCalledWith({ shortlist: null });
   });
 
-  // "Teknikk" alone could be Forsvar or Målvakt, so the chip names its topic.
+  // "Teknikk" alone could be Forsvar, Angrep or Målvakt, so the chip names its topic.
   it("names a subtopic with its topic, and clears the topic's subtopics with it", () => {
     const onChange = vi.fn();
     render(<ActiveExerciseFilters filters={state({ categories: ["Forsvar", "Angrep"], subtopics: ["forsvar.teknikk", "angrep.finter"] })} shortlistLabel={null} onChange={onChange} onReset={vi.fn()} />);
@@ -295,6 +295,13 @@ describe("ActiveExerciseFilters", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Fjern filteret Angrep" }));
     expect(onChange).toHaveBeenLastCalledWith({ categories: ["Forsvar"], subtopics: ["forsvar.teknikk"] });
+  });
+
+  it("tells Angrep's Teknikk from Forsvar's on the chip", () => {
+    render(<ActiveExerciseFilters filters={state({ categories: ["Forsvar", "Angrep"], subtopics: ["forsvar.teknikk", "angrep.ballbehandling"] })} shortlistLabel={null} onChange={vi.fn()} onReset={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Fjern filteret Angrep › Teknikk" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fjern filteret Forsvar › Teknikk" })).toBeInTheDocument();
   });
 
   it("offers one reset for all of them", () => {

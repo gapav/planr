@@ -293,7 +293,7 @@ export function ActiveExerciseFilters({ filters, shortlistLabel, onChange, onRes
     ...(filters.query.trim() ? [{ key: "q", label: `«${filters.query.trim()}»`, clear: () => onChange({ query: "" }) }] : []),
     ...filters.ageGroups.map((group) => ({ key: `age-${group}`, label: formatAgeGroup(group), clear: () => onChange({ ageGroups: filters.ageGroups.filter((entry) => entry !== group) }) })),
     // Clearing a topic clears its subtopics too, as in the rail. A subtopic chip
-    // names its topic, since "Teknikk" alone could be Forsvar or Målvakt.
+    // names its topic, since "Teknikk" alone could be Forsvar, Angrep or Målvakt.
     ...filters.categories.map((category) => ({ key: `cat-${category}`, label: category, clear: () => onChange({ categories: filters.categories.filter((entry) => entry !== category), subtopics: filters.subtopics.filter((entry) => subtopicCategory(entry) !== category) }) })),
     ...filters.subtopics.map((subtopic) => ({ key: `sub-${subtopic}`, label: `${subtopicCategory(subtopic)} › ${formatSubtopic(subtopic)}`, clear: () => onChange({ subtopics: filters.subtopics.filter((entry) => entry !== subtopic) }) })),
     ...(shortlistLabel ? [{ key: "shortlist", label: shortlistLabel, clear: () => onChange({ shortlist: null }) }] : []),

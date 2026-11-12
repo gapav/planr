@@ -15,8 +15,8 @@ export type ExerciseAgeGroup = (typeof EXERCISE_AGE_GROUPS)[number];
 /**
  * Undertema: the second level under each topic, and the single source of the
  * list (decision 4). The keys are stable and qualified by topic — "Teknikk" is
- * both `forsvar.teknikk` and `malvakt.teknikk` — and the label is only what the
- * UI shows. `short` is the library card's label (decision 5): the topic chip
+ * `forsvar.teknikk`, `angrep.ballbehandling` and `malvakt.teknikk` — and the
+ * label is only what the UI shows, so renaming one keeps its key (decision 6). `short` is the library card's label (decision 5): the topic chip
  * sits right beside it there, so «Angrep · 1 mot 1» says what «Angrepsspill
  * 1 mot 1» repeats. Everywhere else — the filter rail, the detail view — keeps
  * `label`. `exercises_subtopics_check` (202611120001) holds the same keys, so
@@ -30,7 +30,7 @@ export const EXERCISE_SUBTOPICS = {
     { key: "forsvar.sma-grupper", label: "Forsvarsspill i små grupper", short: "Små grupper" },
   ],
   Angrep: [
-    { key: "angrep.ballbehandling", label: "Ballbehandling", short: "Ballbehandling" },
+    { key: "angrep.ballbehandling", label: "Teknikk", short: "Teknikk" },
     { key: "angrep.kast-og-mottak", label: "Kast og mottak", short: "Kast og mottak" },
     { key: "angrep.finter", label: "Finter", short: "Finter" },
     { key: "angrep.1-mot-1", label: "Angrepsspill 1 mot 1", short: "1 mot 1" },
