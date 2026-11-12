@@ -141,6 +141,17 @@ export function AvatarStack({ people, size = "sm" }: { people: readonly Pick<Pro
   return <span className={cn("inline-flex shrink-0 items-center", size === "sm" ? "-space-x-1.5" : "-space-x-2")}>{people.map((person) => <Avatar key={person.id} name={person.fullName} initials={person.initials} color={person.color} size={size} />)}</span>;
 }
 
+/**
+ * "Not here yet", as opposed to {@link EmptyState}'s "nothing here". Shown
+ * while `workspaceLoaded` / `exercisesLoaded` are false, so a screen never
+ * claims there is nothing before the first load has answered (decision 9).
+ * `compact` drops the tall frame, for a list inside a card or a dialog that
+ * already draws its own.
+ */
+export function LoadingState({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
+  return <p role="status" className={cn("grep-loading", compact && "grep-loading-compact")}>{children}</p>;
+}
+
 export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) {
   return <div className="grid min-h-72 place-items-center rounded-[24px] border border-dashed border-[var(--line-strong)] bg-[var(--surface-raised)]/45 px-6 text-center"><div className="max-w-sm"><div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-[var(--paper-deep)]">{icon}</div><h3 className="text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{body}</p>{action && <div className="mt-5">{action}</div>}</div></div>;
 }

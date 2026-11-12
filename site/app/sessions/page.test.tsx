@@ -19,11 +19,43 @@ const team = demoTeams[0];
 const upcoming = (id: string, title: string, startsAt: string, extra: Partial<PlannedSession> = {}): PlannedSession =>
   ({ ...demoSessions[1], id, teamId: team.id, title, startsAt, status: "published", updatedBy: demoUser.id, ...extra });
 
-function renderPage(sessions: PlannedSession[], focusPeriods: FocusPeriod[] = []) {
-  mocks.useGrep.mockReturnValue({ sessions, fixtures: demoFixtures, currentTeam: team, user: demoUser, focusPeriods, createSession: mocks.createSession, deleteSession: mocks.deleteSession, createFocusPeriod: mocks.createFocusPeriod, updateFocusPeriod: mocks.updateFocusPeriod, deleteFocusPeriod: mocks.deleteFocusPeriod });
+function renderPage(sessions: PlannedSession[], focusPeriods: FocusPeriod[] = [], extra: Record<string, unknown> = {}) {
+  mocks.useGrep.mockReturnValue({ sessions, fixtures: demoFixtures, currentTeam: team, user: demoUser, focusPeriods, workspaceLoaded: true, createSession: mocks.createSession, deleteSession: mocks.deleteSession, createFocusPeriod: mocks.createFocusPeriod, updateFocusPeriod: mocks.updateFocusPeriod, deleteFocusPeriod: mocks.deleteFocusPeriod, ...extra });
   render(<SessionsPage />);
 }
 const rowFor = (title: string) => screen.getByRole("link", { name: `Åpne ${title}` }).closest("li") as HTMLElement;
+
+// Decision 9: before the workspace has loaded, an empty list is "not here yet".
+describe("before the workspace has loaded", () => {
+  beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); });
+  afterEach(() => { vi.useRealTimers(); mocks.query = ""; });
+
+  it.each([["upcoming", "", "Ingen planlagte økter ennå"], ["drafts", "view=drafts", "Ingen økter under planlegging"], ["past", "view=past", "Ingen gjennomførte økter"]])("says the %s tab is loading, not empty", (_tab, query, empty) => {
+    mocks.query = query;
+    renderPage([], [], { workspaceLoaded: false });
+    expect(screen.getByRole("status")).toHaveTextContent("Henter økter …");
+    expect(screen.queryByText(empty)).not.toBeInTheDocument();
+  });
+
+  it.each([["upcoming", "", "Ingen planlagte økter ennå"], ["drafts", "view=drafts", "Ingen økter under planlegging"], ["past", "view=past", "Ingen gjennomførte økter"]])("still shows the empty %s tab once it has", (_tab, query, empty) => {
+    mocks.query = query;
+    renderPage([]);
+    expect(screen.getByText(empty)).toBeInTheDocument();
+    expect(screen.queryByText("Henter økter …")).not.toBeInTheDocument();
+  });
+
+  it("waits before saying the coach is on no team", () => {
+    renderPage([], [], { workspaceLoaded: false, currentTeam: null });
+    expect(screen.getByRole("status")).toHaveTextContent("Henter økter …");
+    expect(screen.queryByText(/Du er ikke med på noe lag/)).not.toBeInTheDocument();
+  });
+
+  it("says the coach is on no team once the workspace has loaded", () => {
+    renderPage([], [], { currentTeam: null, user: { ...demoUser, isGlobalAdmin: false } });
+    expect(screen.getByText("Du er ikke med på noe lag ennå")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});
 
 describe("session calendar rows", () => {
   beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); vi.setSystemTime(new Date("2026-09-02T09:00:00.000Z")); mocks.useGrep.mockReset(); mocks.deleteSession.mockReset(); mocks.createFocusPeriod.mockReset().mockResolvedValue("new-focus"); mocks.updateFocusPeriod.mockReset(); mocks.deleteFocusPeriod.mockReset(); });

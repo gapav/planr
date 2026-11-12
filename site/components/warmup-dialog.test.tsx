@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({ useGrep: vi.fn() }));
 vi.mock("./app-provider", () => ({ useGrep: mocks.useGrep }));
 
 const store = {
-  exercises: [], ensureWarmupRoutine: vi.fn(), addCustomWarmupItem: vi.fn(), addWarmupExercise: vi.fn(),
+  exercises: [], exercisesLoaded: true, ensureWarmupRoutine: vi.fn(), addCustomWarmupItem: vi.fn(), addWarmupExercise: vi.fn(),
   updateWarmupRoutine: vi.fn(), updateWarmupItem: vi.fn(), deleteWarmupItem: vi.fn(), reorderWarmupItems: vi.fn(),
 };
 const fixture = demoFixtures[0];
@@ -113,6 +113,26 @@ describe("WarmupDialog", () => {
     expect(screen.getByRole("heading", { name: "Legg til fra øvelsesbanken" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tilbake" }));
     expect(screen.getByRole("heading", { name: "Rediger oppvarmingen" })).toBeInTheDocument();
+  });
+
+  // Decision 9: the library loads on its own, after the rest of the workspace.
+  function openPicker() {
+    render(<WarmupDialog open fixture={fixture} routine={routine} canEdit onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rediger oppvarmingen" }));
+    fireEvent.click(screen.getByRole("button", { name: /Legg til øvelse/ }));
+  }
+
+  it("says the exercises are loading, not that none were found, before the library has loaded", () => {
+    mocks.useGrep.mockReturnValue({ ...store, exercisesLoaded: false });
+    openPicker();
+    expect(screen.getByRole("status")).toHaveTextContent("Henter øvelser …");
+    expect(screen.queryByText("Fant ingen øvelser")).not.toBeInTheDocument();
+  });
+
+  it("still says none were found once an empty library has loaded", () => {
+    openPicker();
+    expect(screen.getByText("Fant ingen øvelser")).toBeInTheDocument();
+    expect(screen.queryByText("Henter øvelser …")).not.toBeInTheDocument();
   });
 });
 

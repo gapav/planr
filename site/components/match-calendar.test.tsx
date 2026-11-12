@@ -24,12 +24,20 @@ describe("MatchCalendar", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(NOW);
     removeFixture.mockReset().mockResolvedValue(undefined);
-    mocks.useGrep.mockReturnValue({ removeFixture, warmupRoutines: demoWarmupRoutines });
+    mocks.useGrep.mockReturnValue({ removeFixture, warmupRoutines: demoWarmupRoutines, workspaceLoaded: true });
   });
 
   it("asks for an import when the calendar is empty", () => {
     render(<MatchCalendar fixtures={[]} canManage canEditWarmup />);
     expect(screen.getByText("Ingen kamper i kalenderen")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("says the matches are loading, not that there are none, before the workspace has loaded", () => {
+    mocks.useGrep.mockReturnValue({ removeFixture, warmupRoutines: demoWarmupRoutines, workspaceLoaded: false });
+    render(<MatchCalendar fixtures={[]} canManage canEditWarmup />);
+    expect(screen.getByRole("status")).toHaveTextContent("Henter kamper …");
+    expect(screen.queryByText("Ingen kamper i kalenderen")).not.toBeInTheDocument();
   });
 
   it("opens the team warm-up from the header", () => {

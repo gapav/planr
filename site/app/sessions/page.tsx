@@ -11,7 +11,7 @@ import { CopySessionDialog, ReopenSessionDialog, SessionMenu } from "@/component
 import { PageHeading } from "@/components/page-heading";
 import { FocusDialog } from "@/components/focus-dialog";
 import { SeasonOverview } from "@/components/season-overview";
-import { Avatar, Button, EmptyState, Modal, Tag } from "@/components/ui";
+import { Avatar, Button, EmptyState, LoadingState, Modal, Tag } from "@/components/ui";
 import { dayKey } from "@/lib/fixtures";
 import { focusAt, focusSpanLabel, freeFocusSpan, nextFocus, weekOf } from "@/lib/focus";
 import { calendarMonthGroups, deriveSessionTab, groupSessionsByMonth, isNearTerm, relativeDayLabel, sessionDuration, sessionPlanProgress, sessionPlanSummary, UNTITLED_SESSION_TITLE } from "@/lib/session";
@@ -34,7 +34,7 @@ function SessionsRoute() {
 }
 
 function SessionsContent({ initialTab, initialPlanningView, initialSeasonFocus }: { initialTab: SessionTab; initialPlanningView: "calendar" | "season"; initialSeasonFocus: string | null }) {
-  const { sessions, fixtures, currentTeam, focusPeriods, user, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>(initialTab); const [planningView, setPlanningView] = useState<"calendar" | "season">(initialPlanningView); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const router = useRouter();
+  const { sessions, fixtures, currentTeam, focusPeriods, user, workspaceLoaded, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>(initialTab); const [planningView, setPlanningView] = useState<"calendar" | "season">(initialPlanningView); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const router = useRouter();
   const current = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === tab).sort((a, b) => tab === "drafts" ? b.updatedAt.localeCompare(a.updatedAt) : tab === "upcoming" ? (a.startsAt ?? "").localeCompare(b.startsAt ?? "") : (b.startsAt ?? "").localeCompare(a.startsAt ?? "")), [sessions, currentTeam, tab]);
   const counts = useMemo(() => tabs.reduce((acc, entry) => { acc[entry.id] = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return acc; }, {} as Record<SessionTab, number>), [sessions, currentTeam]);
   // The nearest session is lifted out of its month so the one plan being
@@ -52,6 +52,9 @@ function SessionsContent({ initialTab, initialPlanningView, initialSeasonFocus }
   // A failed delete rolls itself back in the provider and surfaces a notice, so
   // the dialog closes either way.
   async function confirmDelete() { if (!pendingDelete) return; setDeleting(true); try { await deleteSession(pendingDelete.id); } catch { /* notice is shown by the provider */ } finally { setDeleting(false); setPendingDelete(null); } }
+  // Teams and sessions arrive with the workspace, so neither "no team" nor an
+  // empty tab is an answer until it has (decision 9).
+  if (!workspaceLoaded) return <AppShell><div className="grep-page grep-calendar"><LoadingState>Henter økter …</LoadingState></div></AppShell>;
   if (!currentTeam) return <AppShell><div className="mx-auto max-w-3xl px-4 py-20">{user?.isGlobalAdmin
     ? <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag" body="Øktene tilhører et lag. Opprett lag og tildel trenere fra systemadministrasjonen." action={<Link href="/admin" className="grep-action">Gå til administrasjon</Link>} />
     : <EmptyState icon={<CalendarDays size={22} />} title="Du er ikke med på noe lag ennå" body="Øktene tilhører et lag, slik at de riktige trenerne kan se og redigere dem. Systemadministratoren gir deg tilgang." />}</div></AppShell>;

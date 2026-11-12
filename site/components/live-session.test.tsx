@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { demoPlayers, demoSessions, demoTeams } from "@/lib/demo-data";
-import { WorkoutSession } from "./live-session";
+import { LiveSession, WorkoutSession } from "./live-session";
 
 const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn() }));
 const undoWorkoutStart = vi.fn();
@@ -140,5 +140,39 @@ describe("a finished workout", () => {
 
     await waitFor(() => expect(copySession).toHaveBeenCalledWith(finished.id, { title: finished.title, startsAt: expect.any(String) }));
     expect(mocks.push).toHaveBeenCalledWith("/sessions/session-copy/edit");
+  });
+});
+
+// Decision 9: the live link and a refresh land before the workspace has loaded.
+describe("live session before the workspace has loaded", () => {
+  const published = { ...demoSessions[0], status: "published" as const };
+  const store = (workspaceLoaded: boolean, extra: Record<string, unknown> = {}) => ({ sessions: [], teams: demoTeams, players: [], attendance: [], groupings: [], workspaceLoaded, undoWorkoutStart, finishWorkout: vi.fn(), reopenSession, copySession, ...extra });
+
+  it.each([["setup", LiveSession], ["workout", WorkoutSession]])("%s: says the session is loading, not that it was not found", (_name, Screen) => {
+    mocks.useGrep.mockReturnValue(store(false));
+    render(<Screen sessionId="missing" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Henter økten …");
+    expect(screen.queryByText("Økten ble ikke funnet")).not.toBeInTheDocument();
+  });
+
+  it.each([["setup", LiveSession], ["workout", WorkoutSession]])("%s: still says a session that does not exist was not found once it has", (_name, Screen) => {
+    mocks.useGrep.mockReturnValue(store(true));
+    render(<Screen sessionId="missing" />);
+    expect(screen.getByText("Økten ble ikke funnet")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("says the players are loading, not that the roster is missing", () => {
+    mocks.useGrep.mockReturnValue(store(false, { sessions: [published] }));
+    render(<LiveSession sessionId={published.id} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Henter spillerne …");
+    expect(screen.queryByText("Importer spillerlisten først")).not.toBeInTheDocument();
+  });
+
+  it("still asks for the roster when the team really has none", () => {
+    mocks.useGrep.mockReturnValue(store(true, { sessions: [published] }));
+    render(<LiveSession sessionId={published.id} />);
+    expect(screen.getByText("Importer spillerlisten først")).toBeInTheDocument();
+    expect(screen.queryByText("Henter spillerne …")).not.toBeInTheDocument();
   });
 });

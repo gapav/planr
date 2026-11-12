@@ -18,7 +18,7 @@ import { ItemThumbnailPlaceholder } from "./exercise-thumbnail";
 import { WorkoutSession } from "./live-session";
 import { SessionStartFields } from "./session-start-fields";
 import { SessionItemDialog } from "./session-item-dialog";
-import { Avatar, AvatarStack, Button, EmptyState, Field, inputClass, Modal, PointList, Tag, textareaClass } from "./ui";
+import { Avatar, AvatarStack, Button, EmptyState, Field, inputClass, LoadingState, Modal, PointList, Tag, textareaClass } from "./ui";
 import { useDismissable } from "@/hooks/use-dismissable";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
 import { dayKey } from "@/lib/fixtures";
@@ -85,7 +85,9 @@ export function SessionBuilder({ sessionId }: { sessionId: string }) {
   const store = useGrep(); const router = useRouter(); const session = store.sessions.find((entry) => entry.id === sessionId); const [activeBlockId, setActiveBlockId] = useState<string | null>(session?.blocks[0]?.id ?? null); const [blockMenu, setBlockMenu] = useState(false); const [pickerBlock, setPickerBlock] = useState<string | null>(null); const [publishIssues, setPublishIssues] = useState<string[]>([]); const [publishing, setPublishing] = useState(false); const [previewItem, setPreviewItem] = useState<SessionItem | null>(null);
   const { collaborators, connected } = useSessionRealtime(sessionId, store.user, activeBlockId, () => store.reloadSession(sessionId), store.isDemoMode);
   const sensors = useReorderSensors();
-  if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<Calendar size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." action={<Link href="/sessions" className="font-bold underline">Tilbake til øktkalenderen</Link>} /></div></AppShell>;
+  // A deep link or a refresh lands here before the workspace has loaded, when
+  // every session is still missing; only a settled workspace can say it is gone.
+  if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20">{store.workspaceLoaded ? <EmptyState icon={<Calendar size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." action={<Link href="/sessions" className="font-bold underline">Tilbake til øktkalenderen</Link>} /> : <LoadingState>Henter økten …</LoadingState>}</div></AppShell>;
   const stableSession = session;
   const builtMinutes = sessionDuration(session); const difference = builtMinutes - session.plannedDurationMinutes;
   const schedule = sessionSchedule(session);

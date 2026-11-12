@@ -77,3 +77,22 @@ describe("session view", () => {
     expect(within(dialog).getByText(firstItem.description)).toBeInTheDocument();
   });
 });
+
+// Decision 9: the morning email's link lands before the workspace has loaded.
+describe("session view before the workspace has loaded", () => {
+  const store = (workspaceLoaded: boolean) => ({ sessions: [], adminSessions: [], teams: [], user: null, isDemoMode: true, workspaceLoaded, reloadSession: vi.fn() });
+
+  it("says the session is loading, not that it was not found", () => {
+    mocks.useGrep.mockReturnValue(store(false));
+    render(<SessionView sessionId="missing" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Henter økten …");
+    expect(screen.queryByText("Økten ble ikke funnet")).not.toBeInTheDocument();
+  });
+
+  it("still says a session that does not exist was not found once it has", () => {
+    mocks.useGrep.mockReturnValue(store(true));
+    render(<SessionView sessionId="missing" />);
+    expect(screen.getByText("Økten ble ikke funnet")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});

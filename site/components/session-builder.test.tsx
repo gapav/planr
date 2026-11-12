@@ -309,3 +309,23 @@ describe("session builder", () => {
     }
   });
 });
+
+// Decision 9: a deep link or a refresh lands before the workspace has loaded.
+describe("session builder before the workspace has loaded", () => {
+  beforeEach(() => { mocks.useSessionRealtime.mockReturnValue({ collaborators: [], connected: true }); });
+  const store = (workspaceLoaded: boolean) => ({ sessions: [], teams: [], exercises: [], collections: [], favoriteExerciseIds: [], user: null, saveState: "saved", isDemoMode: true, workspaceLoaded, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
+
+  it("says the session is loading, not that it was not found", () => {
+    mocks.useGrep.mockReturnValue(store(false));
+    render(<SessionBuilder sessionId="missing" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Henter økten …");
+    expect(screen.queryByText("Økten ble ikke funnet")).not.toBeInTheDocument();
+  });
+
+  it("still says a session that does not exist was not found once it has", () => {
+    mocks.useGrep.mockReturnValue(store(true));
+    render(<SessionBuilder sessionId="missing" />);
+    expect(screen.getByText("Økten ble ikke funnet")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});

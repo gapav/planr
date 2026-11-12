@@ -3,7 +3,9 @@
 import { ChevronLeft, ChevronRight, Pencil, Plus, Target } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useGrep } from "@/components/app-provider";
 import { FocusDialog } from "@/components/focus-dialog";
+import { LoadingState } from "@/components/ui";
 import { dayKey } from "@/lib/fixtures";
 import { focusAt, focusOverlapsRange, focusSpanLabel, freeFocusSpan, teamFocuses } from "@/lib/focus";
 import { autoSessionTitle, combineSessionStart, DEFAULT_SESSION_TIME } from "@/lib/session";
@@ -48,6 +50,7 @@ export function SeasonOverview({ teamId, sessions, fixtures, focusPeriods, initi
   initialFocus: string | null;
   onCreateTraining(startsAt: string): Promise<void>;
 }) {
+  const { workspaceLoaded } = useGrep();
   const [year, setYear] = useState<number | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [todayDay, setTodayDay] = useState<string | null>(null);
@@ -166,6 +169,8 @@ export function SeasonOverview({ teamId, sessions, fixtures, focusPeriods, initi
   const newFocusDefault = () => emptyFocus(freeFocusSpan(focusPeriods, teamId, todayWeek ? todayDay! : weeks[0].start));
   const inDrag = (index: number) => drag !== null && index >= Math.min(drag.from, drag.to) && index <= Math.max(drag.from, drag.to);
   const col = (index: number) => index + 2;
+  // Every week reads "Ingen kamper eller økter" until the workspace has loaded.
+  if (!workspaceLoaded) return <LoadingState>Henter økter …</LoadingState>;
   return <div className="season-overview">
     <header className="season-heading">
       <div><p className="season-eyebrow">Sesongoverblikk</p><h2>Sesong {seasonLabel}</h2><p>Se fokus, kamper og treninger uke for uke. Dra over ledige uker i Fokus-raden for å sette et nytt fokus.</p></div>

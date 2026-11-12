@@ -6,10 +6,10 @@ import { parseRosterRows, type RosterParseResult } from "@/lib/roster";
 import type { TeamPlayer } from "@/lib/types";
 import { useGrep } from "./app-provider";
 import { HelpTip } from "./help-tip";
-import { Button, Modal, Tag } from "./ui";
+import { Button, LoadingState, Modal, Tag } from "./ui";
 
 export function RosterManager({ players, canManage }: { players: TeamPlayer[]; canManage: boolean }) {
-  const { importPlayers, removePlayer } = useGrep();
+  const { importPlayers, removePlayer, workspaceLoaded } = useGrep();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -50,7 +50,7 @@ export function RosterManager({ players, canManage }: { players: TeamPlayer[]; c
         <div className="min-w-0"><p className="truncate font-bold">{player.fullName}</p></div>
         <span className="flex items-center gap-1.5 text-sm font-bold text-[var(--ink-soft)]"><Hash size={14} />{player.jerseyNumber || "—"}</span>
         {canManage ? <Button variant="ghost" size="sm" className="px-2 text-[var(--danger)]" aria-label={`Fjern ${player.fullName}`} onClick={() => { if (confirm(`Vil du fjerne ${player.fullName} fra spillerlisten?`)) void removePlayer(player.id); }}><Trash2 size={16} /></Button> : <span />}
-      </div>)}</div> : <div className="px-6 py-10 text-center"><FileSpreadsheet className="mx-auto text-[var(--ink-soft)]" size={27} /><p className="mt-3 font-black">Ingen spillere ennå</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Importer medlemslisten fra Hoopit for å opprette spillerlisten.</p></div>}
+      </div>)}</div> : !workspaceLoaded ? <LoadingState compact>Henter spillerne …</LoadingState> : <div className="px-6 py-10 text-center"><FileSpreadsheet className="mx-auto text-[var(--ink-soft)]" size={27} /><p className="mt-3 font-black">Ingen spillere ennå</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Importer medlemslisten fra Hoopit for å opprette spillerlisten.</p></div>}
     </section>
 
     <Modal open={open} onClose={() => { setOpen(false); reset(); }} title="Importer spillerliste fra Hoopit" description="Last opp Excel-eksporten fra Hoopit. Av personvernhensyn lagres bare spillerens fornavn, første bokstav i etternavnet og draktnummer." size="lg">

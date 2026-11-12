@@ -15,7 +15,7 @@ import { SessionDigestCard } from "@/components/session-digest-card";
 import { TeamCrest } from "@/components/team-crest";
 import { TeamInvitationsCard } from "@/components/team-invitations-card";
 import { ThemeCard } from "@/components/theme-switch";
-import { Avatar, EmptyState, Tag } from "@/components/ui";
+import { Avatar, EmptyState, LoadingState, Tag } from "@/components/ui";
 
 export default function TeamPage() {
   const { currentTeam, user, teams, invitations, players, workspaceLoaded } = useGrep();
@@ -25,7 +25,7 @@ export default function TeamPage() {
   const tabs = [{ id: "players" as const, label: "Spillere", count: teamPlayers.length }, { id: "coaches" as const, label: "Trenere", count: currentTeam?.members.length ?? 0 }, { id: "settings" as const, label: "Innstillinger", count: null }];
   return <AppShell><div className="grep-page grep-team-page">
     <PageHeading eyebrow={currentTeam?.name ?? "Trenerrommet"} title="Laget" description="Alle med. Alle på samme side." actions={currentTeam && <TeamCrest team={currentTeam} size="lg" />} />
-    {!workspaceLoaded ? <p role="status" className="overview-loading">Henter laget …</p> : !currentTeam ? <><EmptyState icon={<Users size={24} />} title="Du er ikke med på noe lag ennå" body="Når du blir invitert til et lag, finner du spillerne og trenerteamet her." action={user?.isGlobalAdmin && <Link className="grep-action" href="/admin">Administrer lag</Link>} />
+    {!workspaceLoaded ? <LoadingState>Henter laget …</LoadingState> : !currentTeam ? <><EmptyState icon={<Users size={24} />} title="Du er ikke med på noe lag ennå" body="Når du blir invitert til et lag, finner du spillerne og trenerteamet her." action={user?.isGlobalAdmin && <Link className="grep-action" href="/admin">Administrer lag</Link>} />
       {/* A coach without a team still has a profile, so the screen name has to be
           reachable before the first invitation lands. */}
       <div className="grep-team-content"><h2 className="grep-settings-label">For deg</h2><DisplayNameCard /><div className="mt-6"><ThemeCard /></div></div>

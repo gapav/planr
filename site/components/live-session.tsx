@@ -36,7 +36,7 @@ import { MediaCreditLine } from "./media-credit";
 import { MediaLinkCard } from "./media-link";
 import { CopySessionDialog, ReopenSessionDialog } from "./session-actions";
 import { TeamCrest } from "./team-crest";
-import { AvatarStack, Button, EmptyState, Modal, PointList, Tag } from "./ui";
+import { AvatarStack, Button, EmptyState, LoadingState, Modal, PointList, Tag } from "./ui";
 
 type SetupStep = "check-in" | "groups" | "result";
 
@@ -45,7 +45,9 @@ export function LiveSession({ sessionId }: { sessionId: string }) {
   const session = store.sessions.find((entry) => entry.id === sessionId);
 
   if (session?.status === "in_progress" || session?.status === "completed") return <WorkoutSession sessionId={sessionId} />;
-  if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<CalendarClock size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." action={<Link href="/sessions" className="font-bold underline">Tilbake til øktkalenderen</Link>} /></div></AppShell>;
+  // Before the workspace has loaded every session is missing; only a settled
+  // one can say this plan is gone.
+  if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20">{store.workspaceLoaded ? <EmptyState icon={<CalendarClock size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." action={<Link href="/sessions" className="font-bold underline">Tilbake til øktkalenderen</Link>} /> : <LoadingState>Henter økten …</LoadingState>}</div></AppShell>;
 
   return <SessionSetup sessionId={sessionId} />;
 }
@@ -183,7 +185,7 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
 
       {session.status === "published" && <section className="mt-4 flex flex-col gap-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-4 shadow-[0_6px_20px_rgba(16,32,29,.03)] sm:flex-row sm:items-center sm:justify-between sm:px-5"><div className="flex min-w-0 items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--paper-deep)]"><FastForward size={18} /></span><div><p className="font-black">Vil du gå rett til treningen?</p><p className="mt-1 text-sm leading-5 text-[var(--ink-soft)]">Start uten å registrere oppmøte eller dele inn i lag.</p></div></div><Button variant="secondary" className="shrink-0" onClick={() => { setSkipSetupError(""); setConfirmSkipSetup(true); }}><FastForward size={17} />Hopp over oppsett</Button></section>}
 
-      {!players.length ? <div className="mt-7"><EmptyState icon={<UsersRound size={24} />} title="Importer spillerlisten først" body="Legg til Hoopit-listen under Lag og spillere, og gå deretter tilbake hit for å registrere oppmøte." action={<Link href="/team" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--accent-fill)] px-4 text-sm font-semibold text-[var(--on-accent)]">Gå til Lag og spillere</Link>} /></div> : activeStep === "check-in" ? <section className="mt-7 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_35px_rgba(16,32,29,.05)] sm:p-7">
+      {!players.length ? <div className="mt-7">{store.workspaceLoaded ? <EmptyState icon={<UsersRound size={24} />} title="Importer spillerlisten først" body="Legg til Hoopit-listen under Lag og spillere, og gå deretter tilbake hit for å registrere oppmøte." action={<Link href="/team" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--accent-fill)] px-4 text-sm font-semibold text-[var(--on-accent)]">Gå til Lag og spillere</Link>} /> : <LoadingState>Henter spillerne …</LoadingState>}</div> : activeStep === "check-in" ? <section className="mt-7 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_35px_rgba(16,32,29,.05)] sm:p-7">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[.13em] text-[var(--accent)]">Oppmøte</p><h2 className="mt-1 text-2xl font-black tracking-[-.04em]">Hvem er til stede i dag?</h2><p className="mt-2 text-sm text-[var(--ink-soft)]">Registrer oppmøte før du lager lag eller par.</p></div><div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void toggleAll(true)}>Velg alle</Button><Button variant="ghost" size="sm" onClick={() => void toggleAll(false)}>Nullstill</Button></div></div>
         <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{players.map((player) => { const present = presentIds.has(player.id); return <button key={player.id} type="button" aria-pressed={present} onClick={() => void store.setPlayerPresent(sessionId, player.id, !present)} className={cn("flex min-h-14 items-center gap-3 rounded-2xl border px-4 text-left transition", present ? "border-[var(--success-line)] bg-[var(--success-bg)]" : "border-[var(--line)] bg-[var(--surface-raised)] hover:border-[var(--line-stronger)]")}><span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full border-2", present ? "border-[var(--success-fill)] bg-[var(--success-fill)] text-[var(--on-accent)]" : "border-[var(--line-strong)]")}>{present && <Check size={16} strokeWidth={3} />}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{player.fullName}</strong>{player.jerseyNumber ? <small className="text-[var(--ink-soft)]">{`#${player.jerseyNumber}`}</small> : null}</span></button>; })}</div>
         <div className="mt-7 flex flex-col items-stretch justify-between gap-3 border-t border-[var(--line)] pt-5 sm:flex-row sm:items-center"><p className="text-sm font-semibold text-[var(--ink-soft)]">{presentPlayers.length < 2 ? "Registrer minst to spillere for å fortsette." : `${presentPlayers.length} spillere er klare for trekning.`}</p><Button disabled={presentPlayers.length < 2} onClick={() => goToStep("groups")}>Fortsett til grupper<ChevronRight size={17} /></Button></div>
@@ -259,7 +261,7 @@ export function WorkoutSession({ sessionId }: { sessionId: string }) {
     }
   }
 
-  if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20"><EmptyState icon={<CalendarClock size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." /></div></AppShell>;
+  if (!session) return <AppShell><div className="mx-auto max-w-3xl px-5 py-20">{store.workspaceLoaded ? <EmptyState icon={<CalendarClock size={23} />} title="Økten ble ikke funnet" body="Den kan ha blitt slettet eller tilhøre et annet lag." /> : <LoadingState>Henter økten …</LoadingState>}</div></AppShell>;
 
   return <AppShell immersive><div className="min-h-screen pb-28 sm:pb-16">
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[var(--chrome)] px-3 py-3 text-[var(--on-chrome)] shadow-lg sm:px-8 sm:py-4">
