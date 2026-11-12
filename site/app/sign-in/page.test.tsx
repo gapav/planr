@@ -43,4 +43,13 @@ describe("localhost sign in", () => {
     expect(mocks.requestMagicLink).not.toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledWith("/today");
   });
+
+  // «Hva er nytt» belongs to the signed-in shell; signing in is not the moment.
+  it("never shows «Velkommen tilbake!», even with nothing stored", () => {
+    window.localStorage.clear();
+    render(<SignInPage />);
+    expect(screen.getByRole("button", { name: "Bruk passord på localhost" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Velkommen tilbake!")).not.toBeInTheDocument();
+  });
 });

@@ -1,10 +1,20 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GrepIntroduction } from "./introduction";
+import WelcomePage from "./page";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Grep screenshot introduction", () => {
+  // «Hva er nytt» belongs to the signed-in shell; the public page never has it.
+  it("never shows «Velkommen tilbake!», even with nothing stored", () => {
+    window.localStorage.clear();
+    render(<WelcomePage />);
+    expect(screen.getByRole("button", { name: "Meld interesse" })).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Velkommen tilbake!")).not.toBeInTheDocument();
+  });
+
   it("presents real screenshots and a separate interest path without a simulated app", () => {
     render(<GrepIntroduction />);
     expect(screen.getAllByRole("img")).toHaveLength(6);

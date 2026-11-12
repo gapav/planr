@@ -1,5 +1,17 @@
 Closes #
 
+**Version:** patch / minor / major
+
+<!-- Keep one word (decision 7):
+     patch — a fix, or nothing a coach would notice. package.json and
+             site/lib/changelog.ts stay as they are; coaches are not told.
+     minor — something a coach can now see or do. Bump site/package.json (and
+             site/package-lock.json) to the next x.Y.0 and add an entry at the
+             top of RELEASES in site/lib/changelog.ts: that version, today's
+             date, and highlights drafted from the issue — short Norwegian about
+             what the coach can do now. The maintainer approves the wording.
+     major — as minor, to the next X.0.0. Only when the maintainer says so. -->
+
 ## What changed
 
 ## Done when
