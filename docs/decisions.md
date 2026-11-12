@@ -4,7 +4,8 @@ Numbered and append-only. Code, docs, issues and pull requests cite them by numb
 (“decision 3”), so a number is never reused or renumbered. To change one, add
 a new decision and strike the old one through with a pointer to it. Record
 only what the maintainer decided; a proposal waits under open questions or in
-an issue. The next number is **5**.
+an issue. The next number is **8**; 5 and 6 are held by decisions still in
+review.
 
 Decisions made before November 2026 are not back-filled. They are recorded
 where they took effect: the hard rules and architecture in `CLAUDE.md`, and
@@ -67,6 +68,28 @@ There is no third level, and the six topics are unchanged.
   release.
 - The session builder's and warm-up dialog's library pickers keep topic and age
   only.
+
+## 7. Grep has a version, and coaches hear about minor and major releases (2026-11-12)
+
+Issue #21. Grep's version is `site/package.json`'s `version`, semver, starting
+at `1.0.0` for production as it stood when it got one; `1.1.0` is the first
+release with highlights. `RELEASES` in `site/lib/changelog.ts` lists every
+announced release, newest first, and its first entry is the running version.
+There are no git tags or GitHub Releases.
+
+- Every pull request carries a **Version** line: *patch*, *minor* or *major*.
+  A patch changes neither file and is never announced. A minor or major bumps
+  `package.json` and adds a changelog entry whose highlights are drafted from
+  the issue in plain Norwegian for coaches; the maintainer approves the wording
+  in the PR. `/release` checks the line, `package.json` and the changelog
+  agree before merging.
+- After a minor or major release, a returning coach sees «Velkommen tilbake!
+  Her er hva som er nytt siden sist» once, in the signed-in shell, never during
+  a live workout. Releases are compared on `major.minor` alone, so patches stay
+  silent.
+- «Last seen» is per device (`localStorage` `grep-seen-version`), not per
+  account: no migration. Storage that cannot be read shows nothing.
+- There is no archive page and no way back to the dialog once it is closed.
 
 ## Open questions
 
