@@ -43,3 +43,9 @@ skill is for what was built in a local session.
    (not `git add -A`), commit `summary (#N)`, `git push -u origin <branch>`,
    and `gh pr create --base main` with that title and body. Never push `main`:
    a push there deploys production.
+8. **Move the issue's card to In review**, as the agent in Actions does once
+   it has opened its PR (`.github/workflows/claude.yml`). From the repo root:
+   `GITHUB_REPOSITORY=gapav/planr .github/scripts/project-status.sh N "In review"`.
+   It needs a `gh` login with the `project` scope; if it fails, say so and
+   leave the card for the maintainer rather than retrying. Skip this step
+   when the change was shipped without an issue.
