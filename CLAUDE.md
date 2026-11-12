@@ -7,10 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 All application code lives in `site/`. At the root:
 
 - `DEPLOYMENT.md` — **where Grep runs** (production, development, previews),
-  the launch runbook, and the **migration ledger** (which migration is applied
-  where).
-- `DISASTER_RECOVERY.md`, the `Makefile` and `scripts/*.sh` — backup and
-  restore.
+  the launch runbook, and **applying migrations** (`make migrate-*`; what is
+  applied where is each project's own `supabase migration list`).
+- `DISASTER_RECOVERY.md`, the `Makefile` and `scripts/*.sh` — backup,
+  restore, and `make migrate-dev` / `migrate-prod` / `migrate-baseline`.
 - `docs/` — `decisions.md` (numbered, append-only, from November 2026) and
   `v1-plan.md` (the v1 checklist, archived).
 - `.github/` — CI (lint, test, build on every PR), the Claude agent
@@ -22,8 +22,9 @@ In progress → In review → Done), not in files (decision 1). `/spec` writes a
 issue; labelling it `agent` has Claude build it in Actions and open a PR
 (`@claude` in a comment asks for changes); `/ship` turns a locally built
 change into a PR; `/release` takes a PR to production. **Merging a PR deploys
-production**, so every migration it carries is applied (dev → backup → prod)
-before the merge — the PR's *Before merging* list says which.
+production**, so every migration it carries is applied before the merge —
+the maintainer runs `make migrate-dev`, then `make migrate-prod` (which backs
+up first) — and the PR's *Before merging* list says which files.
 
 The stray root `app/` directory (nothing but a `.DS_Store`) is untracked — ignore it.
 
@@ -69,6 +70,9 @@ Three facts that are easy to get wrong and expensive to discover late:
   restores a schema nobody can sign into. `make backup` covers all three.
 - The direct host `db.<ref>.supabase.co` is **IPv6-only**. Use the Session
   pooler (port 5432); the transaction pooler (6543) cannot run `pg_dump`.
+- **A restore ends with `make migrate-baseline`.** Backups leave out
+  `supabase_migrations`, so a restored project looks un-migrated; `migrate-*`
+  refuses to push into it until the baseline has run (decision 3).
 - **Never apply `prod_bootstrap.sql` when restoring from a backup.** It contains
   one-time cleanup migrations that delete rows — `202609020028` drops every
   unaccepted invitation, `202609020029` drops never-signed-in auth users. The
@@ -79,7 +83,7 @@ for it and pass it through the environment.
 
 ## Hard rules
 
-- **Never mutate a database.** No `supabase db push/reset/start`, no applying migrations. The user applies SQL manually in the Supabase dashboard. Make schema changes only by adding/editing files in `site/supabase/migrations/`, and never claim a migration has been applied. Treat already-shipped migrations as immutable — the ledger in `DEPLOYMENT.md` says which have shipped — add a forward migration instead, regenerate the bootstrap (above), and tell the user exactly which file to run and in what order. The Supabase CLI in `site/` is linked to **production** (`grep-prod`), so any `supabase db …` command would act on real data; settings deny them.
+- **Never mutate a database.** No `supabase db push/reset/start`, no `supabase migration …`, no `make migrate*`, no applying migrations — settings deny them all. The maintainer applies migrations with `make migrate-dev`, then `make migrate-prod` (decision 2). Make schema changes only by adding/editing files in `site/supabase/migrations/`, and never claim a migration has been applied. Treat shipped migrations as immutable — anything on `origin/main` is applied in production, and a hook refuses the edit (it asks for one committed only on your branch, which `/release` may already have applied) — add a forward migration instead, regenerate the bootstrap (above), and tell the user exactly which files are new and in what order. The Supabase CLI in `site/` is linked to **production** (`grep-prod`), so any `supabase db …` command would act on real data.
 - **A push to `main` deploys production** (Vercel's production branch). Commit and push only when told.
 - **This is Next.js 16**, not the version in your training data. `middleware.ts` is now `proxy.ts` (exporting `proxy`), and page props use the generated `LayoutProps<"/">` / `PageProps` types. Read the relevant guide under `site/node_modules/next/dist/docs/` before changing framework code.
 - **Player data is privacy-minimized by design.** Imports keep only `"Firstname L."` plus jersey number — enforced both in `lib/roster.ts` (`minimizePlayerName`) and by a DB trigger (`202609020004`). Do not widen this without an explicit instruction.

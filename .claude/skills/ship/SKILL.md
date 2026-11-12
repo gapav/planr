@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Finish a change built locally — run lint, tests and build, have it reviewed against its issue's “Done when” (and any migration by db-reviewer), update the migration ledger, then commit on a branch and open a pull request whose body says what must happen before merging. Commits and pushes the branch only when told; never pushes main.
+description: Finish a change built locally — run lint, tests and build, have it reviewed against its issue's “Done when” (and any migration by db-reviewer), then commit on a branch and open a pull request whose body says what must happen before merging. Commits and pushes the branch only when told; never pushes main.
 argument-hint: "[issue number]"
 disable-model-invocation: true
 allowed-tools: Bash(npm test) Bash(npm run lint) Bash(npm run build) Bash(npm run db:bootstrap) Bash(npx vitest run *) Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git branch *) Bash(gh issue view *) Bash(gh pr view *)
@@ -22,8 +22,8 @@ skill is for what was built in a local session.
 3. **If anything under `site/supabase/migrations/` changed**, run
    `npm run db:bootstrap` from `site/` first, check
    `supabase/tests/rls.test.sql` covers any change to grants, policies, roles
-   or data access, with `select plan(N)` bumped, and add a `pending` row (dev
-   and prod) for each new migration to the ledger in `DEPLOYMENT.md`.
+   or data access, with `select plan(N)` bumped, and that each new file sorts
+   after every migration on `origin/main`.
 4. **Run the checks** from `site/`: `npm run lint`, `npm test`,
    `npm run build`. Fix failures and run them again; report each with its
    result line.

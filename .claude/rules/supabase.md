@@ -11,9 +11,11 @@ minors.
 
 ## Before you write
 
-- Read the ledger at the foot of `DEPLOYMENT.md`. An `applied` migration is
-  immutable (a hook refuses the edit); write a new forward migration.
-- A new file is `YYYYMMDDNNNN_short_name.sql` and sorts after the newest.
+- A migration on `origin/main` is applied in production and immutable (a hook
+  refuses the edit); write a new forward migration. One committed only on
+  your branch may already be on `planr-dev` — the hook asks first.
+- A new file is `YYYYMMDDNNNN_short_name.sql` and sorts after the newest:
+  `make migrate-*` refuses a file older than the newest applied one.
   Check for a duplicated version — two files once shared `202609020032`
   (`DISASTER_RECOVERY.md`, “Resolved: the duplicate version number”).
 
@@ -21,7 +23,7 @@ minors.
 
 - A header comment, mostly in English: what the change is for and why this
   shape rather than the obvious other one.
-- Safe to run twice in the SQL editor: `if not exists`, `drop … if exists`
+- Safe to run twice: `if not exists`, `drop … if exists`
   before `create`/`add constraint`, `create or replace` for functions.
 - A new table: `enable row level security`, policies, then
   `revoke all … from anon, authenticated` and grant `authenticated` only the
@@ -62,7 +64,8 @@ minors.
    maintainer's explicit yes).
 3. Mirror the new shape in `lib/types.ts`, the `map*` functions and mutations
    in `components/app-provider.tsx`, and `lib/demo-data.ts`.
-4. Add the file to the ledger as `pending` for dev and prod, and hand off
-   the exact file(s) to apply, in order — dev first, then prod after a
-   `make backup`, then deploy the frontend that needs it. Never claim it is
-   applied.
+4. Hand off the exact new file(s), in order: the maintainer runs
+   `make migrate-dev`, then `make migrate-prod` (it backs up first), then
+   merges the frontend that needs it. Never run either, and never claim a
+   migration is applied — what is applied where is each project's
+   `supabase migration list`, which agents cannot read.

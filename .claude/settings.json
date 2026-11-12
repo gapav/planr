@@ -36,6 +36,8 @@
       "Bash(pg_restore *)",
       "Bash(make restore)",
       "Bash(bash scripts/restore.sh*)",
+      "Bash(make migrate*)",
+      "Bash(bash scripts/migrate.sh*)",
       "Read(**/.env.local)",
       "Read(**/.env.*.local)",
       "Read(**/.env.keys)",

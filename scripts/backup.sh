@@ -145,6 +145,10 @@ for n in "${SUPA_DATA_EXCLUDE[@]}"; do
   DATA_FLAGS[${#DATA_FLAGS[@]}]=--exclude-schema
   DATA_FLAGS[${#DATA_FLAGS[@]}]="$n"
 done
+# The `|| die` after the group switches `set -e` off inside it, so the final
+# printf would hide a pg_dump that died halfway. Catch the pipeline's own
+# status (pipefail is on) and fail on that.
+dump_rc=0
 {
   printf 'SET session_replication_role = replica;\n\n'
   "$PG_BIN/pg_dump" --data-only --quote-all-identifier "${DATA_FLAGS[@]}" \
@@ -152,9 +156,10 @@ done
     --exclude-table "storage.migrations" \
     --exclude-table "supabase_functions.migrations" \
     --schema '*' \
-    | sed -E 's/^\\(un)?restrict .*$/-- &/'
+    | sed -E 's/^\\(un)?restrict .*$/-- &/' || dump_rc=$?
   printf '\nRESET ALL;\n'
 } > "$OUT/data.sql" || die "Data dump failed."
+(( dump_rc == 0 )) || die "Data dump failed (pg_dump exited $dump_rc). data.sql is incomplete."
 ok "data.sql ($(du -h "$OUT/data.sql" | cut -f1 | tr -d ' '))"
 
 info "Recording row counts so a restore can be checked against them…"
