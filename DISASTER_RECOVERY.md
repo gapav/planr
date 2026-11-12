@@ -17,9 +17,19 @@ make restore   # guided restore
 make migrate-baseline  # the last step of every restore
 ```
 
-No password is ever stored. Each script prompts for it, reads it without echo,
-and hands it to `pg_dump`/`psql` through the environment — never on a command
-line (where `ps` would show it), never into a file, never into shell history.
+Each script asks which project (planr-dev, grep-prod, or another by URI). If
+`make keychain` has stored that project's Session pooler URI and password in
+the **macOS Keychain** (services `plannr-db-uri` and `plannr-db`, account = the
+project ref), nothing is asked; otherwise the script prompts for them and reads
+the password without echo. Either way the password reaches `pg_dump`/`psql`
+through the environment only — never on a command line (where `ps` would show
+it), never into a file, never into shell history. `make doctor` says which
+projects are stored. To forget one:
+`security delete-generic-password -s plannr-db -a <ref>` (and `-s plannr-db-uri`).
+
+On a new laptop the Keychain is empty: the scripts simply ask, so a restore
+never depends on it. A new project — the target of a restore — is not stored
+either; choose *another project* and paste its URI.
 
 ---
 
@@ -101,8 +111,10 @@ pooler*. It resolves over IPv4, runs on port 5432, and supports `pg_dump`.
 > cannot hold the session state `pg_dump` needs. Both scripts warn if you paste
 > the wrong one.
 
-Both scripts ask you to paste the URI straight from the dashboard, `[YOUR-PASSWORD]`
-placeholder and all, then ask for the password separately.
+When a project is not in the Keychain, the scripts ask you to paste the URI
+straight from the dashboard, `[YOUR-PASSWORD]` placeholder and all, then ask for
+the password separately. `make keychain` takes the same URI and strips any
+password from it before storing it.
 
 ---
 

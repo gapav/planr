@@ -5,8 +5,9 @@
 # numbered steps and stops to explain itself, because the day you need `restore`
 # is not the day to be reading a script for the first time.
 #
-# No secret is stored anywhere. The database password is prompted for, read
-# without echo, and passed to pg_dump/psql through the environment — never on a
+# Secrets live only in the macOS Keychain, and only if you put them there with
+# `make keychain`; otherwise the URI and password are prompted for. Either way
+# the password reaches pg_dump/psql through the environment — never on a
 # command line, never into a file, never into your shell history.
 #
 # Full runbook: DISASTER_RECOVERY.md. Migrations: DEPLOYMENT.md, "Applying
@@ -14,13 +15,14 @@
 
 SHELL := /usr/bin/env bash
 
-.PHONY: help doctor backup restore migrate-dev migrate-prod migrate-baseline bootstrap test
+.PHONY: help doctor keychain backup restore migrate-dev migrate-prod migrate-baseline bootstrap test
 
 help:
 	@echo ""
 	@echo "  Plannr — backups, restores and migrations"
 	@echo ""
 	@echo "  make doctor      Check that this machine can take and restore a backup"
+	@echo "  make keychain    Store a project's URI and password in the macOS Keychain"
 	@echo "  make backup      Guided backup of a Supabase project  (read-only)"
 	@echo "  make restore     Guided restore into a Supabase project"
 	@echo ""
@@ -37,6 +39,9 @@ help:
 
 doctor:
 	@bash scripts/doctor.sh
+
+keychain:
+	@bash scripts/keychain.sh
 
 backup:
 	@bash scripts/backup.sh

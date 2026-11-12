@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks this machine can actually take and restore a backup — before the day
-# it matters. Read-only; touches no database and needs no password.
+# it matters. Read-only; touches no database and needs no password (it only checks
+# whether the Keychain has one, never reads it).
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
@@ -50,7 +51,20 @@ else
   info "  → use the ${BOLD}Session pooler${RST}${DIM} URI (port 5432). Both scripts ask for it by name."
 fi
 
-# 4. Repo state ------------------------------------------------------------
+# 4. Keychain --------------------------------------------------------------
+# Optional: without it the scripts ask for the URI and password.
+if have_keychain; then
+  for ref in "$DEV_REF" "$PROD_REF"; do
+    n="$(project_name "$ref")"
+    if keychain_has "$KEYCHAIN_URI_SERVICE" "$ref" && keychain_has "$KEYCHAIN_PW_SERVICE" "$ref"; then
+      ok "$n: URI and password in the Keychain"
+    else
+      info "$n: not in the Keychain — the scripts will ask  (make keychain stores it)"
+    fi
+  done
+fi
+
+# 5. Repo state ------------------------------------------------------------
 count=$(ls -1 "$MIGRATIONS_DIR"/*.sql 2>/dev/null | wc -l | tr -d ' ')
 ok "$count migrations in site/supabase/migrations"
 if git -C "$REPO_ROOT" rev-parse --verify --quiet origin/main >/dev/null; then
@@ -76,7 +90,7 @@ dupes=$(ls -1 "$MIGRATIONS_DIR"/*.sql 2>/dev/null | xargs -n1 basename \
         | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d)
 [[ -n "$dupes" ]] && info "Note: duplicate migration version(s): $(echo $dupes | tr '\n' ' ')"
 
-# 5. Existing backups ------------------------------------------------------
+# 6. Existing backups ------------------------------------------------------
 if [[ -d "$REPO_ROOT/backups" ]] && [[ -n "$(ls -A "$REPO_ROOT/backups" 2>/dev/null)" ]]; then
   latest="$(ls -1t "$REPO_ROOT/backups" | head -1)"
   ok "Most recent local backup: $latest"

@@ -107,6 +107,42 @@ describe("storage_bucket_names (make backup)", () => {
   });
 });
 
+describe("parse_connection_uri (make keychain, backup, restore, migrate-*)", () => {
+  const lib = path.join(repoRoot, "scripts/lib.sh");
+  const parse = (uri: string) => {
+    const r = spawnSync(
+      "bash",
+      ["-c", 'source "$1"; parse_connection_uri "$2" || exit 3; echo "$PGUSER_V|$PGHOST_V|$PGPORT_V|$PGDATABASE_V|$PROJECT_REF|$(connection_uri)"', "_", lib, uri],
+      { encoding: "utf8" },
+    );
+    return r.status === 0 ? r.stdout.trim() : null;
+  };
+
+  it("reads the Session pooler URI the dashboard hands out", () => {
+    expect(parse("postgresql://postgres.abc123:[YOUR-PASSWORD]@aws-0-eu-north-1.pooler.supabase.com:5432/postgres")).toBe(
+      "postgres.abc123|aws-0-eu-north-1.pooler.supabase.com|5432|postgres|abc123|postgresql://postgres.abc123@aws-0-eu-north-1.pooler.supabase.com:5432/postgres",
+    );
+  });
+
+  // What the Keychain stores must never carry a password, even a real one pasted in.
+  it("drops a pasted password, even one containing @", () => {
+    expect(parse("postgresql://postgres.abc123:p@ss:w0rd@pooler.example.com:5432/postgres?sslmode=require")).toBe(
+      "postgres.abc123|pooler.example.com|5432|postgres|abc123|postgresql://postgres.abc123@pooler.example.com:5432/postgres",
+    );
+  });
+
+  it("takes the ref from the direct host and defaults port and database", () => {
+    expect(parse("postgres://postgres@db.xyz789.supabase.co")).toBe(
+      "postgres|db.xyz789.supabase.co|5432|postgres|xyz789|postgresql://postgres@db.xyz789.supabase.co:5432/postgres",
+    );
+  });
+
+  it("refuses what is not a postgres URI", () => {
+    expect(parse("https://supabase.com/dashboard")).toBeNull();
+    expect(parse("postgresql://pooler.example.com:5432/postgres")).toBeNull();
+  });
+});
+
 describe("protect-applied-migrations hook", () => {
   let dir = "";
   afterEach(() => {
