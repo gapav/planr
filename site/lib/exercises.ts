@@ -5,13 +5,42 @@ export function formatAgeGroup(group: ExerciseAgeGroup): string {
   return `${group} år`;
 }
 
-const subtopicIndex = new Map<ExerciseSubtopic, { category: ExerciseCategory; label: string }>(
-  EXERCISE_CATEGORIES.flatMap((category) => EXERCISE_SUBTOPICS[category].map((entry) => [entry.key, { category, label: entry.label }] as const)),
+/**
+ * The bands an exercise suits, as the library card's footer says it: adjacent
+ * bands merge into one range and a gap is listed — «6–15 år», «6–9, 13–15 år».
+ * No band at all reads «Alle aldre», the same rule `matchesAgeGroup` filters by.
+ * Derived from the band keys, so a fourth band in `EXERCISE_AGE_GROUPS` merges
+ * with its neighbour without a change here.
+ */
+export function formatAgeRange(ageGroups: readonly ExerciseAgeGroup[]): string {
+  const chosen = EXERCISE_AGE_GROUPS.filter((group) => ageGroups.includes(group));
+  if (chosen.length === 0) return "Alle aldre";
+  const runs: [number, number][] = [];
+  for (const group of chosen) {
+    const [from, to] = group.split("-").map(Number);
+    const last = runs.at(-1);
+    if (last && from === last[1] + 1) last[1] = to;
+    else runs.push([from, to]);
+  }
+  return `${runs.map(([from, to]) => `${from}–${to}`).join(", ")} år`;
+}
+
+const subtopicIndex = new Map<ExerciseSubtopic, { category: ExerciseCategory; label: string; short: string }>(
+  EXERCISE_CATEGORIES.flatMap((category) => EXERCISE_SUBTOPICS[category].map((entry) => [entry.key, { category, label: entry.label, short: entry.short }] as const)),
 );
 
 /** `"angrep.finter"` reads as `"Finter"`. Like an age band, the stored value is a key. */
 export function formatSubtopic(subtopic: ExerciseSubtopic): string {
   return subtopicIndex.get(subtopic)?.label ?? subtopic;
+}
+
+/**
+ * The card's label: `"angrep.1-mot-1"` reads as `"1 mot 1"`, because the topic
+ * chip beside it already says Angrep. Only the library card uses it; the rail
+ * and the detail view keep `formatSubtopic`.
+ */
+export function formatSubtopicShort(subtopic: ExerciseSubtopic): string {
+  return subtopicIndex.get(subtopic)?.short ?? subtopic;
 }
 
 /** The topic a subtopic sits under — the part of the key before the dot, but read from the list. */

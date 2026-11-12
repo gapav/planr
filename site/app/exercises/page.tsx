@@ -7,7 +7,6 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeading } from "@/components/page-heading";
 import { useGrep } from "@/components/app-provider";
 import { useDismissable } from "@/hooks/use-dismissable";
-import { bandTone } from "@/components/exercise-age-group-filter";
 import { categoryPresentation } from "@/components/exercise-category-filter";
 import { CollectionDialog, SelectedCollectionBar, ShortlistMenu } from "@/components/collections";
 import { ActiveExerciseFilters, ExerciseFilterRail, ExerciseFilterSheet } from "@/components/exercise-filter-rail";
@@ -16,10 +15,55 @@ import { ExerciseDetail } from "@/components/exercise-detail";
 import { ExerciseForm } from "@/components/exercise-form";
 import { ExerciseThumbnail } from "@/components/exercise-thumbnail";
 import { Button, EmptyState, Tag, inputClass } from "@/components/ui";
-import { canEditExercise, countExerciseFacets, emptyExerciseFilterState, filterExercises, formatAgeGroup, hasActiveExerciseFilter, parseExerciseFilterParams, serializeExerciseFilterParams, shortlistExerciseIds, teamAgeGroup, type ExerciseFilter, type ExerciseFilterState } from "@/lib/exercises";
+import { canEditExercise, countExerciseFacets, emptyExerciseFilterState, filterExercises, formatAgeRange, formatSubtopic, formatSubtopicShort, hasActiveExerciseFilter, parseExerciseFilterParams, serializeExerciseFilterParams, shortlistExerciseIds, subtopicsForCategory, teamAgeGroup, type ExerciseFilter, type ExerciseFilterState } from "@/lib/exercises";
 import { collectionsForTeam } from "@/lib/collections";
-import { mediaKindLabel } from "@/lib/media";
-import type { Exercise } from "@/lib/types";
+import { EXERCISE_AGE_GROUPS, type Exercise, type ExerciseAgeGroup } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+/** How many subtopics the card spells out before the rest become «+N». */
+const CARD_SUBTOPICS = 2;
+
+/**
+ * The card's top row says *what* the exercise is (decision 5): the topic chip,
+ * then its subtopics as plain text with the card's short labels, in canonical
+ * order. It never wraps — the text truncates rather than push a second line —
+ * and because «+1» hides something, the full labels are there for a screen
+ * reader in place of the shortened ones.
+ */
+function CardTopic({ exercise }: { exercise: Pick<Exercise, "category" | "subtopics"> }) {
+  const subtopics = subtopicsForCategory(exercise.subtopics ?? [], exercise.category);
+  const shown = subtopics.slice(0, CARD_SUBTOPICS);
+  const hidden = subtopics.length - shown.length;
+  return <div data-card-topic className="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden whitespace-nowrap">
+    <span className="flex shrink-0"><Tag tone={categoryPresentation[exercise.category].tone}>{exercise.category}</Tag></span>
+    {subtopics.length > 0 && <span className="min-w-0 truncate text-xs font-semibold text-[var(--ink-soft)]">
+      <span className="sr-only">Undertema: {subtopics.map(formatSubtopic).join(", ")}</span>
+      <span aria-hidden="true">{shown.map(formatSubtopicShort).join(" · ")}{hidden > 0 && <span className="text-[var(--ink-faint)]"> +{hidden}</span>}</span>
+    </span>}
+  </div>;
+}
+
+const bandSquare: Record<ExerciseAgeGroup, { filled: string; empty: string }> = {
+  "6-9": { filled: "border-[var(--tag-band-1-ink)] bg-[var(--tag-band-1-ink)]", empty: "border-[var(--tag-band-1-line)]" },
+  "10-12": { filled: "border-[var(--tag-band-2-ink)] bg-[var(--tag-band-2-ink)]", empty: "border-[var(--tag-band-2-line)]" },
+  "13-15": { filled: "border-[var(--tag-band-3-ink)] bg-[var(--tag-band-3-ink)]", empty: "border-[var(--tag-band-3-line)]" },
+};
+
+/**
+ * The footer says *for whom*: one square per band, filled where the exercise
+ * suits it, and the bands as one range («6–9, 13–15 år»). No band at all is
+ * every band, as `matchesAgeGroup` reads it, so all three are filled.
+ */
+function CardAges({ ageGroups }: { ageGroups: readonly ExerciseAgeGroup[] }) {
+  const all = ageGroups.length === 0;
+  return <span data-card-ages className="flex min-w-0 items-center gap-2 text-xs font-semibold text-[var(--ink-soft)]">
+    <span aria-hidden="true" className="flex shrink-0 gap-0.5">{EXERCISE_AGE_GROUPS.map((group) => {
+      const filled = all || ageGroups.includes(group);
+      return <span key={group} data-band={group} data-filled={filled} className={cn("h-2 w-2 rounded-[2px] border", filled ? bandSquare[group].filled : bandSquare[group].empty)} />;
+    })}</span>
+    <span className="truncate">{formatAgeRange(ageGroups)}</span>
+  </span>;
+}
 
 /**
  * `useSearchParams` opts the tree below it out of prerendering, so the library
@@ -122,7 +166,7 @@ function ExerciseLibrary() {
       <ShortlistMenu exerciseId={exercise.id} exerciseName={exercise.name} className="absolute right-3 top-3 z-10" />
       <div className="pointer-events-none relative">
         <ExerciseThumbnail exercise={exercise} className="grep-exercise-media aspect-[16/9] w-full" />
-        <div className="p-5"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-1.5"><Tag tone={categoryPresentation[exercise.category].tone}>{exercise.category}</Tag>{exercise.ageGroups.map((group) => <Tag key={group} tone={bandTone[group]}>{formatAgeGroup(group)}</Tag>)}</div><h2 className="mt-3 text-xl font-black tracking-[-.035em]">{exercise.name}</h2></div>{canEdit && <div data-exercise-menu className="pointer-events-auto relative"><Button variant="ghost" size="sm" className="-mr-2 -mt-2 px-2" id={`exercise-menu-${exercise.id}`} aria-expanded={menuId === exercise.id} aria-label={`Valg for ${exercise.name}`} onClick={() => setMenuId(menuId === exercise.id ? null : exercise.id)}><MoreHorizontal size={19} /></Button>{menuId === exercise.id && <div className="absolute right-0 z-10 w-36 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] p-1.5 text-sm font-semibold shadow-xl"><button className="w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover-wash-strong)]" onClick={() => openEdit(exercise)}>Rediger</button><button className="w-full rounded-lg px-3 py-2 text-left text-[var(--danger)] hover:bg-[var(--danger-bg)]" onClick={() => { if (confirm("Vil du arkivere denne øvelsen? Eksisterende økter beholder sin kopi.")) { setMenuId(null); void archiveExercise(exercise.id).catch(() => undefined); } }}>Arkiver</button></div>}</div>}</div><p className="clamp-2 mt-2 min-h-12 text-sm leading-6 text-[var(--ink-soft)]">{exercise.description}</p><div className="mt-5 flex items-center justify-between gap-3"><Tag>{mediaKindLabel(exercise.mediaKind)}</Tag><span className="flex items-center gap-1 text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}<ArrowUpRight size={13} /></span></div></div>
+        <div className="p-5"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><CardTopic exercise={exercise} /><h2 className="mt-3 text-xl font-black tracking-[-.035em]">{exercise.name}</h2></div>{canEdit && <div data-exercise-menu className="pointer-events-auto relative"><Button variant="ghost" size="sm" className="-mr-2 -mt-2 px-2" id={`exercise-menu-${exercise.id}`} aria-expanded={menuId === exercise.id} aria-label={`Valg for ${exercise.name}`} onClick={() => setMenuId(menuId === exercise.id ? null : exercise.id)}><MoreHorizontal size={19} /></Button>{menuId === exercise.id && <div className="absolute right-0 z-10 w-36 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] p-1.5 text-sm font-semibold shadow-xl"><button className="w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover-wash-strong)]" onClick={() => openEdit(exercise)}>Rediger</button><button className="w-full rounded-lg px-3 py-2 text-left text-[var(--danger)] hover:bg-[var(--danger-bg)]" onClick={() => { if (confirm("Vil du arkivere denne øvelsen? Eksisterende økter beholder sin kopi.")) { setMenuId(null); void archiveExercise(exercise.id).catch(() => undefined); } }}>Arkiver</button></div>}</div>}</div><p className="clamp-2 mt-2 min-h-12 text-sm leading-6 text-[var(--ink-soft)]">{exercise.description}</p><div className="mt-5 flex items-center justify-between gap-3"><CardAges ageGroups={exercise.ageGroups} /><span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}<ArrowUpRight size={13} /></span></div></div>
       </div>
     </article>; })}</div> : <EmptyState icon={<Search size={22} />} title="Fant ingen øvelser" body="Prøv et annet tema, en annen aldersgruppe, et bredere søkeord eller nullstill filtrene." action={<Button variant="secondary" onClick={resetFilters}>Nullstill filtre</Button>} />}
       </div>

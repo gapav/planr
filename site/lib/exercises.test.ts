@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoExercises, demoSessions, demoWarmupRoutines } from "./demo-data";
 import type { ExerciseAgeGroup } from "./types";
-import { canEditExercise, countExerciseFacets, formatSubtopic, matchesTopics, subtopicCategory, subtopicsForCategory, subtopicsOf, emptyExerciseFilterState, filterExercises, formatAgeGroup, hasActiveExerciseFilter, indexExercises, matchesAgeGroup, matchesAgeGroups, parseExerciseFilterParams, resolveAll, resolveItemDisplay, resolveSessionDisplay, resolveWarmupRoutineDisplay, sameShortlist, serializeExerciseFilterParams, shortlistExerciseIds, teamAgeGroup, toggleFilterValue } from "./exercises";
+import { canEditExercise, countExerciseFacets, formatAgeRange, formatSubtopic, formatSubtopicShort,matchesTopics, subtopicCategory, subtopicsForCategory, subtopicsOf, emptyExerciseFilterState, filterExercises, formatAgeGroup, hasActiveExerciseFilter, indexExercises, matchesAgeGroup, matchesAgeGroups, parseExerciseFilterParams, resolveAll, resolveItemDisplay, resolveSessionDisplay, resolveWarmupRoutineDisplay, sameShortlist, serializeExerciseFilterParams, shortlistExerciseIds, teamAgeGroup, toggleFilterValue } from "./exercises";
 import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, EXERCISE_SUBTOPIC_KEYS, EXERCISE_SUBTOPICS, type ExerciseCategory, type ExerciseSubtopic } from "./types";
 
 describe("exercise filtering", () => {
@@ -471,5 +471,37 @@ describe("undertema", () => {
   it("keeps only the subtopics of a topic, in list order", () => {
     expect(subtopicsForCategory(["angrep.finter", "forsvar.teknikk", "angrep.ballbehandling"], "Angrep")).toEqual(["angrep.ballbehandling", "angrep.finter"]);
     expect(subtopicsForCategory(["angrep.finter"], "Forsvar")).toEqual([]);
+  });
+});
+
+describe("the library card's labels", () => {
+  it("merges adjacent age bands into one range and lists a gap", () => {
+    expect(formatAgeRange(["6-9", "10-12", "13-15"])).toBe("6–15 år");
+    expect(formatAgeRange(["6-9", "10-12"])).toBe("6–12 år");
+    expect(formatAgeRange(["10-12", "13-15"])).toBe("10–15 år");
+    expect(formatAgeRange(["6-9", "13-15"])).toBe("6–9, 13–15 år");
+    expect(formatAgeRange(["10-12"])).toBe("10–12 år");
+  });
+
+  it("reads no age group as every age, as matchesAgeGroup does", () => {
+    expect(formatAgeRange([])).toBe("Alle aldre");
+  });
+
+  it("does not care which order the bands arrive in", () => {
+    expect(formatAgeRange(["13-15", "6-9", "10-12"])).toBe("6–15 år");
+    expect(formatAgeRange(["13-15", "6-9"])).toBe("6–9, 13–15 år");
+  });
+
+  it("gives every subtopic a non-empty short label", () => {
+    for (const category of EXERCISE_CATEGORIES) {
+      for (const entry of EXERCISE_SUBTOPICS[category]) expect(entry.short.trim(), entry.key).not.toBe("");
+    }
+  });
+
+  it("shortens a subtopic for the card and keeps the full label elsewhere", () => {
+    expect(formatSubtopicShort("angrep.1-mot-1")).toBe("1 mot 1");
+    expect(formatSubtopic("angrep.1-mot-1")).toBe("Angrepsspill 1 mot 1");
+    expect(formatSubtopicShort("skudd.posisjon")).toBe("Posisjonsspesifikke");
+    expect(formatSubtopicShort("malvakt.fysisk")).toBe("Fysikk");
   });
 });
