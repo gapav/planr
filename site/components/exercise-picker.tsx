@@ -3,14 +3,14 @@
 import { Check, Eye, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useGrep } from "./app-provider";
-import { bandTone } from "./exercise-age-group-filter";
+import { ExerciseAges } from "./exercise-age-group-filter";
 import { categoryPresentation } from "./exercise-category-filter";
 import { ExerciseDetail } from "./exercise-detail";
 import { ActiveExerciseFilters, RailBody } from "./exercise-filter-rail";
 import { ExerciseThumbnail } from "./exercise-thumbnail";
 import { Button, inputClass, Modal, Tag } from "./ui";
 import { collectionsForTeam } from "@/lib/collections";
-import { countExerciseFacets, emptyExerciseFilterState, filterExercises, formatAgeGroup, formatSubtopic, shortlistExerciseIds, teamAgeGroup, type ExerciseFilterState } from "@/lib/exercises";
+import { countExerciseFacets, emptyExerciseFilterState, filterExercises, formatSubtopic, shortlistExerciseIds, teamAgeGroup, type ExerciseFilterState } from "@/lib/exercises";
 import type { Exercise } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +19,8 @@ import { cn } from "@/lib/utils";
  *
  * It is the library's own rail beside a list, so undertema, samlinger and the
  * team's age band behave exactly as on /exercises, and a change to the rail
- * reaches both. The rows are a compact library card — the same topic and age
- * tags — with an explicit add, and the dialog stays open, because a bolk is
+ * reaches both. The rows are a compact library card — the same topic tag and
+ * age display — with an explicit add, and the dialog stays open, because a bolk is
  * usually built from more than one exercise.
  *
  * The filters live here rather than in the body below the modal, which unmounts
@@ -103,7 +103,7 @@ export function ExercisePicker({ open, sessionId, blockId, blockTitle, teamId, o
 }
 
 /**
- * One exercise as a row: the library card's tags and corner, one line of
+ * One exercise as a row: the library card's topic tag, age and corner, one line of
  * description, and an add that says what it did. The topic tag is the most
  * specific one the exercise has — its undertema, or the topic when untagged —
  * since the topic alone mostly repeats the filter standing above the list.
@@ -119,9 +119,11 @@ function PickerRow({ exercise, added, onAdd, onPreview }: { exercise: Exercise; 
     <div className="min-w-0">
       <p className="text-[15px] font-black leading-snug tracking-[-.015em]">{exercise.name}</p>
       {exercise.description && <p className="mt-0.5 truncate text-xs leading-5 text-[var(--ink-soft)]">{exercise.description}</p>}
-      <div className="mt-1.5 flex flex-wrap gap-1">
+      {/* The age reads as on the library card — squares and one range — after
+          the topic, and wraps under it when the row is narrow. */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
         {topicTags.map((label) => <Tag key={label} tone={tone}>{label}</Tag>)}
-        {exercise.ageGroups.map((group) => <Tag key={group} tone={bandTone[group]}>{formatAgeGroup(group)}</Tag>)}
+        <ExerciseAges ageGroups={exercise.ageGroups} />
       </div>
     </div>
     <button
