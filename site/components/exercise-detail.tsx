@@ -11,8 +11,8 @@ import { MediaCreditLine } from "./media-credit";
 import { MediaLinkCard } from "./media-link";
 import { Modal, Tag } from "./ui";
 import { getExerciseEmbedUrl, mediaKindLabel, mediaKindOf } from "@/lib/media";
-import { formatAgeGroup } from "@/lib/exercises";
-import type { Exercise, ExerciseAgeGroup, ExerciseCategory, SessionItem } from "@/lib/types";
+import { formatAgeGroup, formatSubtopic } from "@/lib/exercises";
+import type { Exercise, ExerciseAgeGroup, ExerciseCategory, ExerciseSubtopic, SessionItem } from "@/lib/types";
 
 /**
  * The library passes an `Exercise`; the session builder passes the copy a session item
@@ -20,7 +20,7 @@ import type { Exercise, ExerciseAgeGroup, ExerciseCategory, SessionItem } from "
  */
 export interface ExerciseDetailSubject {
   name: string; description: string; mediaUrl: string | null; mediaKind: Exercise["mediaKind"];
-  thumbnailUrl: string | null; category?: ExerciseCategory | null; ageGroups?: readonly ExerciseAgeGroup[]; createdByName?: string | null;
+  thumbnailUrl: string | null; category?: ExerciseCategory | null; subtopics?: readonly ExerciseSubtopic[]; ageGroups?: readonly ExerciseAgeGroup[]; createdByName?: string | null;
 }
 
 /**
@@ -75,6 +75,8 @@ export function ExerciseDetail({ exercise, exerciseId, onClose }: {
 
       <div className="flex flex-wrap items-center gap-2">
         {exercise.category && <Tag tone={categoryPresentation[exercise.category].tone}>{exercise.category}</Tag>}
+        {/* In the topic's own tone, so a subtopic reads as part of it. */}
+        {exercise.category && exercise.subtopics?.map((subtopic) => <Tag key={subtopic} tone={categoryPresentation[exercise.category!].tone}>{formatSubtopic(subtopic)}</Tag>)}
         {exercise.ageGroups?.map((group) => <Tag key={group} tone={bandTone[group]}>{formatAgeGroup(group)}</Tag>)}
         <Tag>{mediaKindLabel(mediaKind)}</Tag>
         {exercise.createdByName && <span className="text-xs font-semibold text-[var(--ink-soft)]">av {exercise.createdByName}</span>}

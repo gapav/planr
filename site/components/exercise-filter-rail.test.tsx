@@ -8,7 +8,9 @@ import { demoExercises } from "@/lib/demo-data";
 import type { ExerciseFilterState } from "@/lib/exercises";
 
 const counts = countExerciseFacets(demoExercises);
-const option = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}`) });
+// Anchored on the " — count" the label carries, so "Forsvar" is not also
+// "Forsvarsspill 1 mot 1" once the topic opens.
+const option = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name} —`) });
 const state = (patch: Partial<ExerciseFilterState> = {}): ExerciseFilterState => ({ ...emptyExerciseFilterState(), ...patch });
 
 const collections = [{ id: "c1", name: "Oktober 2026 fokus", size: 3 }, { id: "c2", name: "Kantspill", size: 0 }];
@@ -35,7 +37,7 @@ describe("ExerciseFilterRail", () => {
     const onChange = renderRail(state({ categories: ["Angrep"] }));
 
     fireEvent.click(option("Forsvar"));
-    expect(onChange).toHaveBeenCalledWith({ categories: ["Forsvar", "Angrep"] });
+    expect(onChange).toHaveBeenCalledWith({ categories: ["Forsvar", "Angrep"], subtopics: [] });
   });
 
   // The rail and the grid have to agree: a chosen topic is highlighted in the
@@ -55,7 +57,7 @@ describe("ExerciseFilterRail", () => {
     const onChange = renderRail(state({ categories: ["Angrep"], ageGroups: ["10-12"] }));
 
     fireEvent.click(option("Alle tema"));
-    expect(onChange).toHaveBeenCalledWith({ categories: [] });
+    expect(onChange).toHaveBeenCalledWith({ categories: [], subtopics: [] });
 
     fireEvent.click(option("Alle aldre"));
     expect(onChange).toHaveBeenLastCalledWith({ ageGroups: [] });
@@ -94,7 +96,7 @@ describe("ExerciseFilterRail", () => {
 
     expect(option("Målvakt")).not.toHaveAttribute("aria-disabled");
     fireEvent.click(option("Målvakt"));
-    expect(onChange).toHaveBeenCalledWith({ categories: [] });
+    expect(onChange).toHaveBeenCalledWith({ categories: [], subtopics: [] });
   });
 
   it("stops the favourites pill acting when nothing is hearted", () => {
@@ -122,14 +124,14 @@ describe("the shortlist group", () => {
     const onChange = renderRail(state({ shortlist: { kind: "favorites" } }));
 
     fireEvent.click(option("Oktober 2026 fokus"));
-    expect(onChange).toHaveBeenCalledWith({ shortlist: { kind: "collection", id: "c1" }, ageGroups: [], categories: [] });
+    expect(onChange).toHaveBeenCalledWith({ shortlist: { kind: "collection", id: "c1" }, ageGroups: [], categories: [], subtopics: [] });
   });
 
   it("clears the shortlist when the chosen one is clicked again", () => {
     const onChange = renderRail(state({ shortlist: { kind: "collection", id: "c1" } }));
 
     fireEvent.click(option("Oktober 2026 fokus"));
-    expect(onChange).toHaveBeenCalledWith({ shortlist: null, ageGroups: [], categories: [] });
+    expect(onChange).toHaveBeenCalledWith({ shortlist: null, ageGroups: [], categories: [], subtopics: [] });
   });
 
   // The library opens on the band the team's name implies, which nobody chose.
@@ -140,7 +142,7 @@ describe("the shortlist group", () => {
     const onChange = renderRail(state({ ageGroups: ["10-12"], categories: ["Angrep"] }));
 
     fireEvent.click(screen.getByRole("button", { name: /^Favoritter/ }));
-    expect(onChange).toHaveBeenCalledWith({ shortlist: { kind: "favorites" }, ageGroups: [], categories: [] });
+    expect(onChange).toHaveBeenCalledWith({ shortlist: { kind: "favorites" }, ageGroups: [], categories: [], subtopics: [] });
   });
 
   // A samling is somebody's own list, and offering to slice three exercises by
@@ -184,6 +186,82 @@ describe("the shortlist group", () => {
   });
 });
 
+describe("undertema in the rail", () => {
+  const subtopicList = (category: string) => screen.queryByRole("list", { name: `Undertema i ${category}` });
+
+  it("keeps a topic's subtopics folded until the topic is chosen", () => {
+    renderRail(state());
+    expect(subtopicList("Angrep")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Finter —/ })).not.toBeInTheDocument();
+  });
+
+  it("opens a chosen topic onto every one of its subtopics, each with a count", () => {
+    renderRail(state({ categories: ["Angrep"] }));
+    const list = subtopicList("Angrep")!;
+    expect(list).toBeInTheDocument();
+    expect([...list.querySelectorAll("button")].map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Ballbehandling — 0 øvelser",
+      "Kast og mottak — 0 øvelser",
+      "Finter — 0 øvelser",
+      "Angrepsspill 1 mot 1 — 0 øvelser",
+      "Angrepsspill i små grupper — 1 øvelse",
+    ]);
+    // Only the chosen topic opens.
+    expect(subtopicList("Forsvar")).not.toBeInTheDocument();
+  });
+
+  // The structure is the point: an empty subtopic is shown, greyed with 0.
+  it("shows an empty subtopic greyed out rather than hiding it", () => {
+    const onChange = renderRail(state({ categories: ["Angrep"] }));
+    const finter = option("Finter");
+    expect(finter).toHaveClass("is-empty");
+    expect(finter).toHaveAttribute("aria-disabled", "true");
+    expect(finter).toHaveTextContent("0");
+    fireEvent.click(finter);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(option("Angrepsspill i små grupper")).not.toHaveClass("is-empty");
+  });
+
+  it("chooses a subtopic, adding its topic if a link left it out", () => {
+    const onChange = renderRail(state({ categories: ["Angrep"] }));
+    fireEvent.click(option("Angrepsspill i små grupper"));
+    expect(onChange).toHaveBeenCalledWith({ categories: ["Angrep"], subtopics: ["angrep.sma-grupper"] });
+  });
+
+  it("opens the topic of a subtopic that arrives on its own, and keeps the topic when it is chosen", () => {
+    const onChange = renderRail(state({ subtopics: ["angrep.sma-grupper"] }));
+    expect(subtopicList("Angrep")).toBeInTheDocument();
+    expect(option("Angrepsspill i små grupper")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(option("Angrepsspill i små grupper"));
+    expect(onChange).toHaveBeenCalledWith({ categories: ["Angrep"], subtopics: [] });
+  });
+
+  it("takes a topic's subtopics with it when the topic is taken off, and leaves the others", () => {
+    const onChange = renderRail(state({ categories: ["Forsvar", "Angrep"], subtopics: ["forsvar.sma-grupper", "angrep.sma-grupper"] }));
+    fireEvent.click(option("Angrep"));
+    expect(onChange).toHaveBeenCalledWith({ categories: ["Forsvar"], subtopics: ["forsvar.sma-grupper"] });
+  });
+
+  it("indents a subtopic and gives it its topic's hue", () => {
+    renderRail(state({ categories: ["Forsvar"], subtopics: ["forsvar.sma-grupper"] }));
+    const row = option("Forsvarsspill i små grupper");
+    expect(row.style.paddingLeft).toBe("26px");
+    expect(row.style.getPropertyValue("--rail-tint")).toBe(tagTones[categoryPresentation.Forsvar.tone].tint);
+  });
+
+  it("clears subtopics too from «Alle tema»", () => {
+    const onChange = renderRail(state({ categories: ["Angrep"], subtopics: ["angrep.sma-grupper"] }));
+    expect(option("Alle tema")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(option("Alle tema"));
+    expect(onChange).toHaveBeenCalledWith({ categories: [], subtopics: [] });
+  });
+
+  it("counts a chosen subtopic on the phone sheet's button", () => {
+    render(<ExerciseFilterSheet filters={state({ categories: ["Angrep"], subtopics: ["angrep.sma-grupper"] })} counts={counts} suggested={null} canFavorite favoriteCount={0} collections={[]} resultCount={1} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /Filter/ })).toHaveTextContent("2");
+  });
+});
+
 describe("ActiveExerciseFilters", () => {
   it("says nothing while nothing is applied", () => {
     const { container } = render(<ActiveExerciseFilters filters={state()} shortlistLabel={null} onChange={vi.fn()} onReset={vi.fn()} />);
@@ -196,7 +274,7 @@ describe("ActiveExerciseFilters", () => {
     render(<ActiveExerciseFilters filters={state({ categories: ["Forsvar", "Angrep"], ageGroups: ["10-12"], query: "skudd" })} shortlistLabel="Oktober 2026 fokus" onChange={onChange} onReset={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Fjern filteret Forsvar" }));
-    expect(onChange).toHaveBeenCalledWith({ categories: ["Angrep"] });
+    expect(onChange).toHaveBeenCalledWith({ categories: ["Angrep"], subtopics: [] });
 
     fireEvent.click(screen.getByRole("button", { name: "Fjern filteret «skudd»" }));
     expect(onChange).toHaveBeenLastCalledWith({ query: "" });
@@ -205,6 +283,18 @@ describe("ActiveExerciseFilters", () => {
     // see the rail for is still nameable from above the grid.
     fireEvent.click(screen.getByRole("button", { name: "Fjern filteret Oktober 2026 fokus" }));
     expect(onChange).toHaveBeenLastCalledWith({ shortlist: null });
+  });
+
+  // "Teknikk" alone could be Forsvar or Målvakt, so the chip names its topic.
+  it("names a subtopic with its topic, and clears the topic's subtopics with it", () => {
+    const onChange = vi.fn();
+    render(<ActiveExerciseFilters filters={state({ categories: ["Forsvar", "Angrep"], subtopics: ["forsvar.teknikk", "angrep.finter"] })} shortlistLabel={null} onChange={onChange} onReset={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fjern filteret Forsvar › Teknikk" }));
+    expect(onChange).toHaveBeenLastCalledWith({ subtopics: ["angrep.finter"] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fjern filteret Angrep" }));
+    expect(onChange).toHaveBeenLastCalledWith({ categories: ["Forsvar"], subtopics: ["forsvar.teknikk"] });
   });
 
   it("offers one reset for all of them", () => {

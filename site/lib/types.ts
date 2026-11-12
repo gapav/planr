@@ -12,6 +12,52 @@ export type ExerciseCategory = (typeof EXERCISE_CATEGORIES)[number];
 /** Stable keys, not labels — the UI renders them as "6-9 år". */
 export const EXERCISE_AGE_GROUPS = ["6-9", "10-12", "13-15"] as const;
 export type ExerciseAgeGroup = (typeof EXERCISE_AGE_GROUPS)[number];
+/**
+ * Undertema: the second level under each topic, and the single source of the
+ * list (decision 4). The keys are stable and qualified by topic — "Teknikk" is
+ * both `forsvar.teknikk` and `malvakt.teknikk` — and the label is only what the
+ * UI shows. `exercises_subtopics_check` (202611120001) holds the same list, so
+ * adding or renaming one is a migration as well as an edit here. There is no
+ * third level.
+ */
+export const EXERCISE_SUBTOPICS = {
+  Forsvar: [
+    { key: "forsvar.teknikk", label: "Teknikk" },
+    { key: "forsvar.1-mot-1", label: "Forsvarsspill 1 mot 1" },
+    { key: "forsvar.sma-grupper", label: "Forsvarsspill i små grupper" },
+  ],
+  Angrep: [
+    { key: "angrep.ballbehandling", label: "Ballbehandling" },
+    { key: "angrep.kast-og-mottak", label: "Kast og mottak" },
+    { key: "angrep.finter", label: "Finter" },
+    { key: "angrep.1-mot-1", label: "Angrepsspill 1 mot 1" },
+    { key: "angrep.sma-grupper", label: "Angrepsspill i små grupper" },
+  ],
+  Skuddferdigheter: [
+    { key: "skudd.gulvet", label: "Skudd fra gulvet" },
+    { key: "skudd.lufta", label: "Skudd fra lufta" },
+    { key: "skudd.posisjon", label: "Posisjonsspesifikke skudd" },
+  ],
+  Målvakt: [
+    { key: "malvakt.teknikk", label: "Teknikk" },
+    { key: "malvakt.motorikk", label: "Motorikk og koordinasjon" },
+    { key: "malvakt.fysisk", label: "Fysiske forutsetninger" },
+  ],
+  Fysisk: [
+    { key: "fysisk.koordinasjon", label: "Koordinasjon og balanse" },
+    { key: "fysisk.hurtighet", label: "Hurtighet og spenst" },
+    { key: "fysisk.styrke", label: "Styrke" },
+    { key: "fysisk.utholdenhet", label: "Utholdenhet" },
+    { key: "fysisk.skadeforebygging", label: "Skadeforebygging" },
+  ],
+  Leker: [
+    { key: "leker.oppvarming", label: "Oppvarmingsleker" },
+    { key: "leker.smalagsspill", label: "Smålagsspill" },
+  ],
+} as const satisfies Record<ExerciseCategory, readonly { key: string; label: string }[]>;
+export type ExerciseSubtopic = (typeof EXERCISE_SUBTOPICS)[ExerciseCategory][number]["key"];
+/** Every key, in topic order then list order — the canonical order of a stored or linked list. */
+export const EXERCISE_SUBTOPIC_KEYS: readonly ExerciseSubtopic[] = EXERCISE_CATEGORIES.flatMap((category) => EXERCISE_SUBTOPICS[category].map((entry) => entry.key));
 export type SaveState = "saved" | "saving" | "offline" | "error";
 export type SessionGroupingKind = "teams" | "pairs";
 /**
@@ -37,14 +83,20 @@ export interface TeamPlayer {
   id: string; teamId: string; fullName: string; jerseyNumber: string | null; createdAt: string; updatedAt: string;
 }
 export type TeamPlayerInput = Pick<TeamPlayer, "fullName" | "jerseyNumber">;
-/** `ageGroups` is empty when the author did not state one; that reads as "suits every age". */
+/**
+ * `ageGroups` is empty when the author did not state one; that reads as "suits
+ * every age". `subtopics` is empty when untagged, which reads the other way: the
+ * exercise shows under its topic but under none of its subtopics. Subtopics only
+ * ever come from the exercise's own `category`.
+ */
 export interface Exercise {
   id: string; name: string; description: string; category: ExerciseCategory; ageGroups: ExerciseAgeGroup[];
+  subtopics: ExerciseSubtopic[];
   mediaUrl: string | null; mediaKind: ExerciseMediaKind | null;
   thumbnailUrl: string | null; createdBy: string; createdByName: string; archivedAt: string | null;
   createdAt: string; updatedAt: string;
 }
-export type ExerciseInput = Pick<Exercise, "name" | "description" | "category" | "ageGroups" | "mediaUrl">;
+export type ExerciseInput = Pick<Exercise, "name" | "description" | "category" | "ageGroups" | "subtopics" | "mediaUrl">;
 
 /** A samling name is a label, not a note — "Oktober 2026 fokus", not a plan. */
 export const COLLECTION_NAME_MAX_LENGTH = 60;

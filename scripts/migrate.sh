@@ -231,7 +231,11 @@ run_push() {
     info "migrate-prod applies nothing without a complete, fresh backup. make backup"
     info "asks for the URI and password again: it is its own script."
     local marker; marker="$(mktemp)"
-    trap 'rm -f "$marker"' EXIT
+    # Expanded now, not when the trap fires: the trap runs at script exit,
+    # after this function has returned and `marker` is out of scope, and
+    # `set -u` would turn that into an "unbound variable" exit 1 after a
+    # successful push.
+    trap "rm -f $(printf '%q' "$marker")" EXIT
     if ! bash "$REPO_ROOT/scripts/backup.sh"; then
       die "The backup failed. Nothing was applied."
     fi

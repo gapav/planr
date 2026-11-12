@@ -141,6 +141,16 @@ One Vercel cron job, `app/api/cron/daily-session-digest`, authenticated by
 does a plan less than 80 % built, and sending is idempotent. Details in
 `.claude/rules/morning-email.md`.
 
+### Exercise topics
+
+Six topics (`EXERCISE_CATEGORIES`, `exercises.category`), each with a fixed list
+of subtopics (`EXERCISE_SUBTOPICS` in `lib/types.ts`, `exercises.subtopics`).
+The list is written twice — in `lib/types.ts` and in the
+`exercises_subtopics_check` constraint — so a change to it is a migration
+plus that edit, and `lib/exercise-subtopics.test.ts` fails if the two differ.
+An untagged exercise sits under its topic, never under a subtopic; the
+filter rules are in `lib/exercises.ts` (`matchesTopics`). Decision 4.
+
 ### Media
 
 `lib/media.ts` parses image / YouTube / Vimeo / direct-video URLs and derives thumbnails client-side. Vimeo is the exception: it needs `app/api/media/thumbnail/route.ts`, which proxies oEmbed and validates that the returned host is `*.vimeocdn.com`.

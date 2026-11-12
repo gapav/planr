@@ -8,15 +8,17 @@ import { HelpHint } from "./help-tip";
 import { Button, Field, inputClass, Modal, textareaClass } from "./ui";
 import { validateExerciseMediaUpload } from "@/lib/media";
 import { ExerciseAgeGroupPicker } from "./exercise-age-group-filter";
-import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type Exercise, type ExerciseAgeGroup } from "@/lib/types";
+import { ExerciseSubtopicPicker } from "./exercise-subtopic-picker";
+import { subtopicsForCategory } from "@/lib/exercises";
+import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, EXERCISE_SUBTOPIC_KEYS, type Exercise, type ExerciseAgeGroup, type ExerciseSubtopic } from "@/lib/types";
 
-const schema = z.object({ name: z.string().trim().min(3, "Bruk minst 3 tegn"), category: z.enum(EXERCISE_CATEGORIES), ageGroups: z.array(z.enum(EXERCISE_AGE_GROUPS)), description: z.string().trim().min(10, "Legg til litt mer informasjon"), mediaUrl: z.string().trim().refine((url) => !url || (z.url().safeParse(url).success && url.startsWith("https://")), "Skriv inn en gyldig og sikker HTTPS-lenke").transform((url) => url || null) });
+const schema = z.object({ name: z.string().trim().min(3, "Bruk minst 3 tegn"), category: z.enum(EXERCISE_CATEGORIES), subtopics: z.array(z.enum(EXERCISE_SUBTOPIC_KEYS as [ExerciseSubtopic, ...ExerciseSubtopic[]])), ageGroups: z.array(z.enum(EXERCISE_AGE_GROUPS)), description: z.string().trim().min(10, "Legg til litt mer informasjon"), mediaUrl: z.string().trim().refine((url) => !url || (z.url().safeParse(url).success && url.startsWith("https://")), "Skriv inn en gyldig og sikker HTTPS-lenke").transform((url) => url || null) });
 
 export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exercise?: Exercise | null; onClose(): void }) {
   const { addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia } = useGrep();
-  const [values, setValues] = useState<{ name: string; category: Exercise["category"]; ageGroups: ExerciseAgeGroup[]; description: string; mediaUrl: string }>(
-    exercise ? { name: exercise.name, category: exercise.category, ageGroups: exercise.ageGroups, description: exercise.description, mediaUrl: exercise.mediaUrl ?? "" }
-      : { name: "", category: EXERCISE_CATEGORIES[0], ageGroups: [], description: "", mediaUrl: "" });
+  const [values, setValues] = useState<{ name: string; category: Exercise["category"]; subtopics: ExerciseSubtopic[]; ageGroups: ExerciseAgeGroup[]; description: string; mediaUrl: string }>(
+    exercise ? { name: exercise.name, category: exercise.category, subtopics: subtopicsForCategory(exercise.subtopics, exercise.category), ageGroups: exercise.ageGroups, description: exercise.description, mediaUrl: exercise.mediaUrl ?? "" }
+      : { name: "", category: EXERCISE_CATEGORIES[0], subtopics: [], ageGroups: [], description: "", mediaUrl: "" });
   // A link and an upload are mutually exclusive, and an exercise that already
   // carries one opens on the tab that holds it.
   const [source, setSource] = useState<"link" | "upload">("link");
@@ -41,7 +43,11 @@ export function ExerciseForm({ open, exercise, onClose }: { open: boolean; exerc
   return <Modal open={open} onClose={onClose} title={exercise ? "Rediger øvelse" : "Del en øvelse"} description="Øvelser deles med hele trenerfellesskapet, ikke bare ett lag.">
     <form className="grid gap-5" onSubmit={submit}>
       <Field label="Navn på øvelsen"><input className={inputClass} value={values.name} onChange={(event) => setValues({ ...values, name: event.target.value })} placeholder="f.eks. Tre rekker i kontring" autoFocus /></Field>
-      <Field label="Kategori"><select className={`${inputClass} appearance-none`} value={values.category} onChange={(event) => setValues({ ...values, category: event.target.value as Exercise["category"] })}>{EXERCISE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
+      <Field label="Kategori"><select className={`${inputClass} appearance-none`} value={values.category} onChange={(event) => { const category = event.target.value as Exercise["category"]; setValues({ ...values, category, subtopics: subtopicsForCategory(values.subtopics, category) }); }}>{EXERCISE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
+      {/* A subtopic belongs to one topic, so changing the topic above drops
+          any that no longer fit rather than saving a pair Postgres refuses.
+          Not a <Field>, for the same reason as the age picker below. */}
+      <div className="grid min-w-0 gap-2 text-sm font-semibold"><span>Undertema <span className="font-normal text-[var(--ink-soft)]">(valgfritt)</span></span><ExerciseSubtopicPicker category={values.category} value={values.subtopics} onChange={(subtopics) => setValues({ ...values, subtopics })} /><span className="text-xs font-normal text-[var(--ink-soft)]">Velg ett eller flere. Uten undertema vises øvelsen under «{values.category}», men ikke under noe undertema.</span></div>
       {/* Not a <Field>: its wrapping <label> forwards a click to the first
           labelable descendant, so clicking the second chip would toggle it and
           "6-9" both. The picker carries its own group label instead. */}

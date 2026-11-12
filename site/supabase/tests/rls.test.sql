@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(244);
+select plan(248);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -70,6 +70,11 @@ select throws_ok($$ insert into public.exercises (name, description, category, m
 select is((select age_groups from public.exercises where id = '20000000-0000-0000-0000-000000000001'), '{}'::text[], 'an exercise saved without age groups states none rather than guessing');
 select throws_ok($$ insert into public.exercises (name, description, age_groups, media_url, media_kind, created_by) values ('Invalid age group', 'This exercise has an unsupported age group.', array['16-18'], 'https://example.com/invalid.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, '23514', null, 'exercise age groups are limited to the supported bands');
 select lives_ok($$ insert into public.exercises (id, name, description, age_groups, media_url, media_kind, created_by) values ('20000000-0000-0000-0000-000000000002', 'Multi-age exercise', 'This exercise suits two age bands.', array['10-12', '13-15'], 'https://example.com/exercise.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, 'an exercise can list several supported age groups');
+-- Undertema (202611120001): several per exercise, only from its own topic.
+select lives_ok($$ insert into public.exercises (id, name, description, category, subtopics, media_url, media_kind, created_by) values ('20000000-0000-0000-0000-000000000003', 'Tagged defence exercise', 'This exercise carries two Forsvar subtopics.', 'Forsvar', array['forsvar.teknikk', 'forsvar.1-mot-1'], 'https://example.com/exercise.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, 'an exercise can list several subtopics of its own topic');
+select throws_ok($$ insert into public.exercises (name, description, category, subtopics, media_url, media_kind, created_by) values ('Wrong topic subtopic', 'This exercise borrows a Målvakt subtopic.', 'Forsvar', array['malvakt.teknikk'], 'https://example.com/invalid.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, '23514', null, 'an exercise cannot carry another topic''s subtopic');
+select throws_ok($$ insert into public.exercises (name, description, category, subtopics, media_url, media_kind, created_by) values ('Unknown subtopic', 'This exercise has an unknown subtopic.', 'Angrep', array['angrep.trolldom'], 'https://example.com/invalid.jpg', 'image', '10000000-0000-0000-0000-000000000001') $$, '23514', null, 'exercise subtopics are limited to the supported keys');
+select throws_ok($$ update public.exercises set category = 'Angrep' where id = '20000000-0000-0000-0000-000000000003' $$, '23514', null, 'changing an exercise''s topic cannot keep the old topic''s subtopics');
 
 -- A plan with something in it, so `copy_session` has blocks, activities and an
 -- assignment to carry over. The second activity is shared with a coach who

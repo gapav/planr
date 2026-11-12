@@ -1,8 +1,36 @@
-import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type Exercise, type ExerciseAgeGroup, type ExerciseCategory, type ExerciseCollection, type PlannedSession, type Profile, type SessionItem, type WarmupRoutine } from "./types";
+import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, EXERCISE_SUBTOPIC_KEYS, EXERCISE_SUBTOPICS, type Exercise, type ExerciseAgeGroup, type ExerciseCategory, type ExerciseSubtopic, type ExerciseCollection, type PlannedSession, type Profile, type SessionItem, type WarmupRoutine } from "./types";
 
 /** `"6-9"` reads as `"6-9 år"`. The stored value is a key, never a label. */
 export function formatAgeGroup(group: ExerciseAgeGroup): string {
   return `${group} år`;
+}
+
+const subtopicIndex = new Map<ExerciseSubtopic, { category: ExerciseCategory; label: string }>(
+  EXERCISE_CATEGORIES.flatMap((category) => EXERCISE_SUBTOPICS[category].map((entry) => [entry.key, { category, label: entry.label }] as const)),
+);
+
+/** `"angrep.finter"` reads as `"Finter"`. Like an age band, the stored value is a key. */
+export function formatSubtopic(subtopic: ExerciseSubtopic): string {
+  return subtopicIndex.get(subtopic)?.label ?? subtopic;
+}
+
+/** The topic a subtopic sits under — the part of the key before the dot, but read from the list. */
+export function subtopicCategory(subtopic: ExerciseSubtopic): ExerciseCategory {
+  return subtopicIndex.get(subtopic)!.category;
+}
+
+/** The subtopic keys under one topic, in list order. */
+export function subtopicsOf(category: ExerciseCategory): ExerciseSubtopic[] {
+  return EXERCISE_SUBTOPICS[category].map((entry) => entry.key);
+}
+
+/**
+ * Only the subtopics that belong to `category`, in canonical order — what the
+ * form keeps when the topic changes, and the rule `exercises_subtopics_check`
+ * enforces in Postgres.
+ */
+export function subtopicsForCategory(subtopics: readonly ExerciseSubtopic[], category: ExerciseCategory): ExerciseSubtopic[] {
+  return subtopicsOf(category).filter((key) => subtopics.includes(key));
 }
 
 /**
@@ -62,6 +90,27 @@ function ageGroupForAge(age: number): ExerciseAgeGroup | null {
 }
 
 /**
+ * Topics and subtopics are one dimension, Tema, read as a union of choices: a
+ * chosen subtopic matches the exercises tagged with it, and a chosen topic none
+ * of whose subtopics is chosen matches its whole topic, tagged or not. Choosing
+ * a subtopic therefore narrows its own topic and leaves the others alone —
+ * "Angrep › Finter or all of Forsvar". An untagged exercise never matches a
+ * subtopic: unlike an age band, a missing subtopic is not "all of them", or a
+ * coach asking for jump shots would get every untagged shooting drill.
+ */
+export function matchesTopics(
+  exercise: { category: ExerciseCategory; subtopics?: readonly ExerciseSubtopic[] },
+  categories: readonly ExerciseCategory[],
+  subtopics: readonly ExerciseSubtopic[],
+): boolean {
+  if (categories.length === 0 && subtopics.length === 0) return true;
+  const own = exercise.subtopics ?? [];
+  if (subtopics.some((subtopic) => own.includes(subtopic))) return true;
+  if (!categories.includes(exercise.category)) return false;
+  return !subtopics.some((subtopic) => subtopicCategory(subtopic) === exercise.category);
+}
+
+/**
  * Every field is optional and an omitted one filters nothing. Both chip
  * dimensions take a list because a coach planning a session thinks in unions —
  * "angrep or skuddferdigheter" — so values within a dimension are or-ed while
@@ -78,20 +127,23 @@ export interface ExerciseFilter {
   query?: string;
   categories?: readonly ExerciseCategory[];
   ageGroups?: readonly ExerciseAgeGroup[];
+  /** See `matchesTopics` for how these combine with `categories`. */
+  subtopics?: readonly ExerciseSubtopic[];
   shortlistIds?: ReadonlySet<string> | null;
 }
 
-type FilterableExercise = Pick<Exercise, "id" | "name" | "description" | "category" | "ageGroups">;
+/** `subtopics` is optional so the dialogs' lighter rows still filter; absent reads as untagged. */
+type FilterableExercise = Pick<Exercise, "id" | "name" | "description" | "category" | "ageGroups"> & Partial<Pick<Exercise, "subtopics">>;
 
 export function filterExercises<T extends FilterableExercise>(
   exercises: readonly T[],
-  { query = "", categories = [], ageGroups = [], shortlistIds = null }: ExerciseFilter = {},
+  { query = "", categories = [], ageGroups = [], subtopics = [], shortlistIds = null }: ExerciseFilter = {},
 ): T[] {
   const normalizedQuery = query.trim().toLocaleLowerCase("nb-NO");
 
   return exercises.filter((exercise) => {
     if (shortlistIds && !shortlistIds.has(exercise.id)) return false;
-    if (categories.length > 0 && !categories.includes(exercise.category)) return false;
+    if (!matchesTopics(exercise, categories, subtopics)) return false;
     if (!matchesAgeGroups(exercise.ageGroups, ageGroups)) return false;
     const searchableText = `${exercise.name} ${exercise.description}`.toLocaleLowerCase("nb-NO");
     return searchableText.includes(normalizedQuery);
@@ -109,9 +161,15 @@ export function filterExercises<T extends FilterableExercise>(
  * bands and favourites are honoured. Because a dimension or-s its values, the
  * badge answers "how many are Forsvar", not "how many will I have afterwards" —
  * adding a second chip widens the result rather than narrowing it.
+ *
+ * Topics and subtopics are one dimension, so both are lifted together: the
+ * badge on "Finter" is how many Finter exercises the search, age and shortlist
+ * leave, whatever else under Tema is chosen. A subtopic nobody has tagged yet
+ * counts 0, which the rail shows rather than hides.
  */
 export interface ExerciseFacetCounts {
   categories: Record<ExerciseCategory, number>;
+  subtopics: Record<ExerciseSubtopic, number>;
   ageGroups: Record<ExerciseAgeGroup, number>;
   allCategories: number;
   allAgeGroups: number;
@@ -121,7 +179,7 @@ export function countExerciseFacets<T extends FilterableExercise>(
   exercises: readonly T[],
   filter: ExerciseFilter = {},
 ): ExerciseFacetCounts {
-  const acrossCategories = filterExercises(exercises, { ...filter, categories: [] });
+  const acrossCategories = filterExercises(exercises, { ...filter, categories: [], subtopics: [] });
   const acrossAgeGroups = filterExercises(exercises, { ...filter, ageGroups: [] });
 
   return {
@@ -129,6 +187,10 @@ export function countExerciseFacets<T extends FilterableExercise>(
       category,
       acrossCategories.filter((exercise) => exercise.category === category).length,
     ])) as Record<ExerciseCategory, number>,
+    subtopics: Object.fromEntries(EXERCISE_SUBTOPIC_KEYS.map((subtopic) => [
+      subtopic,
+      acrossCategories.filter((exercise) => exercise.subtopics?.includes(subtopic)).length,
+    ])) as Record<ExerciseSubtopic, number>,
     ageGroups: Object.fromEntries(EXERCISE_AGE_GROUPS.map((group) => [
       group,
       acrossAgeGroups.filter((exercise) => matchesAgeGroup(exercise.ageGroups, group)).length,
@@ -148,6 +210,7 @@ export function countExerciseFacets<T extends FilterableExercise>(
 export interface ExerciseFilterState {
   query: string;
   categories: ExerciseCategory[];
+  subtopics: ExerciseSubtopic[];
   ageGroups: ExerciseAgeGroup[];
   shortlist: ExerciseShortlist | null;
 }
@@ -190,11 +253,11 @@ export function shortlistExerciseIds(
 }
 
 export function emptyExerciseFilterState(): ExerciseFilterState {
-  return { query: "", categories: [], ageGroups: [], shortlist: null };
+  return { query: "", categories: [], subtopics: [], ageGroups: [], shortlist: null };
 }
 
 export function hasActiveExerciseFilter(state: ExerciseFilterState): boolean {
-  return state.query.trim() !== "" || state.categories.length > 0 || state.ageGroups.length > 0 || state.shortlist !== null;
+  return state.query.trim() !== "" || state.categories.length > 0 || state.subtopics.length > 0 || state.ageGroups.length > 0 || state.shortlist !== null;
 }
 
 /** Reselecting from the constant keeps a list canonically ordered however the link was written. */
@@ -207,6 +270,7 @@ export function parseExerciseFilterParams(params: URLSearchParams): ExerciseFilt
   return {
     query: params.get("q") ?? "",
     categories: readList(params, "kategori", EXERCISE_CATEGORIES),
+    subtopics: readList(params, "undertema", EXERCISE_SUBTOPIC_KEYS),
     ageGroups: readList(params, "alder", EXERCISE_AGE_GROUPS),
     shortlist: readShortlist(params),
   };
@@ -229,6 +293,7 @@ export function serializeExerciseFilterParams(state: ExerciseFilterState): URLSe
   const params = new URLSearchParams();
   if (state.query.trim() !== "") params.set("q", state.query);
   if (state.categories.length > 0) params.set("kategori", state.categories.join(","));
+  if (state.subtopics.length > 0) params.set("undertema", state.subtopics.join(","));
   if (state.ageGroups.length > 0) params.set("alder", state.ageGroups.join(","));
   if (state.shortlist) params.set("samling", state.shortlist.kind === "favorites" ? FAVORITES_SHORTLIST_PARAM : state.shortlist.id);
   return params;
