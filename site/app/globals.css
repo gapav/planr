@@ -965,6 +965,33 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
   .grep-library-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+/* The session builder's exercise picker (components/exercise-picker.tsx): the
+   library's rail beside a list. From a tablet up the two panes share a fixed
+   height and only the list scrolls, so the filters never scroll away and there
+   is one scrollbar, not one inside another. On a phone the dialog scrolls as a
+   whole and the Filter button folds the rail open under the search. */
+.grep-picker { display: flex; flex-direction: column; }
+.grep-picker-rail { display: none; order: 1; }
+.grep-picker-rail.is-open { display: block; margin-top: 12px; padding: 12px 4px; border: 1px solid var(--line); border-radius: 16px; }
+/* On a phone the main column dissolves so the rail can open between the search
+   row, where its button is, and the list it narrows. */
+.grep-picker-main { display: contents; }
+.grep-picker-main > :not(:first-child) { order: 2; }
+.grep-picker-list { display: grid; gap: 10px; align-content: start; margin-top: 12px; }
+/* The footer sticks with a negative `bottom` because a sticky box stops at the
+   dialog's padding edge, which would leave the dialog's padding under it. */
+.grep-picker-foot { position: sticky; bottom: -20px; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 18px -20px -20px; padding: 14px 20px; border-top: 1px solid var(--line); background: var(--surface); }
+@media (min-width: 640px) {
+  .grep-picker-foot { bottom: -28px; margin: 20px -28px -28px; padding: 16px 28px; }
+}
+@media (min-width: 768px) {
+  .grep-picker { display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 0; height: min(640px, calc(92vh - 250px)); }
+  .grep-picker-rail, .grep-picker-rail.is-open { display: block; order: 0; overflow-y: auto; margin: 0 0 0 -12px; padding: 0 14px 8px 0; border: 0; border-right: 1px solid var(--line); border-radius: 0; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .grep-picker-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding-left: 22px; }
+  .grep-picker-list { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+  .grep-picker-filter-toggle { display: none; }
+}
+
 .grep-filter-chips button { min-height: 40px; font-size: 12px; font-weight: 550; border-radius: 10px; background: var(--surface); border-color: var(--line); color: var(--ink-soft); box-shadow: none; }
 .grep-filter-chips button:hover:not(:disabled):not([aria-disabled="true"]) { border-color: var(--line-hover-strong); }
 .grep-filter-chips button[aria-disabled="true"] { cursor: default; }

@@ -17,6 +17,15 @@ export type Release = {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: "1.2.0",
+    date: "2026-11-12",
+    highlights: [
+      "Når du legger til øvelser i en økt, kan du nå filtrere på undertema, akkurat som i øvelsesbanken.",
+      "Vinduet står åpent mens du legger til, så du kan fylle en hel bolk på én gang. Trykk «Ferdig» når du er klar.",
+      "Øvelsene viser undertema og aldersgruppe, og alder er forhåndsvalgt etter laget ditt.",
+    ],
+  },
+  {
     version: "1.1.0",
     date: "2026-11-12",
     highlights: [

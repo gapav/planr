@@ -4,7 +4,7 @@ Numbered and append-only. Code, docs, issues and pull requests cite them by numb
 (“decision 3”), so a number is never reused or renumbered. To change one, add
 a new decision and strike the old one through with a pointer to it. Record
 only what the maintainer decided; a proposal waits under open questions or in
-an issue. The next number is **8**; 5 and 6 are held by decisions still in
+an issue. The next number is **9**; 5 and 6 are held by decisions still in
 review.
 
 Decisions made before November 2026 are not back-filled. They are recorded
@@ -66,8 +66,9 @@ There is no third level, and the six topics are unchanged.
   not hidden.
 - Existing exercises are not backfilled; the maintainer tags them by hand after
   release.
-- The session builder's and warm-up dialog's library pickers keep topic and age
-  only.
+- ~~The session builder's and warm-up dialog's library pickers keep topic and
+  age only.~~ The session builder's picker has undertema since decision 8; the
+  warm-up dialog's still keeps topic and age only.
 
 ## 7. Grep has a version, and coaches hear about minor and major releases (2026-11-12)
 
@@ -90,6 +91,20 @@ There are no git tags or GitHub Releases.
 - «Last seen» is per device (`localStorage` `grep-seen-version`), not per
   account: no migration. Storage that cannot be read shows nothing.
 - There is no archive page and no way back to the dialog once it is closed.
+
+## 8. The session builder's exercise picker is the library's rail (2026-11-12)
+
+Issue #24. «Legg til øvelser» in the session builder lays out the library's own
+filter rail (`RailBody` from `exercise-filter-rail.tsx`) beside search and the
+results, instead of its own rows of chips. Undertema, samlinger, Favoritter and
+the team's age band therefore work as on /exercises, and a change to the rail
+reaches both. Chosen over restyled chip rows with an undertema row (mockup
+linked from the issue).
+
+- The dialog names the bolk, stays open after an add, and marks each added
+  exercise «Lagt til»; «Ferdig» closes it.
+- Age opens on the band the plan's team implies, as the library does.
+- The warm-up dialog's picker is unchanged for now.
 
 ## Open questions
 
