@@ -81,7 +81,7 @@ describe("ExerciseForm undertema", () => {
     const store = open();
     fireEvent.change(screen.getByLabelText("Kategori"), { target: { value: "Angrep" } });
     fireEvent.click(subtopic("Finter"));
-    fireEvent.click(subtopic("Ballbehandling"));
+    fireEvent.click(subtopic("Teknikk"));
     expect(subtopic("Finter")).toHaveAttribute("aria-pressed", "true");
     save();
     await vi.waitFor(() => expect(store.addExercise).toHaveBeenCalled());

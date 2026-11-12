@@ -400,8 +400,10 @@ describe("undertema", () => {
     for (const category of EXERCISE_CATEGORIES) {
       for (const { key } of EXERCISE_SUBTOPICS[category]) expect(subtopicCategory(key)).toBe(category);
     }
-    // "Teknikk" is a label twice and a key once each.
+    // "Teknikk" is a label three times, each under its own key — Angrep's kept
+    // its old key when only the label was renamed (decision 6).
     expect(formatSubtopic("forsvar.teknikk")).toBe("Teknikk");
+    expect(formatSubtopic("angrep.ballbehandling")).toBe("Teknikk");
     expect(formatSubtopic("malvakt.teknikk")).toBe("Teknikk");
     expect(subtopicsOf("Leker")).toEqual(["leker.oppvarming", "leker.smalagsspill"]);
   });

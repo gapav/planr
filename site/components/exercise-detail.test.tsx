@@ -26,7 +26,7 @@ describe("ExerciseDetail", () => {
   it("shows the exercise's subtopics beside its topic", () => {
     render(<ExerciseDetail exercise={{ ...sessionItemDetailSubject({ title: "Finteløype", description: "Finter.", mediaUrl: null, thumbnailUrl: null }), category: "Angrep", subtopics: ["angrep.ballbehandling", "angrep.finter"] }} onClose={() => undefined} />);
     expect(screen.getByText("Angrep")).toBeInTheDocument();
-    expect(screen.getByText("Ballbehandling")).toBeInTheDocument();
+    expect(screen.getByText("Teknikk")).toBeInTheDocument();
     expect(screen.getByText("Finter")).toBeInTheDocument();
   });
 });
