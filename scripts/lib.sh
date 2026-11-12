@@ -60,6 +60,14 @@ confirm_typed() {
   [[ "$reply" == "$expected" ]] || die "Got \"$reply\", expected \"$expected\". Nothing was changed."
 }
 
+# storage_bucket_names — read `supabase storage ls` on stdin, print one bucket
+# per line. The CLI prints plain lines (`exercise-videos/`) in a terminal and
+# JSON (`{"paths":["exercise-videos/"]}`) when it thinks an agent runs it, so
+# take every name that ends in a slash and ignore the quoting.
+storage_bucket_names() {
+  grep -oE '[A-Za-z0-9._-]+/' | tr -d '/'
+}
+
 # ---------------------------------------------------------------------------
 # Preflight
 # ---------------------------------------------------------------------------

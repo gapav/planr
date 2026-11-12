@@ -194,7 +194,7 @@ else
     pause
   fi
   BUCKETS="$(cd "$SITE_DIR" && supabase storage ls --experimental --project-ref "$REF_FOR_STORAGE" 2>/dev/null \
-    | grep -o '"[^"]*/"' | tr -d '"/' || true)"
+    | storage_bucket_names || true)"
   if [[ -z "$BUCKETS" ]]; then
     warn "No buckets listed. Check the CLI login, then re-run this step by hand:"
     say  "  cd site && supabase storage ls --experimental --project-ref $REF_FOR_STORAGE"
@@ -207,6 +207,16 @@ else
       ok "  $bucket — $(find "$OUT/storage/$bucket" -type f 2>/dev/null | wc -l | tr -d ' ') files"
     done
   fi
+fi
+# The database knows how many files there should be; a backup with fewer looks
+# complete but restores exercises without their videos.
+STORAGE_EXPECTED="$("$PG_BIN/psql" -XAtq -c "select count(*) from storage.objects where name not like '%.emptyFolderPlaceholder'" 2>/dev/null || echo unknown)"
+STORAGE_GOT="$(find "$OUT/storage" -type f ! -name '.emptyFolderPlaceholder' 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$STORAGE_EXPECTED" == "$STORAGE_GOT" ]]; then
+  ok "Storage: $STORAGE_GOT of $STORAGE_EXPECTED files"
+else
+  warn "Storage: $STORAGE_GOT files downloaded, storage.objects has $STORAGE_EXPECTED."
+  warn "This backup cannot restore the missing uploads. Fix it before trusting it."
 fi
 pause
 
@@ -223,6 +233,7 @@ step 8 $TOTAL "Write the manifest and verify"
   echo "taken_by       $(whoami)@$(hostname -s)"
   echo "repo_commit    $(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
   echo "repo_dirty     $(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ') files"
+  echo "storage        $STORAGE_GOT of $STORAGE_EXPECTED files"
   echo "migrations     $(ls -1 "$MIGRATIONS_DIR"/*.sql 2>/dev/null | wc -l | tr -d ' ') files"
   echo "bootstrap_sha  $(shasum -a 256 "$SITE_DIR/supabase/prod_bootstrap.sql" 2>/dev/null | cut -d' ' -f1)"
   echo ""
