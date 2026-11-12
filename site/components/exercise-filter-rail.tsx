@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 export interface RailCollection { id: string; name: string; size: number }
 
 /** Age narrows to one band; a topic is a union, so the two rows read differently. */
-interface RailProps {
+export interface RailProps {
   filters: ExerciseFilterState;
   counts: ExerciseFacetCounts;
   /** The band the current team's own name implies, called out where it is offered. */
@@ -74,7 +74,11 @@ export function ExerciseFilterSheet(props: RailProps) {
   </>;
 }
 
-function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, collections, onChange, onNewCollection }: RailProps) {
+/**
+ * The rail's contents without the aside around it, for a dialog that lays the
+ * rail out itself — the session builder's exercise picker.
+ */
+export function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, collections, onChange, onNewCollection }: RailProps) {
   // A link may carry several bands — the page filtered by chips before this —
   // and they still or- together correctly, so the rail marks each of them
   // selected rather than pretending only one is.

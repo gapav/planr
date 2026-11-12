@@ -4,31 +4,28 @@
 import { DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowLeft, Calendar, Check, ChevronDown, CirclePlay, Clock3, Eye, GripVertical, LayoutGrid, Library, MapPin, MoreVertical, Pencil, Plus, Radio, Search, Sparkles, Trash2, TriangleAlert, UserRoundPlus, WifiOff } from "lucide-react";
+import { ArrowLeft, Calendar, Check, ChevronDown, CirclePlay, Clock3, Eye, GripVertical, LayoutGrid, Library, MapPin, MoreVertical, Pencil, Plus, Radio, Sparkles, Trash2, TriangleAlert, UserRoundPlus, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "./app-shell";
 import { blockGlyph, blockPresets } from "./block-presets";
-import { ShortlistChips, useShortlistIds } from "./collections";
 import { useGrep } from "./app-provider";
-import { ExerciseAgeGroupFilter } from "./exercise-age-group-filter";
-import { ExerciseCategoryFilter } from "./exercise-category-filter";
+import { ExercisePicker } from "./exercise-picker";
 import { HelpTip } from "./help-tip";
 import { ExerciseDetail, sessionItemDetailSubject } from "./exercise-detail";
-import { ExerciseThumbnail, ItemThumbnailPlaceholder } from "./exercise-thumbnail";
+import { ItemThumbnailPlaceholder } from "./exercise-thumbnail";
 import { WorkoutSession } from "./live-session";
 import { SessionStartFields } from "./session-start-fields";
 import { SessionItemDialog } from "./session-item-dialog";
 import { Avatar, AvatarStack, Button, EmptyState, Field, inputClass, Modal, PointList, Tag, textareaClass } from "./ui";
 import { useDismissable } from "@/hooks/use-dismissable";
 import { useSessionRealtime } from "@/hooks/use-session-realtime";
-import { countExerciseFacets, filterExercises, type ExerciseShortlist } from "@/lib/exercises";
 import { dayKey } from "@/lib/fixtures";
 import { focusAt } from "@/lib/focus";
 import { autoSessionTitle, blockClock, blockDuration, coachAssignmentOptions, coachNameList, combineSessionStart, isAutoSessionTitle, isStationBlock, sessionDuration, sessionSchedule, splitSessionStart, stationRotation, toggleAssignedCoach, validatePublish } from "@/lib/session";
 import { MIN_STATIONS } from "@/lib/types";
-import type { Exercise, ExerciseAgeGroup, ExerciseCategory, PlannedSession, Profile, SaveState, SessionBlock, SessionBlockKind, SessionItem } from "@/lib/types";
+import type { PlannedSession, Profile, SaveState, SessionBlock, SessionBlockKind, SessionItem } from "@/lib/types";
 import { clockTime, cn, minutesLabel, noteLines } from "@/lib/utils";
 
 /**
@@ -115,7 +112,7 @@ export function SessionBuilder({ sessionId }: { sessionId: string }) {
         {session.blocks.length ? <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={blocksDragEnd}><SortableContext items={session.blocks.map((block) => block.id)} strategy={verticalListSortingStrategy}><div className="mt-6 grid gap-5">{session.blocks.map((block, index) => <SortableBlockCard key={block.id} block={block} index={index} session={session} clock={blockClock(schedule, block.id)} active={activeBlockId === block.id} collaborators={collaborators.filter((person) => person.activeBlockId === block.id)} onActive={() => setActiveBlockId(block.id)} onPickExercise={() => setPickerBlock(block.id)} onPreviewItem={setPreviewItem} />)}</div></SortableContext></DndContext> : <div className="mt-6"><EmptyState icon={<Sparkles size={22} />} title="Start med en bolk" body="Legg til oppvarming, hoveddel, spill eller en egendefinert bolk." action={<Button onClick={() => void addBlock("Oppvarming")}><Plus size={17} />Legg til oppvarming</Button>} /></div>}
       </section></main>
       <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start"><section className="rounded-[24px] bg-[var(--chrome)] p-5 text-[var(--on-chrome)] shadow-[var(--shadow)]"><p className="text-xs font-black uppercase tracking-[.14em] text-white/45">Tidskontroll</p><div className="mt-4 flex items-baseline gap-2"><strong className="text-4xl font-black tracking-[-.06em]">{builtMinutes}</strong><span className="text-white/55">av {session.plannedDurationMinutes} min</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className={cn("h-full rounded-full", difference > 0 ? "bg-[var(--accent-fill)]" : "bg-[var(--lime)]")} style={{ width: `${Math.min(100, Math.round((builtMinutes / session.plannedDurationMinutes) * 100))}%` }} /></div><p className="mt-3 text-xs leading-5 text-white/55">{difference === 0 ? "Øktplanen samsvarer med planlagt varighet." : difference > 0 ? `${difference} minutter over planlagt tid.` : `${Math.abs(difference)} minutter er fortsatt tilgjengelig.`}</p></section><section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-center justify-between"><h3 className="font-black">Aktive samarbeidspartnere</h3><span className="flex items-center gap-1.5 text-xs font-bold text-[var(--green)]"><Radio size={13} className="animate-pulse" />Direkte</span></div><div className="mt-4 grid gap-3">{collaborators.map((person) => { const block = session.blocks.find((entry) => entry.id === person.activeBlockId); return <div key={person.id} className="flex items-center gap-3"><Avatar name={person.fullName} initials={person.initials} color={person.color} /><div><p className="text-sm font-bold">{person.fullName}</p><p className="text-xs text-[var(--ink-soft)]">{block ? `Redigerer ${block.title}` : "Ser på økten"}</p></div></div>; })}{!collaborators.length && <p className="text-sm leading-6 text-[var(--ink-soft)]">Du er den eneste treneren her akkurat nå.</p>}</div></section><section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5"><h3 className="font-black">Generelle notater</h3><DebouncedTextarea className={`${textareaClass} mt-3 min-h-36`} value={session.notes} placeholder="Utstyr, spillertilgjengelighet eller påminnelser …" onSave={(value) => store.updateSession(sessionId, { notes: value })} /></section><Button variant="danger" className="w-full" onClick={() => { if (confirm("Vil du slette denne økten? Dette kan ikke angres.")) void store.deleteSession(sessionId).then(() => router.push("/sessions")); }}><Trash2 size={17} />Slett økt</Button></aside></div>
-    <ExercisePicker open={Boolean(pickerBlock)} blockId={pickerBlock} onClose={() => setPickerBlock(null)} sessionId={sessionId} />
+    <ExercisePicker open={Boolean(pickerBlock)} sessionId={sessionId} blockId={pickerBlock} blockTitle={session.blocks.find((block) => block.id === pickerBlock)?.title ?? ""} teamId={session.teamId} onClose={() => setPickerBlock(null)} />
     <ExerciseDetail key={previewItem?.id ?? "none"} exercise={previewItem ? sessionItemDetailSubject(previewItem) : null} onClose={() => setPreviewItem(null)} />
     <Modal open={publishIssues.length > 0} onClose={() => setPublishIssues([])} title="Noen opplysninger mangler" description="Fyll ut dette før økten deles med laget."><ul className="grid gap-3">{publishIssues.map((issue) => <li key={issue} className="flex items-center gap-3 rounded-xl bg-[var(--paper)] px-4 py-3 text-sm font-bold"><span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--warn-bg-strong)] text-xs text-[var(--warn-ink)]">!</span>{issue}</li>)}</ul><div className="mt-6 flex justify-end"><Button onClick={() => setPublishIssues([])}>Fortsett planleggingen</Button></div></Modal>
   </div></AppShell>;
@@ -235,27 +232,6 @@ function CoachPicker({ item, members, onChange }: { item: SessionItem; members: 
       </>}
     </div>}
   </span>;
-}
-
-function ExercisePicker({ open, blockId, sessionId, onClose }: { open: boolean; blockId: string | null; sessionId: string; onClose(): void }) {
-  const { exercises, addExerciseItem } = useGrep(); const [query, setQuery] = useState(""); const [categories, setCategories] = useState<ExerciseCategory[]>([]); const [ageGroups, setAgeGroups] = useState<ExerciseAgeGroup[]>([]); const [preview, setPreview] = useState<Exercise | null>(null);
-  // Curating favourites and samlinger in the library is worth nothing if they
-  // are invisible here, which is where a plan is actually built.
-  const [shortlist, setShortlist] = useState<ExerciseShortlist | null>(null);
-  const shortlistIds = useShortlistIds(shortlist);
-  const filter = useMemo(() => ({ query, categories, ageGroups, shortlistIds }), [query, categories, ageGroups, shortlistIds]);
-  const filtered = useMemo(() => filterExercises(exercises, filter), [exercises, filter]);
-  const counts = useMemo(() => countExerciseFacets(exercises, filter), [exercises, filter]);
-  function resetFilters() { setQuery(""); setCategories([]); setAgeGroups([]); setShortlist(null); }
-  // A samling is somebody's own list, and slicing it by topic and age on top
-  // answers a question nobody asked — three exercises do not need narrowing.
-  // So picking one drops the other axes and switches them off until it is put
-  // down again; the search box stays, because finding a name inside a samling
-  // is the one narrowing that still makes sense.
-  function chooseShortlist(next: ExerciseShortlist | null) { setShortlist(next); setCategories([]); setAgeGroups([]); }
-  function close() { setPreview(null); onClose(); }
-  return <><Modal open={open} onClose={close} title="Legg til fra øvelsesbanken" description="Øvelsesdetaljene kopieres inn i økten, slik at planen ikke endres senere." size="lg"><div className="grid gap-3"><div className="relative"><Search className="absolute left-3.5 top-3.5 text-[var(--ink-soft)]" size={18} /><input className={`${inputClass} pl-10`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Søk etter øvelser …" aria-label="Søk etter øvelser" autoFocus /></div><ShortlistChips value={shortlist} onChange={chooseShortlist} /><ExerciseCategoryFilter value={categories} onChange={setCategories} counts={counts} disabled={shortlist !== null} /><ExerciseAgeGroupFilter value={ageGroups} onChange={setAgeGroups} counts={counts} disabled={shortlist !== null} /><p className="text-xs font-semibold text-[var(--ink-soft)]">{filtered.length} øvelser</p></div>{filtered.length ? <div className="mt-4 grid max-h-[55vh] gap-3 overflow-y-auto pr-1 thin-scrollbar sm:grid-cols-2">{filtered.map((exercise) => <div key={exercise.id} className="group flex gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-3 text-left transition focus-within:border-[var(--ink)] hover:border-[var(--ink)]"><button type="button" className="group/media relative h-20 w-24 shrink-0 overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]" aria-label={`Vis detaljer for ${exercise.name}`} onClick={() => setPreview(exercise)}><ExerciseThumbnail exercise={exercise} className="h-full w-full" /><span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover/media:opacity-100 group-focus-visible/media:opacity-100"><span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={15} /></span></span></button><button type="button" className="min-w-0 flex-1 text-left" aria-label={`Legg ${exercise.name} til i bolken`} onClick={() => { if (blockId) void addExerciseItem(sessionId, blockId, exercise); close(); }}><span className="text-[10px] font-black uppercase tracking-[.08em] text-[var(--accent)]">{exercise.category}</span><strong className="mt-1 block text-sm">{exercise.name}</strong><span className="clamp-2 mt-1 text-xs leading-5 text-[var(--ink-soft)]">{exercise.description}</span></button></div>)}</div> : <div className="mt-5 rounded-2xl bg-[var(--paper)] px-5 py-8 text-center"><p className="font-black">Fant ingen øvelser</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Prøv en annen kategori, aldersgruppe eller et annet søkeord.</p><Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Nullstill filtre</Button></div>}</Modal>
-    <ExerciseDetail key={preview?.id ?? "none"} exercise={open ? preview : null} onClose={() => setPreview(null)} /></>;
 }
 
 /**

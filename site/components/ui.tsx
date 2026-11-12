@@ -7,7 +7,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { Profile } from "@/lib/types";
 import { cn, readableInk } from "@/lib/utils";
 
-export function Button({ className, variant = "primary", size = "md", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger"; size?: "sm" | "md" | "lg" }) {
+export function Button({ className, variant = "primary", size = "md", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger"; size?: "sm" | "md" | "lg" | "xl" }) {
   return <button className={cn("grep-button inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-45", size === "sm" && "min-h-9 px-3 text-sm", size === "md" && "min-h-11 px-4 text-sm", size === "lg" && "min-h-12 px-5", variant === "primary" && "bg-[var(--grep-apricot)] text-[var(--on-bright)] enabled:hover:bg-[var(--apricot-hover)]", variant === "secondary" && "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] enabled:hover:border-[var(--ink)]", variant === "ghost" && "text-[var(--ink-soft)] enabled:hover:bg-[var(--hover-wash-strong)] enabled:hover:text-[var(--ink)]", variant === "danger" && "bg-[var(--danger-bg)] text-[var(--danger)] enabled:hover:bg-[var(--danger-bg-hover)]", className)} {...props} />;
 }
 
@@ -35,7 +35,7 @@ function lockPageScroll() {
   };
 }
 
-export function Modal({ open, title, description, children, onClose, size = "md" }: { open: boolean; title: string; description?: string; children: ReactNode; onClose(): void; size?: "sm" | "md" | "lg" }) {
+export function Modal({ open, title, description, children, onClose, size = "md" }: { open: boolean; title: string; description?: string; children: ReactNode; onClose(): void; size?: "sm" | "md" | "lg" | "xl" }) {
   // A phone sheet is easy to get stuck in: Escape closes it, and the page
   // behind stays put so the only thing that scrolls is the dialog itself.
   useEffect(() => {
@@ -63,7 +63,7 @@ export function Modal({ open, title, description, children, onClose, size = "md"
   // false in every render the server makes and in the one the browser hydrates.
   if (!open || typeof document === "undefined") return null;
   return createPortal(<div className="fixed inset-0 z-50 grid place-items-end bg-[var(--scrim)] p-0 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onPointerDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className={cn("max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-[var(--surface)] p-5 pt-0 shadow-2xl soft-in sm:rounded-[28px] sm:p-7 sm:pt-0", size === "sm" && "sm:max-w-md", size === "md" && "sm:max-w-xl", size === "lg" && "sm:max-w-3xl")}>
+    <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className={cn("max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-[var(--surface)] p-5 pt-0 shadow-2xl soft-in sm:rounded-[28px] sm:p-7 sm:pt-0", size === "sm" && "sm:max-w-md", size === "md" && "sm:max-w-xl", size === "lg" && "sm:max-w-3xl", size === "xl" && "sm:max-w-5xl")}>
       <div className="sticky top-0 z-10 -mx-5 mb-6 flex items-start justify-between gap-5 border-b border-[var(--line)] bg-[var(--surface)] px-5 pb-4 pt-5 sm:-mx-7 sm:px-7 sm:pt-7"><div><h2 id="modal-title" className="text-2xl font-black tracking-[-.04em]">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">{description}</p>}</div><Button variant="ghost" size="sm" aria-label="Lukk dialogboksen" onClick={onClose} className="-mr-2 h-11 w-11 shrink-0 px-0"><X size={19} /></Button></div>
       {children}
     </section>

@@ -27,7 +27,7 @@ describe("session builder", () => {
     updateBlock.mockReset();
     updateSession.mockReset();
     mocks.useSessionRealtime.mockReturnValue({ collaborators: [], connected: true });
-    mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
+    mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, collections: [], favoriteExerciseIds: [], user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
   });
 
   // The header is the only thing that tells a coach whether their typing is
@@ -35,7 +35,7 @@ describe("session builder", () => {
   describe("save indicator", () => {
     function renderWith(saveState: string, connected = true) {
       mocks.useSessionRealtime.mockReturnValue({ collaborators: [], connected });
-      mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, user: null, saveState, isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
+      mocks.useGrep.mockReturnValue({ sessions: [draft], teams: demoTeams, exercises: demoExercises, collections: [], favoriteExerciseIds: [], user: null, saveState, isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
       render(<SessionBuilder sessionId={draft.id} />);
     }
 
@@ -76,7 +76,7 @@ describe("session builder", () => {
   });
 
   it("keeps the focus running on the session's day beside the session objective", () => {
-    mocks.useGrep.mockReturnValue({ sessions: [draft], focusPeriods: demoFocusPeriods, teams: demoTeams, exercises: demoExercises, user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
+    mocks.useGrep.mockReturnValue({ sessions: [draft], focusPeriods: demoFocusPeriods, teams: demoTeams, exercises: demoExercises, collections: [], favoriteExerciseIds: [], user: null, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession });
     render(<SessionBuilder sessionId={draft.id} />);
 
     const focus = screen.getByText("Fokus · Forsvar 6-0").closest("details") as HTMLElement;

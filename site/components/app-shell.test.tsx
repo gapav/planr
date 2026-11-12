@@ -162,9 +162,10 @@ describe("AppShell «Velkommen tilbake!»", () => {
     const dialog = whatsNew();
     expect(dialog).toBeInTheDocument();
     expect(within(dialog!).getByText("Her er hva som er nytt siden sist.")).toBeInTheDocument();
+    expect(within(dialog!).getByRole("heading", { name: /Versjon 1\.2\.0/ })).toHaveTextContent("12. november 2026");
     expect(within(dialog!).getByRole("heading", { name: /Versjon 1\.1\.0/ })).toHaveTextContent("12. november 2026");
     expect(within(dialog!).queryByRole("heading", { name: /Versjon 1\.0\.0/ })).not.toBeInTheDocument();
-    expect(within(dialog!).getAllByRole("listitem")).toHaveLength(RELEASES[0].highlights.length);
+    expect(within(dialog!).getAllByRole("listitem")).toHaveLength(RELEASES.reduce((sum, release) => sum + release.highlights.length, 0));
   });
 
   it("stays closed when grep-seen-version is current", () => {
