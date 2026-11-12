@@ -4,7 +4,7 @@ import { ALL_CHIP_KEY } from "@/components/exercise-category-filter";
 import { FilterChipGroup } from "@/components/filter-chips";
 import type { TagTone } from "@/components/ui";
 import type { ExerciseFacetCounts } from "@/lib/exercises";
-import { formatAgeGroup, toggleFilterValue } from "@/lib/exercises";
+import { formatAgeGroup, formatAgeRange, toggleFilterValue } from "@/lib/exercises";
 import { EXERCISE_AGE_GROUPS, type ExerciseAgeGroup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +33,30 @@ export const bandTone: Record<ExerciseAgeGroup, TagTone> = {
   "10-12": "band2",
   "13-15": "band3",
 };
+
+const bandSquare: Record<ExerciseAgeGroup, { filled: string; empty: string }> = {
+  "6-9": { filled: "border-[var(--tag-band-1-ink)] bg-[var(--tag-band-1-ink)]", empty: "border-[var(--tag-band-1-line)]" },
+  "10-12": { filled: "border-[var(--tag-band-2-ink)] bg-[var(--tag-band-2-ink)]", empty: "border-[var(--tag-band-2-line)]" },
+  "13-15": { filled: "border-[var(--tag-band-3-ink)] bg-[var(--tag-band-3-ink)]", empty: "border-[var(--tag-band-3-line)]" },
+};
+
+/**
+ * Who an exercise is for, as the library card and the session builder's
+ * picker print it: one square per band, filled where the exercise suits it,
+ * and the bands as one range («6–9, 13–15 år»). No band at all is every band,
+ * as `matchesAgeGroup` reads it, so all three are filled. The squares are
+ * decoration; the range text carries the meaning.
+ */
+export function ExerciseAges({ ageGroups, className }: { ageGroups: readonly ExerciseAgeGroup[]; className?: string }) {
+  const all = ageGroups.length === 0;
+  return <span data-card-ages className={cn("flex min-w-0 items-center gap-2 text-xs font-semibold text-[var(--ink-soft)]", className)}>
+    <span aria-hidden="true" className="flex shrink-0 gap-0.5">{EXERCISE_AGE_GROUPS.map((group) => {
+      const filled = all || ageGroups.includes(group);
+      return <span key={group} data-band={group} data-filled={filled} className={cn("h-2 w-2 rounded-[2px] border", filled ? bandSquare[group].filled : bandSquare[group].empty)} />;
+    })}</span>
+    <span className="truncate">{formatAgeRange(ageGroups)}</span>
+  </span>;
+}
 
 export function ExerciseAgeGroupFilter({ value, onChange, counts, disabled = false }: { value: readonly ExerciseAgeGroup[]; onChange(ageGroups: ExerciseAgeGroup[]): void; counts: ExerciseFacetCounts; disabled?: boolean }) {
   const chips = [

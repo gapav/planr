@@ -71,6 +71,25 @@ describe("ExercisePicker", () => {
     expect(screen.getAllByRole("listitem").length).toBeGreaterThan(narrowed);
   });
 
+  // The age reads as on the library card: squares and one range, not a pill per band.
+  it("shows each row's age as the library card's squares and range", () => {
+    const base = demoExercises[0];
+    const exercises = [
+      { ...base, id: "ex-split", name: "Delt alder", ageGroups: ["6-9", "13-15"] as const },
+      { ...base, id: "ex-all", name: "Alle aldre øvelse", ageGroups: [] as const },
+    ].map((entry) => ({ ...entry, ageGroups: [...entry.ageGroups] }));
+    mocks.useGrep.mockReturnValue({ ...mocks.useGrep(), exercises });
+    renderPicker();
+
+    const ages = (name: string) => screen.getByText(name).closest("li")!.querySelector("[data-card-ages]")!;
+    const filled = (name: string) => Array.from(ages(name).querySelectorAll("[data-band]")).map((square) => [square.getAttribute("data-band"), square.getAttribute("data-filled")]);
+
+    expect(ages("Delt alder")).toHaveTextContent("6–9, 13–15 år");
+    expect(filled("Delt alder")).toEqual([["6-9", "true"], ["10-12", "false"], ["13-15", "true"]]);
+    expect(filled("Alle aldre øvelse")).toEqual([["6-9", "true"], ["10-12", "true"], ["13-15", "true"]]);
+    expect(screen.getByText("Delt alder").closest("li")).not.toHaveTextContent("6-9 år");
+  });
+
   // A refused insert is rolled back by the provider; «Lagt til» over it would read as saved.
   it("does not mark an exercise added when saving it fails", async () => {
     addExerciseItem.mockRejectedValue(new Error("refused"));
