@@ -4,7 +4,7 @@ Numbered and append-only. Code, docs, issues and pull requests cite them by numb
 (“decision 3”), so a number is never reused or renumbered. To change one, add
 a new decision and strike the old one through with a pointer to it. Record
 only what the maintainer decided; a proposal waits under open questions or in
-an issue. The next number is **3**.
+an issue. The next number is **4**.
 
 Decisions made before November 2026 are not back-filled. They are recorded
 where they took effect: the hard rules and architecture in `CLAUDE.md`, and
@@ -33,6 +33,19 @@ backup first and stops if it fails. Supabase's own
 applied where, replacing the ledger in `DEPLOYMENT.md`. Agents still never
 touch a database, and no database secret goes to GitHub: running migrations
 from Actions was considered and not chosen.
+
+## 3. How `make migrate-*` stays safe (2026-11-11)
+
+Refines decision 2. A `make restore` ends with `make migrate-baseline`, since
+backups leave out `supabase_migrations` and a restored project would otherwise
+look un-migrated. The backup scripts stay as they are. `migrate-*` refuses to
+push when the remote history is empty but `public` has tables. The migration
+hook refuses edits to a migration on `origin/main`, asks for one committed only
+on the current branch (`/release` may have applied it before the merge), and
+passes new or uncommitted files. `.claude/settings.json` denies
+`make migrate*`, so the rule that agents never apply migrations is enforced,
+not just written down. Upgrading to Supabase Pro, whose platform backups carry
+the history, is a separate question.
 
 ## Open questions
 

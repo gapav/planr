@@ -21,5 +21,6 @@ Closes #
 <!-- Merging deploys production, and the database goes first. List every step
      only the maintainer can do, in order — or write "Nothing." -->
 
-- [ ] Migration `site/supabase/migrations/…sql`: run on planr-dev → `make backup` → run on grep-prod → mark `applied` in the DEPLOYMENT.md ledger
+- [ ] Migration `site/supabase/migrations/…sql` (one line per file, in order)
+- [ ] `make migrate-dev`, then `make migrate-prod` (backs up first) — paste the closing `supabase migration list`
 - [ ] Environment variable `…` set in Vercel Production

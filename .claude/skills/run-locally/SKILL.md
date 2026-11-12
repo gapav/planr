@@ -42,7 +42,7 @@ description: Run Grep on this machine — start and stop the dev server on port 
   Links minted from `/admin` do work, because the auth-link route builds
   them itself.
 - `/admin` needs `is_global_admin` on your `planr-dev` profile, which the
-  maintainer sets once in the dev SQL editor.
+  maintainer sets once on the dev project.
 
 ## The server routes locally
 
@@ -59,9 +59,9 @@ description: Run Grep on this machine — start and stop the dev server on port 
 ## After pulling new migrations
 
 `Could not find the '<column>' column of '<table>' in the schema cache`
-means `planr-dev` lacks a migration. Check the ledger at the end of
-`DEPLOYMENT.md`: the maintainer applies anything `pending` for dev in the dev
-SQL editor and marks it `applied`.
+means `planr-dev` lacks a migration. The maintainer runs `make migrate-dev`
+from the repo root, which lists what dev is missing and applies it. You
+never run it.
 
 ## Supabase settings for dev
 

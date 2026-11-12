@@ -17,8 +17,9 @@ As of 1 November 2026. Change this section whenever any of it changes.
 - The code is `gapav/planr` on GitHub, private.
 - Production's secrets are in Vercel; development's are in `site/.env.local`,
   which agents are denied reading. Section 4 lists every variable.
-- Which migration is applied where: the [ledger](#migration-ledger) at the
-  end of this file.
+- Which migration is applied where: each project's own history,
+  `supabase_migrations.schema_migrations`, shown by `make migrate-dev` /
+  `make migrate-prod` (see [Applying migrations](#applying-migrations)).
 
 The rest of this file is the runbook from the first launch.
 
@@ -112,16 +113,16 @@ New project, region **Central EU (Frankfurt)** or **North EU (Ireland)**. Save t
 database password in a password manager — on the free tier it is the only way to
 take a backup.
 
-Apply the schema in one go — this is a brand-new empty project, so you do **not**
-run the migrations one at a time:
+Put the new project's ref in `PROD_REF` (or `DEV_REF`) in `scripts/lib.sh`,
+then run `make migrate-prod` (or `migrate-dev`). An empty project with no
+history takes every migration in filename order, and the history it writes is
+what every later push reads.
 
-1. Open **SQL Editor**.
-2. Paste all of `site/supabase/prod_bootstrap.sql`.
-3. Run once.
-
-It is a generated file — the migrations concatenated in filename order, with
-explicit `commit;` breaks after each migration that adds an enum value, because
-later statements use those values.
+`site/supabase/prod_bootstrap.sql` is the same migrations as one file — the
+migrations concatenated in filename order, with explicit `commit;` breaks after
+each migration that adds an enum value, because later statements use those
+values. It writes no history: a project built from it must be baselined
+(`make migrate-baseline`) before `make migrate-*` will push to it.
 
 > **Never hand-edit the bootstrap, and never run it against a restored
 > database.** It contains one-time cleanup migrations that delete rows
@@ -360,11 +361,10 @@ whether or not a coach has also set a password. They ask for a
 new link on `/sign-in`, or you send one from `/admin`. If their mail never
 arrives, the console shows you the link to pass on yourself.
 
-**Schema changes after launch.** Applied migrations are immutable. Add a new
+**Schema changes after launch.** Shipped migrations are immutable. Add a new
 numbered file in `site/supabase/migrations/`, run `npm --prefix site run
-db:bootstrap`, back up, run the new migration in the SQL Editor, mark it
-`applied` in the [ledger](#migration-ledger), *then* deploy the frontend that
-depends on it. Never the other way round — a frontend that writes a
+db:bootstrap`, then `make migrate-dev` and `make migrate-prod` (which backs up
+first), *then* merge the frontend that depends on it. Never the other way round — a frontend that writes a
 column the database does not have fails with `Could not find the '<column>' column
 of '<table>' in the schema cache`.
 
@@ -397,62 +397,56 @@ and [data-processing agreements](https://www.datatilsynet.no/rettigheter-og-plik
 5. Smoke test with fake data, two coaches, on a phone.
 6. Create the real teams, invite the coaches, import the rosters.
 
-## Migration ledger
+## Applying migrations
 
-The maintainer applies migrations by hand in the Supabase SQL editor: on
-`planr-dev` first, then on `grep-prod` after `make backup`. Update this table
-whenever one is applied. Each cell is `applied`, `pending` or `unknown`.
+The maintainer applies migrations with one command per project (decision 2).
+Agents never do: `.claude/settings.json` denies `make migrate*`.
 
-An `applied` migration is immutable: write a new forward migration instead.
-A hook (`.claude/hooks/protect-applied-migrations.sh`) refuses edits to
-`applied` files and asks first for `unknown` ones or files missing from the
-table.
+```bash
+make migrate-dev        # planr-dev  (hgjboxsgemvgrlyemudt)
+make migrate-prod       # grep-prod  (fbbqdutatetfkybvlozx), after a full make backup
+make migrate-baseline   # mark what a project already holds as applied, running nothing
+```
 
-| Migration | dev | prod |
-| --- | --- | --- |
-| `202609020001_initial.sql` | applied | applied |
-| `202609020002_exercise_categories.sql` | applied | applied |
-| `202609020003_player_rosters_and_live_sessions.sql` | applied | applied |
-| `202609020004_minimize_player_names.sql` | applied | applied |
-| `202609020005_optional_exercise_media.sql` | applied | applied |
-| `202609020006_in_progress_session_status.sql` | applied | applied |
-| `202609020007_start_session_workflow.sql` | applied | applied |
-| `202609020008_session_block_notes.sql` | applied | applied |
-| `202609020009_completed_session_status.sql` | applied | applied |
-| `202609020010_finish_session_workflow.sql` | applied | applied |
-| `202609020011_password_auth.sql` | applied | applied |
-| `202609020012_shooting_skills_exercise_category.sql` | applied | applied |
-| `202609020013_exercise_video_uploads.sql` | applied | applied |
-| `202609020014_undo_session_start.sql` | applied | applied |
-| `202609020016_norwegian_messages_image_uploads_and_skip_setup.sql` | applied | applied |
-| `202609020017_team_logos.sql` | applied | applied |
-| `202609020018_admin_roles.sql` | applied | applied |
-| `202609020019_team_fixtures.sql` | applied | applied |
-| `202609020020_warmup_routines.sql` | applied | applied |
-| `202609020021_membership_is_global_admin_only.sql` | applied | applied |
-| `202609020022_exercise_favorites.sql` | applied | applied |
-| `202609020023_exercise_age_groups.sql` | applied | applied |
-| `202609020024_month_focus.sql` | applied | applied |
-| `202609020025_session_item_coach.sql` | applied | applied |
-| `202609020026_auth_hardening.sql` | applied | applied |
-| `202609020027_passwordless_team_invitations.sql` | applied | applied |
-| `202609020028_clear_legacy_pending_invitations.sql` | applied | applied |
-| `202609020029_clear_never_signed_in_auth_users.sql` | applied | applied |
-| `202609020030_account_lifecycle.sql` | applied | applied |
-| `202609020031_require_auth_for_exercises.sql` | applied | applied |
-| `202609020032_reopen_and_copy_session.sql` | applied | applied |
-| `202609020033_session_digest_email.sql` | applied | applied |
-| `202609130001_fixture_team_colours.sql` | applied | applied |
-| `202609130002_station_blocks.sql` | applied | applied |
-| `202609130003_profile_display_name.sql` | applied | applied |
-| `202609130004_admin_set_display_name.sql` | applied | applied |
-| `202609170001_exercise_collections.sql` | applied | applied |
-| `202609250001_global_admin_reads_sessions.sql` | applied | applied |
-| `202610050001_exercise_link_media.sql` | applied | applied |
-| `202610080001_station_rotation_as_definer.sql` | applied | applied |
-| `202610080003_focus_periods.sql` | applied | applied |
-| `202610140001_session_item_coaches.sql` | applied | applied |
+Each `migrate-*` names the project it targets, asks for its Session pooler
+URI (and refuses any other project's), prompts for the password without echo
+and passes it through the environment only, lists the pending files, shows
+`supabase db push --dry-run`, waits for a typed `migrate <project>`, applies,
+and ends with `supabase migration list`. `migrate-prod` runs `make backup`
+first and applies nothing unless a fresh, checksummed backup of `grep-prod`
+lands in `backups/`. None of them use the CLI's link to `grep-prod`: every
+call gets `--db-url`, without the password in it.
 
-The maintainer confirmed every row on 1 November 2026. There is no
-`202609020015` and no `202610080002`. `202609020033` ran in production as a
-second `202609020032` before it was renamed (see `DISASTER_RECOVERY.md`).
+**What is applied where** is Supabase's own `supabase_migrations.schema_migrations`
+in each project — `supabase migration list` shows it. There is no ledger.
+
+**The guard.** `migrate-*` refuses, and applies nothing, when:
+
+- the project's history is empty but `public` has tables: it was migrated by
+  hand or restored from a backup, and a push would rerun every migration,
+  the row-deleting `202609020028` and `202609020029` included. Run
+  `make migrate-baseline`;
+- a file on disk is missing from the history but older than its newest
+  applied migration;
+- the history has a version this checkout has no file for.
+
+**The baseline** (decision 3) marks migrations as applied with
+`supabase migration repair --status applied`, without running their SQL. It
+is run once in each project for the 42 migrations applied through the SQL
+editor before November 2026, and it is the last step of every `make restore`,
+since backups leave out `supabase_migrations`. It defaults to everything up to
+the newest migration on `origin/main`, and asks for a different cutoff. The
+default is only right for a project that holds all of `main`: after restoring
+an older backup, or on a dev project that is behind, type the newest migration
+the schema really holds — a version marked here but never run is skipped by
+every later push.
+
+**Immutability.** A migration on `origin/main` is applied in production (it
+was applied before its PR merged), so
+`.claude/hooks/protect-applied-migrations.sh` refuses edits to it. One
+committed only on the current branch may already be on `planr-dev`, so the
+hook asks. New and uncommitted files pass.
+
+There is no `202609020015` and no `202610080002`. `202609020033` ran in
+production as a second `202609020032` before it was renamed (see
+`DISASTER_RECOVERY.md`), so its history row is written by the baseline.

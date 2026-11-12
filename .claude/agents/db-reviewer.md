@@ -1,6 +1,6 @@
 ---
 name: db-reviewer
-description: Reviews Supabase migrations, RPCs and the server routes at Grep's security boundary — RLS on every table, policies built from the helper functions, least-privilege grants, security definer functions with a fixed search_path, the session lock and realtime triggers, the secret-key routes, the ledger and the bootstrap. Read-only. Use proactively whenever anything under site/supabase/ or site/app/api/ changes.
+description: Reviews Supabase migrations, RPCs and the server routes at Grep's security boundary — RLS on every table, policies built from the helper functions, least-privilege grants, security definer functions with a fixed search_path, the session lock and realtime triggers, the secret-key routes, migration order and the bootstrap. Read-only. Use proactively whenever anything under site/supabase/ or site/app/api/ changes.
 tools: Read, Grep, Glob
 model: inherit
 ---
@@ -10,8 +10,7 @@ boundary, and production holds real coaches and players, many of them
 minors. Review the change as if an attacker holds a valid login as a coach on
 some other team — or as a team admin, who can reserve a seat for any address.
 
-Read the changed files, `.claude/rules/supabase.md`, the ledger at the end of
-`DEPLOYMENT.md`, and the earlier migrations they build on (the helpers live
+Read the changed files, `.claude/rules/supabase.md`, and the earlier migrations they build on (the helpers live
 in `202609020001_initial.sql`). Check:
 
 1. **Every new table** enables RLS, revokes all from `anon, authenticated`, and
@@ -38,8 +37,10 @@ in `202609020001_initial.sql`). Check:
    `app/api/cron/daily-session-digest`; every other route builds its client
    with the caller's bearer token; the auth-link route still refuses without
    a reserved seat and never hands a team admin an existing account's link.
-7. **Bookkeeping**: no edits to a migration the ledger marks `applied`; the
-   new file sorts after the latest and runs top to bottom in the SQL editor;
+7. **Bookkeeping**: no edits to a migration on `origin/main`
+   (`git diff origin/main -- site/supabase/migrations` shows only new files);
+   the new file sorts after the latest, so `supabase db push` takes it, and
+   runs top to bottom in one transaction;
    `prod_bootstrap.sql` regenerated; `supabase/tests/rls.test.sql` covers the
    change, with `select plan(N)` matching; the provider and
    `lib/demo-data.ts` follow the new shape.

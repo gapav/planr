@@ -1,8 +1,16 @@
 #!/bin/bash
-# PreToolUse hook for Edit|Write. A migration the ledger in DEPLOYMENT.md marks
-# `applied` (in any environment) is immutable: refuse the edit. An `unknown`
-# one, or one missing from the ledger, needs the maintainer's yes. New files and
-# `pending` migrations pass. Edits made through Bash are not covered.
+# PreToolUse hook for Edit|Write (decision 3). Whether a migration may still
+# change is read from git, not from a ledger:
+#
+#   on origin/main                     refuse: merging deploys, and a migration
+#                                      is applied before its PR merges
+#   committed on this branch only      ask: /release may already have applied
+#                                      it to dev or prod before the merge
+#   new, or not committed anywhere     pass
+#
+# What is applied where is in each project's supabase_migrations history
+# (`supabase migration list`), which an agent cannot read. Edits made through
+# Bash are not covered.
 file=$(jq -r '.tool_input.file_path // empty')
 case "$file" in
   */site/supabase/migrations/*.sql) ;;
@@ -11,8 +19,8 @@ esac
 [ -e "$file" ] || exit 0
 
 name=$(basename "$file")
-ledger="${file%/site/supabase/migrations/*}/DEPLOYMENT.md"
-row=$(grep -F "\`$name\`" "$ledger" 2>/dev/null | head -1)
+root="${file%/site/supabase/migrations/*}"
+rel="site/supabase/migrations/$name"
 
 ask() {
   jq -n --arg reason "$1" '{hookSpecificOutput: {hookEventName: "PreToolUse",
@@ -20,14 +28,17 @@ ask() {
   exit 0
 }
 
-if [ -z "$row" ]; then
-  ask "$name is not in the migration ledger in DEPLOYMENT.md, so it may already be applied. Edit it anyway?"
+git -C "$root" rev-parse --git-dir >/dev/null 2>&1 \
+  || ask "Cannot read git in $root, so whether $name has shipped is unknown. Edit it anyway?"
+
+if ! git -C "$root" rev-parse --verify --quiet origin/main >/dev/null; then
+  ask "There is no origin/main here, so whether $name has shipped is unknown. Edit it anyway?"
 fi
-if grep -qE '\|[[:space:]]*applied[[:space:]]*(\||$)' <<<"$row"; then
-  echo "$name is applied (see the ledger in DEPLOYMENT.md), so it is immutable. Write a new forward migration instead." >&2
+if git -C "$root" cat-file -e "origin/main:$rel" 2>/dev/null; then
+  echo "$name is on origin/main, so it is applied in production and immutable. Write a new forward migration instead." >&2
   exit 2
 fi
-if grep -qE '\|[[:space:]]*unknown[[:space:]]*(\||$)' <<<"$row"; then
-  ask "Whether $name is applied is unknown (ledger in DEPLOYMENT.md). Edit it anyway?"
+if git -C "$root" cat-file -e "HEAD:$rel" 2>/dev/null; then
+  ask "$name is committed on this branch, and /release may already have applied it to planr-dev or grep-prod. Check with \`supabase migration list\` before editing. Edit it anyway?"
 fi
 exit 0

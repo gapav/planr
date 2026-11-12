@@ -71,8 +71,8 @@ jobs:
             1. Branch: `git switch -c agent/${{ github.event.issue.number }}-short-name`.
             2. Build it. New behaviour in lib/ comes with a focused test. A schema
                change is a new file in site/supabase/migrations/ plus
-               `npm run db:bootstrap`, a `pending` row (dev and prod) in the
-               DEPLOYMENT.md ledger, and an rls.test.sql update if access changes.
+               `npm run db:bootstrap`, and an rls.test.sql update if access
+               changes. The maintainer applies it with `make migrate-*`.
             3. Finish the way /ship does (.claude/skills/ship/SKILL.md): from site/
                run `npm run lint`, `npm test`, `npm run build` and fix failures; run
                the spec-reviewer agent with the issue text, and the db-reviewer

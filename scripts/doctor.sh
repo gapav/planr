@@ -6,7 +6,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 FAIL=0
 say ""
-say "${BOLD}Plannr — disaster-recovery preflight${RST}"
+say "${BOLD}Plannr — backup, restore and migration preflight${RST}"
 rule
 
 # 1. Postgres client -------------------------------------------------------
@@ -26,6 +26,14 @@ if command -v supabase >/dev/null 2>&1; then
   ok "supabase CLI $(supabase --version 2>/dev/null | head -1)"
   if supabase projects list >/dev/null 2>&1; then ok "supabase CLI is logged in"
   else warn "supabase CLI not logged in  →  supabase login (needed for Storage files)"; FAIL=1; fi
+  # make migrate-* needs db push with --db-url and --dry-run (decision 2).
+  push_help="$(supabase db push --help 2>&1 || true)"
+  if grep -q 'db-url' <<<"$push_help" && grep -q 'dry-run' <<<"$push_help" \
+     && grep -q 'skip-vault' <<<"$push_help"; then
+    ok "supabase db push takes --db-url, --dry-run and --skip-vault (make migrate-*)"
+  else
+    warn "supabase db push lacks --db-url, --dry-run or --skip-vault  →  brew upgrade supabase"; FAIL=1
+  fi
 else
   warn "supabase CLI not found  →  brew install supabase/tap/supabase"
   FAIL=1
@@ -45,6 +53,11 @@ fi
 # 4. Repo state ------------------------------------------------------------
 count=$(ls -1 "$MIGRATIONS_DIR"/*.sql 2>/dev/null | wc -l | tr -d ' ')
 ok "$count migrations in site/supabase/migrations"
+if git -C "$REPO_ROOT" rev-parse --verify --quiet origin/main >/dev/null; then
+  ok "origin/main is known (the default cutoff for make migrate-baseline)"
+else
+  warn "No origin/main  →  git fetch origin"; FAIL=1
+fi
 if [[ -f "$SITE_DIR/supabase/prod_bootstrap.sql" ]]; then
   if (cd "$SITE_DIR" && npx vitest run scripts/build-bootstrap.test.ts >/dev/null 2>&1); then
     ok "prod_bootstrap.sql is in sync with the migrations"
@@ -57,7 +70,7 @@ else
 fi
 
 # Two migration files sharing a version makes "which ran first" unanswerable
-# from the filenames, and blocks ever adopting `supabase db push`. The one pair
+# from the filenames, and breaks `supabase db push`'s history. The one pair
 # this repo had was renamed apart; this catches the next one.
 dupes=$(ls -1 "$MIGRATIONS_DIR"/*.sql 2>/dev/null | xargs -n1 basename \
         | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d)
@@ -78,7 +91,7 @@ rule
 if (( FAIL )); then
   say "${YEL}Some checks need attention — see above.${RST}"
 else
-  say "${GRN}${BOLD}Ready.${RST} This machine can take and restore a backup."
+  say "${GRN}${BOLD}Ready.${RST} This machine can take and restore a backup, and run make migrate-*."
 fi
 say ""
 exit 0

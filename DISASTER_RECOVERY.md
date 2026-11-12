@@ -4,7 +4,8 @@ Supabase's free tier takes **no backups**. Vercel holds no data. If the
 production project is deleted, corrupted, or permanently paused, the only thing
 standing between the club and starting over is a backup you took yourself.
 
-This document is the runbook. The commands are `make backup` and `make restore`,
+This document is the runbook. The commands are `make backup`, `make restore` and,
+to finish a restore, `make migrate-baseline`,
 and both walk you through numbered steps rather than doing everything at once —
 the day you need `restore` is not the day to be reading a script for the first
 time.
@@ -13,6 +14,7 @@ time.
 make doctor    # can this machine take and restore a backup?
 make backup    # guided backup (read-only)
 make restore   # guided restore
+make migrate-baseline  # the last step of every restore
 ```
 
 No password is ever stored. Each script prompts for it, reads it without echo,
@@ -133,8 +135,8 @@ claim. Diffing it across two backups shows exactly what a release changed.
 
 ### When to run it
 
-- **Before every schema change.** Non-negotiable — migrations are applied by
-  hand in the SQL editor and there is no undo.
+- **Before every schema change.** `make migrate-prod` does it for you and
+  applies nothing if the backup fails — there is no undo.
 - **Monthly** in season.
 - **After bulk imports** — a roster import is hard to redo.
 
@@ -187,6 +189,24 @@ lossless here because both buckets' RLS policies key off the **path prefix**
 Step 9 diffs live row counts against `inventory.txt` from the backup and prints
 any table that disagrees. A clean restore matches exactly.
 
+### Last: rebuild the migration history
+
+```bash
+make migrate-baseline
+```
+
+A backup leaves out `supabase_migrations` (both exclusion lists in
+`scripts/lib.sh`), so the restored project has the whole schema and no record
+of which migrations made it. The next `make migrate-*` would try to rerun all
+of them — the row-deleting `202609020028` and `202609020029` included — so it
+refuses until the baseline has run (decision 3).
+
+`make migrate-baseline` marks migrations as applied without running them.
+Cut off at the newest migration the backed-up project held — usually the
+newest on `origin/main` at the time of the backup (its `repo_commit` is in
+`MANIFEST.txt`). If the restore went into a new project, put its ref in
+`PROD_REF` or `DEV_REF` in `scripts/lib.sh` first.
+
 ---
 
 ## Rehearse it once
@@ -201,7 +221,9 @@ row counts. It costs an hour and converts a hope into a fact.
 
 `site/supabase/prod_bootstrap.sql` is generated, not written: it is
 `site/supabase/migrations/*.sql` concatenated in filename order, so a brand-new
-empty project can be built from one paste into the SQL editor.
+empty project can be built from one file. It writes no migration history, so
+`make migrate-baseline` follows it; `make migrate-*` into an empty project does
+the same job and writes the history as it goes.
 
 ```bash
 make bootstrap    # regenerate it, then assert it matches the migrations
@@ -225,6 +247,5 @@ apart from that one banner. Nothing needs applying — it ran in production unde
 the old number.
 
 Should it happen again, `make doctor` prints a note listing any duplicated
-version. Renaming the *later* file to the next free number is the fix, and it has
-to be done before the project could adopt `supabase db push` and its migration
-history table.
+version. Renaming the *later* file to the next free number is the fix, before
+it is pushed: `supabase db push` keys its history on the version alone.
