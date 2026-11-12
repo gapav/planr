@@ -888,6 +888,20 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
    stops behaving like a control: no hover, no pointer. */
 .grep-rail-option.is-empty { color: var(--ink-disabled); cursor: default; }
 .grep-rail-option.is-empty:hover { background: none; color: var(--ink-disabled); }
+/* An open topic's undertema hang off a guide line in its tone. The line sits at
+   the topic's label (12px padding + 15px icon + 9px gap = 36px), not under its
+   icon, so the list reads as belonging to the word above it; the list keeps the
+   rail's right edge, so the counts stay in one column. The rows are smaller and
+   tighter than a topic, and a chosen one takes a lighter wash than its topic
+   plus a darker segment of the line beside it (`::before`, pulled back over the
+   padding and the border). `--rail-tint`/`--rail-tint-ink` are set on the list
+   and on every row in `exercise-filter-rail.tsx`. */
+.grep-rail-sublist { margin: 2px 0 6px 36px; padding-left: 4px; border-left: 1.5px solid color-mix(in srgb, var(--rail-tint-ink) 28%, transparent); }
+.grep-rail-option.is-sub { position: relative; min-height: 30px; padding: 4px 10px 4px 9px; border-radius: 8px; font-size: 12.5px; }
+.grep-rail-option.is-sub.is-on { background: color-mix(in srgb, var(--rail-tint) 70%, transparent); }
+.grep-rail-option.is-sub.is-on::before { content: ""; position: absolute; left: -5.5px; top: 50%; width: 1.5px; height: 18px; transform: translateY(-50%); border-radius: 1px; background: var(--rail-tint-ink); }
+.grep-rail-section.is-off .grep-rail-sublist { border-left-color: color-mix(in srgb, var(--ink-disabled) 45%, transparent); }
+.grep-rail-option.is-sub:disabled::before { background: var(--ink-disabled); }
 /* A chosen samling is shown whole, so the axes below it are switched off rather
    than taken away — the taxonomy stays visible, the rail keeps its height, and
    nothing lights up to suggest a choice is still being made. `is-on` survives

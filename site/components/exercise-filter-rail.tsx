@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils";
  * grid started 508px down an 813px viewport. A rail scrolls on its own, so the
  * taxonomy can get deeper without ever pushing an exercise off screen. It is
  * two levels: each topic opens onto its undertema (`EXERCISE_SUBTOPICS`, a fixed
- * list in lib/types.ts rather than a topics table — decision 4), indented by
- * `depth` on `RailOption`. The forbund's own bank nests a third level under
+ * list in lib/types.ts rather than a topics table — decision 4), hung off a
+ * guide line in the topic's tone (`.grep-rail-sublist`). The forbund's own bank nests a third level under
  * Forsvar and Angrep; Grep deliberately does not.
  */
 
@@ -209,13 +209,15 @@ function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, coll
           />
           {/* Every subtopic is listed, a 0 included and greyed: the structure
               is the point, and an empty one tells an author what is missing. */}
-          {expanded(category) && <ul className="grep-rail-list" aria-label={`Undertema i ${category}`}>
+          {/* The list hangs off a guide line in the topic's tone, so where
+              Angrep's undertema end is visible without reading them. */}
+          {expanded(category) && <ul className="grep-rail-list grep-rail-sublist" aria-label={`Undertema i ${category}`} style={toneStyle(categoryPresentation[category].tone)}>
             {subtopicsOf(category).map((subtopic) => <li key={subtopic}><RailOption
               label={formatSubtopic(subtopic)}
               tone={categoryPresentation[category].tone}
               count={counts.subtopics[subtopic]}
               selected={filters.subtopics.includes(subtopic)}
-              depth={1}
+              sub
               disabled={narrowed}
               onSelect={() => toggleSubtopic(subtopic)}
             /></li>)}
@@ -226,21 +228,27 @@ function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, coll
   </div>;
 }
 
+/** A tone as the two custom properties the `.grep-rail-*` rules read. */
+function toneStyle(tone?: TagTone): CSSProperties | undefined {
+  return tone ? { "--rail-tint": tagTones[tone].tint, "--rail-tint-ink": tagTones[tone].ink } as CSSProperties : undefined;
+}
+
 /**
- * One line of the rail. `depth` indents a subtopic under its topic; 0 is a
- * top-level row. `tone` is the hue this row's value wears
+ * One line of the rail. `sub` makes it an undertema row: smaller and tighter,
+ * with its indent and guide line coming from the list it sits in
+ * (`.grep-rail-sublist`). `tone` is the hue this row's value wears
  * as a tag on a card, handed to the CSS as `--rail-tint`: a chosen topic or band
  * should look in the rail like what it then picks out of the grid. A row that
  * stands for the absence of a choice passes none and keeps the brand lilac.
  */
-function RailOption({ label, icon: Icon, tone, count, selected, note, depth = 0, disabled = false, onSelect }: {
+function RailOption({ label, icon: Icon, tone, count, selected, note, sub = false, disabled = false, onSelect }: {
   label: string;
   icon?: typeof Heart;
   tone?: TagTone;
   count: number;
   selected: boolean;
   note?: string;
-  depth?: number;
+  sub?: boolean;
   /** Suspended by a chosen shortlist: still readable, no longer clickable. */
   disabled?: boolean;
   onSelect(): void;
@@ -248,10 +256,6 @@ function RailOption({ label, icon: Icon, tone, count, selected, note, depth = 0,
   // A selected row stays live however empty it is, or a filter that emptied
   // itself could never be taken off again.
   const empty = !selected && count === 0;
-  const style: CSSProperties = {
-    ...(depth ? { paddingLeft: `${12 + depth * 14}px` } : null),
-    ...(tone ? { "--rail-tint": tagTones[tone].tint, "--rail-tint-ink": tagTones[tone].ink } as CSSProperties : null),
-  };
   return <button
     type="button"
     aria-pressed={selected}
@@ -267,8 +271,8 @@ function RailOption({ label, icon: Icon, tone, count, selected, note, depth = 0,
     // order that makes the count worth keeping.
     aria-disabled={empty || undefined}
     onClick={() => { if (!empty) onSelect(); }}
-    className={cn("grep-rail-option", selected && "is-on", empty && "is-empty")}
-    style={style}
+    className={cn("grep-rail-option", sub && "is-sub", selected && "is-on", empty && "is-empty")}
+    style={toneStyle(tone)}
   >
     {Icon && <Icon size={15} className="grep-rail-icon" aria-hidden />}
     <span className="grep-rail-label">{label}{note && <small>{note}</small>}</span>

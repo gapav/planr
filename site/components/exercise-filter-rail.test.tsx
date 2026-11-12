@@ -245,7 +245,10 @@ describe("undertema in the rail", () => {
   it("indents a subtopic and gives it its topic's hue", () => {
     renderRail(state({ categories: ["Forsvar"], subtopics: ["forsvar.sma-grupper"] }));
     const row = option("Forsvarsspill i små grupper");
-    expect(row.style.paddingLeft).toBe("26px");
+    // The indent and the guide line are the sub-list's CSS, which reads the
+    // topic's tone off the list itself.
+    expect(row).toHaveClass("is-sub");
+    expect(screen.getByRole("list", { name: "Undertema i Forsvar" }).style.getPropertyValue("--rail-tint-ink")).toBe(tagTones[categoryPresentation.Forsvar.tone].ink);
     expect(row.style.getPropertyValue("--rail-tint")).toBe(tagTones[categoryPresentation.Forsvar.tone].tint);
   });
 
