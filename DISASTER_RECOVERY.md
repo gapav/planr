@@ -129,6 +129,13 @@ backups/fbbqdutatetfkybvlozx-20260913T140000Z/
 └── SHA256SUMS
 ```
 
+The Storage step ends with `Storage: N of N files`, the files downloaded
+against the rows in `storage.objects`, and `MANIFEST.txt` records the same
+line. Anything but a match is a warning to act on: until 12 November 2026 the
+bucket listing silently came back empty in a terminal, so **backups taken
+before then hold no Storage files** — they restore the database but not the
+exercise videos or team logos.
+
 `schema.sql` is worth keeping for a second reason: it is the schema as
 production *actually is*, which is stronger evidence than what the migrations
 claim. Diffing it across two backups shows exactly what a release changed.

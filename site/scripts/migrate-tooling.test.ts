@@ -88,6 +88,25 @@ describe("baseline_candidates", () => {
   });
 });
 
+describe("storage_bucket_names (make backup)", () => {
+  const lib = path.join(repoRoot, "scripts/lib.sh");
+  const buckets = (cliOutput: string) =>
+    execFileSync("bash", ["-c", 'source "$1"; storage_bucket_names', "_", lib], { input: cliOutput, encoding: "utf8" })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+
+  // In a terminal the CLI prints plain lines; the old parser wanted quotes, so
+  // every backup taken by hand skipped Storage without failing.
+  it("reads the plain lines the CLI prints in a terminal", () => {
+    expect(buckets("exercise-videos/\nteam-logos/\n")).toEqual(["exercise-videos", "team-logos"]);
+  });
+
+  it("reads the JSON the CLI prints for an agent", () => {
+    expect(buckets('{"paths":["exercise-videos/","team-logos/"],"message":""}\n')).toEqual(["exercise-videos", "team-logos"]);
+  });
+});
+
 describe("protect-applied-migrations hook", () => {
   let dir = "";
   afterEach(() => {
