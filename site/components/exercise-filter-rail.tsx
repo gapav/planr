@@ -6,8 +6,8 @@ import { bandTone } from "@/components/exercise-age-group-filter";
 import { categoryPresentation } from "@/components/exercise-category-filter";
 import { Button, Modal, tagTones, type TagTone } from "@/components/ui";
 import type { ExerciseFacetCounts, ExerciseFilterState, ExerciseShortlist } from "@/lib/exercises";
-import { formatAgeGroup, sameShortlist, toggleFilterValue } from "@/lib/exercises";
-import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, type ExerciseAgeGroup, type ExerciseCategory } from "@/lib/types";
+import { formatAgeGroup, formatSubtopic, sameShortlist, subtopicCategory, subtopicsOf, toggleFilterValue } from "@/lib/exercises";
+import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, EXERCISE_SUBTOPIC_KEYS, type ExerciseAgeGroup, type ExerciseCategory, type ExerciseSubtopic } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,10 +16,11 @@ import { cn } from "@/lib/utils";
  *
  * The panel it replaces cost 242px of every screen and grew a row per axis; the
  * grid started 508px down an 813px viewport. A rail scrolls on its own, so the
- * taxonomy can get deeper — the forbund's own bank nests three levels under
- * Forsvar and Angrep — without ever pushing an exercise off screen. Nothing here
- * nests yet: `EXERCISE_CATEGORIES` is still six flat values, and a `depth` on
- * `RailOption` is what the nesting will hang off when the topics table arrives.
+ * taxonomy can get deeper without ever pushing an exercise off screen. It is
+ * two levels: each topic opens onto its undertema (`EXERCISE_SUBTOPICS`, a fixed
+ * list in lib/types.ts rather than a topics table — decision 4), indented by
+ * `depth` on `RailOption`. The forbund's own bank nests a third level under
+ * Forsvar and Angrep; Grep deliberately does not.
  */
 
 /** One samling as the rail needs it: a name and how much is in it. */
@@ -59,7 +60,7 @@ export function ExerciseFilterRail(props: RailProps) {
  */
 export function ExerciseFilterSheet(props: RailProps) {
   const [open, setOpen] = useState(false);
-  const active = props.filters.categories.length + props.filters.ageGroups.length + (props.filters.shortlist ? 1 : 0);
+  const active = props.filters.categories.length + props.filters.subtopics.length + props.filters.ageGroups.length + (props.filters.shortlist ? 1 : 0);
   return <>
     <button type="button" onClick={() => setOpen(true)} className="grep-rail-open">
       <SlidersHorizontal size={17} />Filter{active > 0 && <span>{active}</span>}
@@ -89,7 +90,7 @@ function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, coll
   // topic left standing from before: a samling is a list somebody wrote down,
   // and it is shown whole.
   const chooseShortlist = (shortlist: ExerciseShortlist) =>
-    onChange({ shortlist: sameShortlist(filters.shortlist, shortlist) ? null : shortlist, ageGroups: [], categories: [] });
+    onChange({ shortlist: sameShortlist(filters.shortlist, shortlist) ? null : shortlist, ageGroups: [], categories: [], subtopics: [] });
   // …and while it stands, the two rows below it are off rather than gone. Gone
   // would leave a rail that is mostly empty space and a coach with no idea the
   // taxonomy is still there; off says the samling is doing the narrowing. The
@@ -109,6 +110,26 @@ function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, coll
   // says how many and then stays out of the way.
   const favoritesOn = shortlist?.kind === "favorites";
   const emptyFavorites = !favoritesOn && favoriteCount === 0;
+  // A topic opens onto its undertema once it is chosen, or once a link arrives
+  // carrying one of them. Taking the topic off takes its subtopics with it, and
+  // choosing a subtopic chooses its topic too, so the chips above the grid read
+  // "Angrep, Finter" and clearing "Angrep" clears the lot.
+  const toggleTopic = (category: ExerciseCategory) => {
+    const on = filters.categories.includes(category);
+    onChange({
+      categories: toggleFilterValue(filters.categories, category, EXERCISE_CATEGORIES),
+      subtopics: on ? filters.subtopics.filter((entry) => subtopicCategory(entry) !== category) : filters.subtopics,
+    });
+  };
+  const toggleSubtopic = (subtopic: ExerciseSubtopic) => {
+    const category = subtopicCategory(subtopic);
+    onChange({
+      categories: filters.categories.includes(category) ? filters.categories : toggleFilterValue(filters.categories, category, EXERCISE_CATEGORIES),
+      subtopics: toggleFilterValue(filters.subtopics, subtopic, EXERCISE_SUBTOPIC_KEYS),
+    });
+  };
+  const expanded = (category: ExerciseCategory) =>
+    filters.categories.includes(category) || filters.subtopics.some((entry) => subtopicCategory(entry) === category);
   return <div className="grep-rail-body">
     {canFavorite && <button
       type="button"
@@ -170,27 +191,44 @@ function RailBody({ filters, counts, suggested, canFavorite, favoriteCount, coll
     </section>
 
     <section className={cn("grep-rail-section", narrowed && "is-off")}>
-      {/* Topics union: "angrep or skudd" is how a coach looks for an idea. */}
+      {/* Topics union: "angrep or skudd" is how a coach looks for an idea. A
+          chosen subtopic narrows its own topic and leaves the others whole
+          (`matchesTopics`). */}
       <h2 className="grep-rail-heading">Tema</h2>
       <ul className="grep-rail-list">
-        <li><RailOption label="Alle tema" count={counts.allCategories} selected={filters.categories.length === 0} disabled={narrowed} onSelect={() => onChange({ categories: [] })} /></li>
-        {EXERCISE_CATEGORIES.map((category) => <li key={category}><RailOption
-          label={category}
-          icon={categoryPresentation[category].icon}
-          tone={categoryPresentation[category].tone}
-          count={counts.categories[category]}
-          selected={filters.categories.includes(category)}
-          disabled={narrowed}
-          onSelect={() => onChange({ categories: toggleFilterValue(filters.categories, category as ExerciseCategory, EXERCISE_CATEGORIES) })}
-        /></li>)}
+        <li><RailOption label="Alle tema" count={counts.allCategories} selected={filters.categories.length === 0 && filters.subtopics.length === 0} disabled={narrowed} onSelect={() => onChange({ categories: [], subtopics: [] })} /></li>
+        {EXERCISE_CATEGORIES.map((category) => <li key={category}>
+          <RailOption
+            label={category}
+            icon={categoryPresentation[category].icon}
+            tone={categoryPresentation[category].tone}
+            count={counts.categories[category]}
+            selected={filters.categories.includes(category)}
+            disabled={narrowed}
+            onSelect={() => toggleTopic(category)}
+          />
+          {/* Every subtopic is listed, a 0 included and greyed: the structure
+              is the point, and an empty one tells an author what is missing. */}
+          {expanded(category) && <ul className="grep-rail-list" aria-label={`Undertema i ${category}`}>
+            {subtopicsOf(category).map((subtopic) => <li key={subtopic}><RailOption
+              label={formatSubtopic(subtopic)}
+              tone={categoryPresentation[category].tone}
+              count={counts.subtopics[subtopic]}
+              selected={filters.subtopics.includes(subtopic)}
+              depth={1}
+              disabled={narrowed}
+              onSelect={() => toggleSubtopic(subtopic)}
+            /></li>)}
+          </ul>}
+        </li>)}
       </ul>
     </section>
   </div>;
 }
 
 /**
- * One line of the rail. `depth` is where a nested topic will indent from; it is
- * always 0 while the taxonomy is flat. `tone` is the hue this row's value wears
+ * One line of the rail. `depth` indents a subtopic under its topic; 0 is a
+ * top-level row. `tone` is the hue this row's value wears
  * as a tag on a card, handed to the CSS as `--rail-tint`: a chosen topic or band
  * should look in the rail like what it then picks out of the grid. A row that
  * stands for the absence of a choice passes none and keeps the brand lilac.
@@ -254,7 +292,10 @@ export function ActiveExerciseFilters({ filters, shortlistLabel, onChange, onRes
   const chips: Array<{ key: string; label: string; clear(): void }> = [
     ...(filters.query.trim() ? [{ key: "q", label: `«${filters.query.trim()}»`, clear: () => onChange({ query: "" }) }] : []),
     ...filters.ageGroups.map((group) => ({ key: `age-${group}`, label: formatAgeGroup(group), clear: () => onChange({ ageGroups: filters.ageGroups.filter((entry) => entry !== group) }) })),
-    ...filters.categories.map((category) => ({ key: `cat-${category}`, label: category, clear: () => onChange({ categories: filters.categories.filter((entry) => entry !== category) }) })),
+    // Clearing a topic clears its subtopics too, as in the rail. A subtopic chip
+    // names its topic, since "Teknikk" alone could be Forsvar or Målvakt.
+    ...filters.categories.map((category) => ({ key: `cat-${category}`, label: category, clear: () => onChange({ categories: filters.categories.filter((entry) => entry !== category), subtopics: filters.subtopics.filter((entry) => subtopicCategory(entry) !== category) }) })),
+    ...filters.subtopics.map((subtopic) => ({ key: `sub-${subtopic}`, label: `${subtopicCategory(subtopic)} › ${formatSubtopic(subtopic)}`, clear: () => onChange({ subtopics: filters.subtopics.filter((entry) => entry !== subtopic) }) })),
     ...(shortlistLabel ? [{ key: "shortlist", label: shortlistLabel, clear: () => onChange({ shortlist: null }) }] : []),
   ];
   if (!chips.length) return null;

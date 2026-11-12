@@ -63,7 +63,7 @@ function ExerciseLibrary() {
   const selectedCollectionId = active.shortlist?.kind === "collection" ? active.shortlist.id : null;
   const selectedCollection = selectedCollectionId ? teamCollections.find((entry) => entry.id === selectedCollectionId) ?? null : null;
   const shortlistIds = useMemo(() => shortlistExerciseIds(active.shortlist, favoriteExerciseIds, teamCollections), [active.shortlist, favoriteExerciseIds, teamCollections]);
-  const activeFilter = useMemo<ExerciseFilter>(() => ({ query: active.query, categories: active.categories, ageGroups: active.ageGroups, shortlistIds }), [active, shortlistIds]);
+  const activeFilter = useMemo<ExerciseFilter>(() => ({ query: active.query, categories: active.categories, subtopics: active.subtopics, ageGroups: active.ageGroups, shortlistIds }), [active, shortlistIds]);
   const filtered = useMemo(() => filterExercises(exercises, activeFilter), [exercises, activeFilter]);
   const counts = useMemo(() => countExerciseFacets(exercises, activeFilter), [exercises, activeFilter]);
   const filtering = hasActiveExerciseFilter(active);

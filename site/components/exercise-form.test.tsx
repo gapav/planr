@@ -63,3 +63,60 @@ describe("ExerciseForm media source", () => {
     expect(linkField()).toHaveValue("https://vimeo.com/123");
   });
 });
+
+describe("ExerciseForm undertema", () => {
+  const subtopic = (name: string) => screen.getByRole("button", { name });
+  const offered = () => [...screen.getByRole("group", { name: "Undertema" }).querySelectorAll("button")].map((button) => button.textContent);
+  const save = () => fireEvent.click(screen.getByRole("button", { name: "Legg til i øvelsesbanken" }));
+
+  it("offers only the chosen topic's subtopics", () => {
+    open();
+    expect(screen.getByLabelText("Kategori")).toHaveValue("Forsvar");
+    expect(offered()).toEqual(["Teknikk", "Forsvarsspill 1 mot 1", "Forsvarsspill i små grupper"]);
+    fireEvent.change(screen.getByLabelText("Kategori"), { target: { value: "Leker" } });
+    expect(offered()).toEqual(["Oppvarmingsleker", "Smålagsspill"]);
+  });
+
+  it("saves several subtopics from the topic", async () => {
+    const store = open();
+    fireEvent.change(screen.getByLabelText("Kategori"), { target: { value: "Angrep" } });
+    fireEvent.click(subtopic("Finter"));
+    fireEvent.click(subtopic("Ballbehandling"));
+    expect(subtopic("Finter")).toHaveAttribute("aria-pressed", "true");
+    save();
+    await vi.waitFor(() => expect(store.addExercise).toHaveBeenCalled());
+    expect(store.addExercise.mock.calls[0][0]).toMatchObject({ category: "Angrep", subtopics: ["angrep.ballbehandling", "angrep.finter"] });
+  });
+
+  it("drops the subtopics that no longer belong when the topic changes", async () => {
+    const store = open();
+    fireEvent.click(subtopic("Teknikk"));
+    fireEvent.change(screen.getByLabelText("Kategori"), { target: { value: "Målvakt" } });
+    // Målvakt has a Teknikk of its own, and it is not the one chosen.
+    expect(subtopic("Teknikk")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.change(screen.getByLabelText("Kategori"), { target: { value: "Forsvar" } });
+    expect(subtopic("Teknikk")).toHaveAttribute("aria-pressed", "false");
+    save();
+    await vi.waitFor(() => expect(store.addExercise).toHaveBeenCalled());
+    expect(store.addExercise.mock.calls[0][0]).toMatchObject({ category: "Forsvar", subtopics: [] });
+  });
+
+  it("allows saving with no subtopic", async () => {
+    const store = open();
+    save();
+    await vi.waitFor(() => expect(store.addExercise).toHaveBeenCalled());
+    expect(store.addExercise.mock.calls[0][0]).toMatchObject({ subtopics: [] });
+  });
+
+  it("opens an existing exercise on its own subtopics", async () => {
+    const updateExercise = vi.fn().mockResolvedValue(undefined);
+    mocks.useGrep.mockReturnValue({ addExercise: vi.fn(), updateExercise, uploadExerciseMedia: vi.fn(), discardExerciseMedia: vi.fn() });
+    const exercise = { id: "e1", name: "Finteløype", description: "Finter mot passiv forsvarer.", category: "Angrep", ageGroups: [], subtopics: ["angrep.finter"], mediaUrl: null, mediaKind: null, thumbnailUrl: null, createdBy: "u", createdByName: "U", archivedAt: null, createdAt: "", updatedAt: "" } as const;
+    render(<ExerciseForm open exercise={{ ...exercise, ageGroups: [], subtopics: [...exercise.subtopics] }} onClose={() => undefined} />);
+    expect(subtopic("Finter")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(subtopic("Kast og mottak"));
+    fireEvent.click(screen.getByRole("button", { name: "Lagre endringer" }));
+    await vi.waitFor(() => expect(updateExercise).toHaveBeenCalled());
+    expect(updateExercise.mock.calls[0][1]).toMatchObject({ subtopics: ["angrep.kast-og-mottak", "angrep.finter"] });
+  });
+});

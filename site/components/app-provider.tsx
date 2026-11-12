@@ -221,7 +221,7 @@ interface GrepContextValue {
 const GrepContext = createContext<GrepContextValue | null>(null);
 
 interface DbExercise {
-  id: string; name: string; description: string; category: Exercise["category"]; age_groups: Exercise["ageGroups"] | null;
+  id: string; name: string; description: string; category: Exercise["category"]; age_groups: Exercise["ageGroups"] | null; subtopics: Exercise["subtopics"] | null;
   media_url: string | null; media_kind: Exercise["mediaKind"];
   thumbnail_url: string | null; created_by: string; archived_at: string | null; created_at: string; updated_at: string;
   profiles?: { full_name?: string | null } | null;
@@ -260,7 +260,7 @@ interface DbAttendance { session_id: string; player_id: string; is_present: bool
 interface DbGrouping { session_id: string; kind: SessionGroupingKind; groups: PlayerGroup[]; generated_at: string; }
 
 function mapExercise(row: DbExercise): Exercise {
-  return { id: row.id, name: row.name, description: row.description, category: row.category, ageGroups: row.age_groups ?? [], mediaUrl: row.media_url, mediaKind: row.media_kind,
+  return { id: row.id, name: row.name, description: row.description, category: row.category, ageGroups: row.age_groups ?? [], subtopics: row.subtopics ?? [], mediaUrl: row.media_url, mediaKind: row.media_kind,
     thumbnailUrl: row.thumbnail_url, createdBy: row.created_by, createdByName: row.profiles?.full_name ?? "Trenerfellesskapet",
     archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at };
 }
@@ -642,7 +642,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const exercise: Exercise = { id, ...input, mediaKind: media.kind, thumbnailUrl: media.thumbnailUrl, createdBy: user.id, createdByName: user.fullName, archivedAt: null, createdAt: now, updatedAt: now };
     setExercises((current) => [exercise, ...current]);
     try {
-      await persist(supabase ? () => supabase.from("exercises").insert({ id, name: input.name, description: input.description, category: input.category, age_groups: input.ageGroups, media_url: input.mediaUrl, media_kind: media.kind, thumbnail_url: media.thumbnailUrl, created_by: user.id }) : null);
+      await persist(supabase ? () => supabase.from("exercises").insert({ id, name: input.name, description: input.description, category: input.category, age_groups: input.ageGroups, subtopics: input.subtopics, media_url: input.mediaUrl, media_kind: media.kind, thumbnail_url: media.thumbnailUrl, created_by: user.id }) : null);
     } catch (error) {
       setExercises((current) => current.filter((entry) => entry.id !== id));
       throw error;
@@ -659,7 +659,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const media = input.mediaUrl ? await resolveExerciseMedia(input.mediaUrl) : { kind: null, thumbnailUrl: null }; const updatedAt = new Date().toISOString();
     setExercises((current) => current.map((exercise) => exercise.id === id ? { ...exercise, ...input, mediaKind: media.kind, thumbnailUrl: media.thumbnailUrl, updatedAt } : exercise));
     try {
-      await persist(supabase ? () => supabase.from("exercises").update({ name: input.name, description: input.description, category: input.category, age_groups: input.ageGroups, media_url: input.mediaUrl, media_kind: media.kind, thumbnail_url: media.thumbnailUrl }).eq("id", id) : null);
+      await persist(supabase ? () => supabase.from("exercises").update({ name: input.name, description: input.description, category: input.category, age_groups: input.ageGroups, subtopics: input.subtopics, media_url: input.mediaUrl, media_kind: media.kind, thumbnail_url: media.thumbnailUrl }).eq("id", id) : null);
     } catch (error) {
       setExercises((current) => current.map((exercise) => exercise.id === id ? previous : exercise));
       throw error;

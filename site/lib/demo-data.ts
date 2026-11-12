@@ -90,10 +90,18 @@ const exerciseSeed = [
   ["exercise-6", "Tålmodig angrep 6 mot 5", "Kontrollert overtallsspill. Angrepet skal skape to forflytninger i forsvaret før avslutning.", "Angrep", [], "photo-1546519638-68e109498ffc", "Sam Østby", "user-sam"],
 ] as const;
 
+// Some exercises carry an undertema and some do not, so the preview shows both a
+// tagged subtopic and an exercise that sits under its topic alone.
+const demoSubtopics: Partial<Record<string, Exercise["subtopics"]>> = {
+  "exercise-1": ["angrep.sma-grupper"],
+  "exercise-2": ["forsvar.sma-grupper"],
+  "exercise-5": ["leker.oppvarming"],
+};
+
 export const demoExercises: Exercise[] = exerciseSeed.map(([id, name, description, category, ageGroups, photo, createdByName, createdBy], index) => {
   const image = `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=1000&q=82`;
   return {
-    id, name, description, category, ageGroups: [...ageGroups], mediaUrl: image, mediaKind: "image", thumbnailUrl: image, createdBy, createdByName,
+    id, name, description, category, ageGroups: [...ageGroups], subtopics: demoSubtopics[id] ?? [], mediaUrl: image, mediaKind: "image", thumbnailUrl: image, createdBy, createdByName,
     archivedAt: null, createdAt: `2026-08-${30 - index * 2}T08:00:00.000Z`, updatedAt: `2026-08-${30 - index * 2}T08:00:00.000Z`,
   };
 });

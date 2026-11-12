@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { demoExercises, demoSessions, demoWarmupRoutines } from "./demo-data";
 import type { ExerciseAgeGroup } from "./types";
-import { canEditExercise, countExerciseFacets, emptyExerciseFilterState, filterExercises, formatAgeGroup, hasActiveExerciseFilter, indexExercises, matchesAgeGroup, matchesAgeGroups, parseExerciseFilterParams, resolveAll, resolveItemDisplay, resolveSessionDisplay, resolveWarmupRoutineDisplay, sameShortlist, serializeExerciseFilterParams, shortlistExerciseIds, teamAgeGroup, toggleFilterValue } from "./exercises";
-import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES } from "./types";
+import { canEditExercise, countExerciseFacets, formatSubtopic, matchesTopics, subtopicCategory, subtopicsForCategory, subtopicsOf, emptyExerciseFilterState, filterExercises, formatAgeGroup, hasActiveExerciseFilter, indexExercises, matchesAgeGroup, matchesAgeGroups, parseExerciseFilterParams, resolveAll, resolveItemDisplay, resolveSessionDisplay, resolveWarmupRoutineDisplay, sameShortlist, serializeExerciseFilterParams, shortlistExerciseIds, teamAgeGroup, toggleFilterValue } from "./exercises";
+import { EXERCISE_AGE_GROUPS, EXERCISE_CATEGORIES, EXERCISE_SUBTOPIC_KEYS, EXERCISE_SUBTOPICS, type ExerciseCategory, type ExerciseSubtopic } from "./types";
 
 describe("exercise filtering", () => {
   it("filters exercises by category", () => {
@@ -142,9 +142,9 @@ describe("filter state and its query string", () => {
   });
 
   it("round-trips a filter through the query string", () => {
-    const state = { query: "kant", categories: ["Angrep", "Forsvar"] as const, ageGroups: ["13-15"] as const, shortlist: { kind: "favorites" } as const };
-    const restored = parseExerciseFilterParams(serializeExerciseFilterParams({ ...state, categories: [...state.categories], ageGroups: [...state.ageGroups] }));
-    expect(restored).toEqual({ query: "kant", categories: ["Forsvar", "Angrep"], ageGroups: ["13-15"], shortlist: { kind: "favorites" } });
+    const state = { query: "kant", categories: ["Angrep", "Forsvar"] as const, subtopics: ["forsvar.teknikk", "angrep.finter"] as const, ageGroups: ["13-15"] as const, shortlist: { kind: "favorites" } as const };
+    const restored = parseExerciseFilterParams(serializeExerciseFilterParams({ ...state, categories: [...state.categories], subtopics: [...state.subtopics], ageGroups: [...state.ageGroups] }));
+    expect(restored).toEqual({ query: "kant", categories: ["Forsvar", "Angrep"], subtopics: ["forsvar.teknikk", "angrep.finter"], ageGroups: ["13-15"], shortlist: { kind: "favorites" } });
   });
 
   it("round-trips a samling through the query string", () => {
@@ -378,5 +378,98 @@ describe("an exercise with no stated age", () => {
       { id: "c", name: "For laget", description: "", category: "Angrep" as const, ageGroups: ["10-12" as const] },
     ];
     expect(filterExercises(library, { ageGroups: ["10-12"] }).map((entry) => entry.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("undertema", () => {
+  const row = (id: string, category: ExerciseCategory, subtopics: ExerciseSubtopic[] = []) =>
+    ({ id, name: id, description: "", category, ageGroups: [], subtopics });
+  const library = [
+    row("finter", "Angrep", ["angrep.finter"]),
+    row("finter-og-kast", "Angrep", ["angrep.finter", "angrep.kast-og-mottak"]),
+    row("kast", "Angrep", ["angrep.kast-og-mottak"]),
+    row("angrep-uten", "Angrep"),
+    row("forsvar-teknikk", "Forsvar", ["forsvar.teknikk"]),
+    row("forsvar-uten", "Forsvar"),
+    row("lufta", "Skuddferdigheter", ["skudd.lufta"]),
+  ];
+  const ids = (filter: Parameters<typeof filterExercises>[1]) => filterExercises(library, filter).map((exercise) => exercise.id);
+
+  it("keys each subtopic to one topic, with no key used twice", () => {
+    expect(new Set(EXERCISE_SUBTOPIC_KEYS).size).toBe(EXERCISE_SUBTOPIC_KEYS.length);
+    for (const category of EXERCISE_CATEGORIES) {
+      for (const { key } of EXERCISE_SUBTOPICS[category]) expect(subtopicCategory(key)).toBe(category);
+    }
+    // "Teknikk" is a label twice and a key once each.
+    expect(formatSubtopic("forsvar.teknikk")).toBe("Teknikk");
+    expect(formatSubtopic("malvakt.teknikk")).toBe("Teknikk");
+    expect(subtopicsOf("Leker")).toEqual(["leker.oppvarming", "leker.smalagsspill"]);
+  });
+
+  it("shows only the exercises tagged with a chosen subtopic, never an untagged one", () => {
+    expect(ids({ categories: ["Angrep"], subtopics: ["angrep.finter"] })).toEqual(["finter", "finter-og-kast"]);
+    // The same without the topic, as a hand-written link might arrive.
+    expect(ids({ subtopics: ["angrep.finter"] })).toEqual(["finter", "finter-og-kast"]);
+    expect(matchesTopics(row("x", "Angrep"), ["Angrep"], ["angrep.finter"])).toBe(false);
+  });
+
+  it("still shows the whole topic, tagged or not, while none of its subtopics is chosen", () => {
+    expect(ids({ categories: ["Angrep"] })).toEqual(["finter", "finter-og-kast", "kast", "angrep-uten"]);
+  });
+
+  it("combines several subtopics as a union", () => {
+    expect(ids({ categories: ["Angrep"], subtopics: ["angrep.finter", "angrep.kast-og-mottak"] })).toEqual(["finter", "finter-og-kast", "kast"]);
+    expect(ids({ subtopics: ["angrep.finter", "skudd.lufta"] })).toEqual(["finter", "finter-og-kast", "lufta"]);
+  });
+
+  it("narrows only the topic a subtopic belongs to", () => {
+    expect(ids({ categories: ["Angrep", "Forsvar"], subtopics: ["angrep.finter"] })).toEqual(["finter", "finter-og-kast", "forsvar-teknikk", "forsvar-uten"]);
+  });
+
+  it("still applies the other dimensions to a subtopic", () => {
+    expect(ids({ subtopics: ["angrep.finter"], shortlistIds: new Set(["finter-og-kast"]) })).toEqual(["finter-og-kast"]);
+    expect(ids({ subtopics: ["angrep.finter"], query: "og-kast" })).toEqual(["finter-og-kast"]);
+  });
+
+  it("treats a row without subtopics as untagged", () => {
+    const bare = { id: "bare", name: "bare", description: "", category: "Angrep" as const, ageGroups: [] };
+    expect(filterExercises([bare], { categories: ["Angrep"] })).toHaveLength(1);
+    expect(filterExercises([bare], { subtopics: ["angrep.finter"] })).toHaveLength(0);
+  });
+
+  it("counts every subtopic, an empty one as 0, with the whole Tema dimension lifted", () => {
+    const counts = countExerciseFacets(library, { categories: ["Forsvar"], subtopics: ["forsvar.teknikk"] });
+    expect(Object.keys(counts.subtopics)).toEqual([...EXERCISE_SUBTOPIC_KEYS]);
+    expect(counts.subtopics["angrep.finter"]).toBe(2);
+    expect(counts.subtopics["angrep.kast-og-mottak"]).toBe(2);
+    expect(counts.subtopics["forsvar.teknikk"]).toBe(1);
+    expect(counts.subtopics["malvakt.teknikk"]).toBe(0);
+    // Choosing a subtopic does not shrink its own topic's badge.
+    expect(counts.categories.Forsvar).toBe(2);
+    expect(counts.allCategories).toBe(library.length);
+  });
+
+  it("measures subtopic counts against the other filters", () => {
+    const counts = countExerciseFacets(library, { query: "kast" });
+    expect(counts.subtopics["angrep.finter"]).toBe(1);
+    expect(counts.subtopics["angrep.kast-og-mottak"]).toBe(2);
+  });
+
+  it("round-trips subtopics through `undertema=`, dropping unknown keys", () => {
+    const state = { ...emptyExerciseFilterState(), categories: ["Angrep" as const], subtopics: ["angrep.finter" as const, "angrep.1-mot-1" as const] };
+    const params = serializeExerciseFilterParams(state);
+    expect(params.get("undertema")).toBe("angrep.finter,angrep.1-mot-1");
+    expect(parseExerciseFilterParams(params)).toEqual(state);
+    expect(parseExerciseFilterParams(new URLSearchParams("undertema=angrep.1-mot-1,angrep.trolldom,Finter,angrep.finter")).subtopics).toEqual(["angrep.finter", "angrep.1-mot-1"]);
+    expect(serializeExerciseFilterParams(emptyExerciseFilterState()).has("undertema")).toBe(false);
+  });
+
+  it("notices a chosen subtopic as an active filter", () => {
+    expect(hasActiveExerciseFilter({ ...emptyExerciseFilterState(), subtopics: ["skudd.lufta"] })).toBe(true);
+  });
+
+  it("keeps only the subtopics of a topic, in list order", () => {
+    expect(subtopicsForCategory(["angrep.finter", "forsvar.teknikk", "angrep.ballbehandling"], "Angrep")).toEqual(["angrep.ballbehandling", "angrep.finter"]);
+    expect(subtopicsForCategory(["angrep.finter"], "Forsvar")).toEqual([]);
   });
 });
