@@ -29,4 +29,9 @@ describe("ExerciseDetail", () => {
     expect(screen.getByText("Teknikk")).toBeInTheDocument();
     expect(screen.getByText("Finter")).toBeInTheDocument();
   });
+
+  it("shows Leker's small-sided games as «Ballspill»", () => {
+    render(<ExerciseDetail exercise={{ ...sessionItemDetailSubject({ title: "Stikkball", description: "To lag.", mediaUrl: null, thumbnailUrl: null }), category: "Leker", subtopics: ["leker.smalagsspill"] }} onClose={() => undefined} />);
+    expect(screen.getByText("Ballspill")).toBeInTheDocument();
+  });
 });

@@ -74,7 +74,7 @@ describe("ExerciseForm undertema", () => {
     expect(screen.getByLabelText("Kategori")).toHaveValue("Forsvar");
     expect(offered()).toEqual(["Teknikk", "Forsvarsspill 1 mot 1", "Forsvarsspill i små grupper"]);
     fireEvent.change(screen.getByLabelText("Kategori"), { target: { value: "Leker" } });
-    expect(offered()).toEqual(["Oppvarmingsleker", "Smålagsspill"]);
+    expect(offered()).toEqual(["Oppvarmingsleker", "Ballspill"]);
   });
 
   it("saves several subtopics from the topic", async () => {
