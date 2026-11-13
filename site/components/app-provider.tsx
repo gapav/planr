@@ -3,7 +3,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { mapAdminAccount, mapAdminTeam, partitionSessionsByMembership, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
-import { authEventLoadsWorkspace, claimableInvitations, invitationUrl, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, seedProfile, shouldLoadWorkspace, type WorkspaceLoad } from "@/lib/auth";
+import { authEventLoadsWorkspace, claimableInvitations, invitationUrl, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, seedProfile, type WorkspaceLoad, workspaceSettle } from "@/lib/auth";
 import { demoCollections, demoExercises, demoFixtures, demoFocusPeriods, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { collectionNameError, normalizeCollectionName, sortCollections } from "@/lib/collections";
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
@@ -489,22 +489,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // decide whether an auth event is worth eleven more queries; see the comment
   // there for the two events that made it worth tracking.
   const lastWorkspaceLoad = useRef<WorkspaceLoad | null>(null);
+  // The load `settleWorkspace` has running, if any. A second auth event skipped
+  // while it runs must not settle `workspaceLoaded` early (#30); only the
+  // running load's `finally` does, and only while it is still the current one.
+  const workspaceLoadInFlight = useRef<{ userId: string } | null>(null);
   const settleWorkspace = useCallback((authUser: User | null) => {
     setAuthLoading(false);
-    if (!authUser) { lastWorkspaceLoad.current = null; loadedProfileId.current = null; setExercises([]); setExercisesLoaded(true); setWorkspaceLoaded(true); return; }
+    const decision = workspaceSettle(lastWorkspaceLoad.current, workspaceLoadInFlight.current?.userId ?? null, authUser?.id ?? null, Date.now());
+    if (!authUser) { lastWorkspaceLoad.current = null; workspaceLoadInFlight.current = null; loadedProfileId.current = null; setExercises([]); setExercisesLoaded(true); setWorkspaceLoaded(true); return; }
     // `finally`, as below: a failed fetch settles to the empty library.
     void loadExercises().catch(() => undefined).finally(() => setExercisesLoaded(true));
-    if (!shouldLoadWorkspace(lastWorkspaceLoad.current, authUser.id, Date.now())) { setWorkspaceLoaded(true); return; }
+    if (decision === "wait") return;
+    if (decision === "settle") { setWorkspaceLoaded(true); return; }
     // Claimed before the load rather than after, so the second of two events
     // arriving while the first is still in flight is skipped too. A load that
     // that fails gives the claim back so the next event retries.
     lastWorkspaceLoad.current = { userId: authUser.id, at: Date.now() };
+    const load = { userId: authUser.id };
+    workspaceLoadInFlight.current = load;
     // `finally`, not `then`: a failed load still settles the workspace, or a
     // waiting page spins for ever on the arena wifi this app is used on.
     void loadPrivateData(authUser)
       .then((loaded) => { if (!loaded) lastWorkspaceLoad.current = null; })
       .catch(() => { lastWorkspaceLoad.current = null; })
-      .finally(() => setWorkspaceLoaded(true));
+      .finally(() => {
+        // A load overtaken by another coach's, or by signing out, leaves the
+        // flag to whoever replaced it.
+        if (workspaceLoadInFlight.current !== load) return;
+        workspaceLoadInFlight.current = null;
+        setWorkspaceLoaded(true);
+      });
   }, [loadExercises, loadPrivateData]);
 
   useEffect(() => {

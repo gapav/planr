@@ -161,3 +161,29 @@ export function authEventLoadsWorkspace(event: string, last: WorkspaceLoad | nul
   if (isIdentityChange(event)) return true;
   return event === "TOKEN_REFRESHED" && userId !== null && last?.userId !== userId;
 }
+
+/** What `settleWorkspace` does with an auth event. */
+export type WorkspaceSettle = "settle" | "load" | "wait";
+
+/**
+ * What an auth event does to the workspace and to `workspaceLoaded`.
+ *
+ * Two signals arrive on every page load — `onAuthStateChange` at once from the
+ * stored session, `getUser()` a network round trip later — and the first one
+ * claims the load. When the second was skipped by `shouldLoadWorkspace`, it
+ * used to settle the flag on the spot, while the first load was still running,
+ * so on a slow phone every gated screen flashed its empty state («Du er ikke
+ * med på noe lag ennå») to a coach who is on a team. A skip for the coach whose
+ * load is in flight now waits, and the running load's `finally` settles it.
+ *
+ * - `settle`: nothing to fetch, mark the workspace loaded now — no one is
+ *   signed in, or the data in hand is fresh and no load is running for them
+ *   (a refocus inside the throttle).
+ * - `load`: start `loadPrivateData`; its `finally` settles the flag.
+ * - `wait`: a load for this coach is already running; leave the flag alone.
+ */
+export function workspaceSettle(last: WorkspaceLoad | null, inFlightUserId: string | null, userId: string | null, now: number, minIntervalMs: number = WORKSPACE_RELOAD_INTERVAL_MS): WorkspaceSettle {
+  if (!userId) return "settle";
+  if (shouldLoadWorkspace(last, userId, now, minIntervalMs)) return "load";
+  return inFlightUserId === userId ? "wait" : "settle";
+}

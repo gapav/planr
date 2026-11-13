@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS } from "./auth";
+import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS, workspaceSettle } from "./auth";
 import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
@@ -213,5 +213,36 @@ describe("authEventLoadsWorkspace", () => {
 
   it("does nothing for a refresh without a user", () => {
     expect(authEventLoadsWorkspace("TOKEN_REFRESHED", null, null)).toBe(false);
+  });
+});
+
+describe("workspaceSettle", () => {
+  const last = { userId: "coach-1", at: 1_000_000 };
+
+  it("loads when nothing has been loaded yet", () => {
+    expect(workspaceSettle(null, null, "coach-1", 1_000_000)).toBe("load");
+  });
+
+  it("waits for the running load when the second event of a page load is skipped", () => {
+    // getUser() resolving after INITIAL_SESSION has claimed and started the load.
+    expect(workspaceSettle(last, "coach-1", "coach-1", last.at + 40)).toBe("wait");
+  });
+
+  it("settles at once on a refocus inside the throttle with nothing in flight", () => {
+    expect(workspaceSettle(last, null, "coach-1", last.at + 30_000)).toBe("settle");
+  });
+
+  it("loads for a different coach, even while another load runs", () => {
+    expect(workspaceSettle(last, null, "coach-2", last.at + 40)).toBe("load");
+    expect(workspaceSettle(last, "coach-1", "coach-2", last.at + 40)).toBe("load");
+  });
+
+  it("reloads once the data has gone stale", () => {
+    expect(workspaceSettle(last, null, "coach-1", last.at + WORKSPACE_RELOAD_INTERVAL_MS)).toBe("load");
+  });
+
+  it("settles at once when no one is signed in", () => {
+    expect(workspaceSettle(null, null, null, 1_000_000)).toBe("settle");
+    expect(workspaceSettle(last, "coach-1", null, last.at + 40)).toBe("settle");
   });
 });
