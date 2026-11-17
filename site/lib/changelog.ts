@@ -20,9 +20,9 @@ export const RELEASES: readonly Release[] = [
     version: "1.3.0",
     date: "2026-11-17",
     highlights: [
-      "Nytt i menyen: Håndballskolen, med leksjoner du kan gå gjennom med laget.",
-      "Den første leksjonen er utgruppert forsvar for 11-åringer: 3:2 og 2:2:1, forflytning med ball, overganger, en øvelse i å finne plassen sin og en quiz.",
-      "Trykk «Vis på storskjerm» for å vise leksjonen på en skjerm i hallen.",
+      "Nytt i menyen: Håndballskolen, med leksjoner laget for både trenere og spillere.",
+      "Den første leksjonen er utgruppert forsvar for 11-åringer.",
+      "Trykk «Vis på storskjerm» for å vise leksjonen under spillermøter!",
     ],
   },
   {
