@@ -151,11 +151,6 @@ export function countOutsideNine(points: readonly Point[], nedgruppert = false) 
   return (nedgruppert ? points.slice(0, 4) : points).filter(([x, y]) => distanceFromGoal(x, y) > 9).length;
 }
 
-/** «1,6» — Norwegian decimal comma, one decimal. */
-export function formatMetres(metres: number) {
-  return metres.toFixed(1).replace(".", ",");
-}
-
 const BALL_TIPS = {
   "32kant": "1'eren på ballsiden jobber frem mot kanten. 2'eren og 3'eren forflytter seg mot ballsiden. 1'eren på motsatt side trekker inn mot midten.",
   "32back": "2'eren på ballsiden jobber frem mot ballfører, men holder avstand. 3'eren forflytter seg mot ballsiden, og den andre 2'eren dekker midtsektoren. 1'eren på motsatt side trekker inn.",
@@ -281,7 +276,38 @@ export function placementSide(role: number) {
   return role < 4 ? (role % 2 ? " (den til høyre på tegningen)" : " (den til venstre på tegningen)") : "";
 }
 
-export const PLACEMENT_VERDICTS: Record<Score, string> = { 0: "Ikke helt.", 1: "Nesten!", 2: "Perfekt plassert!" };
+export type PlacementFeedback = { verdict: string; cue: string | null };
+
+/**
+ * What a coach would say, not a measurement: praise when the player is on
+ * the spot, otherwise which way to move — towards the goal or out, towards
+ * the ball or away from it. The points still follow `scorePlacement`.
+ */
+export function placementFeedback(me: Point, target: Point, ballX: number): PlacementFeedback {
+  const distance = Math.hypot(me[0] - target[0], me[1] - target[1]);
+  if (distance <= 0.5) return { verdict: "Bra! Der står du perfekt.", cue: null };
+  const way = placementDirection(me, target, ballX);
+  if (distance <= 1.6) return { verdict: "Bra! Du står riktig.", cue: `Ett lite steg ${way}, så er det perfekt.` };
+  if (distance <= 2.8) return { verdict: "Nesten!", cue: `Flytt deg litt ${way}.` };
+  return { verdict: "Ikke helt.", cue: `Du skal stå ${way}. Se på den stiplede ringen.` };
+}
+
+/** «nærmere mål», «lenger ut», «mot ballen», «bort fra ballen», or two of them. */
+export function placementDirection(me: Point, target: Point, ballX: number): string {
+  const dy = target[1] - me[1];
+  const dx = Math.abs(target[0] - ballX) - Math.abs(me[0] - ballX);
+  const depth = dy < 0 ? "nærmere mål" : "lenger ut";
+  const side = dx < 0 ? "mot ballen" : "bort fra ballen";
+  const [major, minor] = Math.abs(dy) >= Math.abs(dx) ? [depth, side] : [side, depth];
+  const small = Math.min(Math.abs(dy), Math.abs(dx));
+  const large = Math.max(Math.abs(dy), Math.abs(dx));
+  return small > 0.5 && small > large / 2 ? `${major} og ${minor}` : major;
+}
+
+/** Where the ball is across the court in a task: its holder's x. */
+export function ballX(task: Pick<PlacementTask, "setup" | "ball">): number {
+  return attackPositions(task.setup, task.ball)[ATTACKERS[task.setup].indexOf(task.ball)][0];
+}
 
 // «Riktig eller feil?»
 

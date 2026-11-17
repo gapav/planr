@@ -96,14 +96,15 @@ describe("Utgruppert forsvar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sjekk" }));
 
-    expect(screen.getByText(/Du sto \d+,\d m fra plassen i den stiplede ringen\./)).toBeInTheDocument();
-    expect(screen.getByText(/^(Ikke helt\.|Nesten!|Perfekt plassert!)$/)).toBeInTheDocument();
+    const result = document.querySelector(".lesson-result")!;
+    expect(result).toHaveTextContent(/^(Bra! Der står du perfekt\.|Bra! Du står riktig\. Ett lite steg|Nesten! Flytt deg litt|Ikke helt\. Du skal stå)/);
+    expect(result).not.toHaveTextContent(/\d+,\d m/);
     expect(screen.getByText(/^Poeng:/)).toHaveTextContent(/^Poeng: [012] av 2$/);
     expect(screen.getByRole("button", { name: "Sjekk" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Ny oppgave" }));
     expect(screen.getByRole("button", { name: "Sjekk" })).toBeEnabled();
-    expect(screen.queryByText(/Du sto/)).not.toBeInTheDocument();
+    expect(document.querySelector(".lesson-result")).toBeNull();
   });
 
   it("moves «Deg» with the arrow keys", () => {

@@ -50,7 +50,8 @@ export type HandballCourtProps = {
   /** An arrow for a run, as an SVG path in court units. */
   run?: string;
   ball?: { at: Point; duration?: number } | null;
-  /** A dashed line from where a player stands to where they should stand. */
+  /** A dashed line from where a player stands to where they should stand.
+   *  Its label sits under the ring, so it never lands on the player's own. */
   guide?: { from: Point; to: Point; label: string } | null;
   /** Thickens the 9 m line. */
   highlightNine?: boolean;
@@ -132,7 +133,7 @@ export function HandballCourt({ label, pieces, zones = [], passes = [], run, bal
 
     {guide && <g aria-hidden="true">
       <line className="court-guide" x1={u(guide.from[0])} y1={u(guide.from[1])} x2={u(guide.to[0])} y2={u(guide.to[1])} />
-      <g transform={`translate(${u(guide.to[0])} ${u(guide.to[1])})`}><circle className="court-guide-ring" r="11.5" /><text className="court-caption" y="-15">{guide.label}</text></g>
+      <g transform={`translate(${u(guide.to[0])} ${u(guide.to[1])})`}><circle className="court-guide-ring" r="11.5" /><text className="court-caption" y="21">{guide.label}</text></g>
     </g>}
 
     {ball && <g aria-hidden="true" className="court-piece court-ball" style={{ transform: place(ball.at), transition: `transform ${ball.duration ?? 0}ms ${EASE}` }}>
