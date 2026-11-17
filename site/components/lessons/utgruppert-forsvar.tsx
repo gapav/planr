@@ -68,7 +68,8 @@ function RoleText({ text }: { text: string }) {
 function marked(node: ReactNode): ReactNode {
   if (typeof node === "string") return <RoleText text={node} />;
   if (Array.isArray(node)) return node.map((child, index) => <Fragment key={index}>{marked(child)}</Fragment>);
-  if (isValidElement(node) && typeof node.type === "string") {
+  // Headings stay plain: a heading in three coloured words outshouts the court.
+  if (isValidElement(node) && typeof node.type === "string" && !/^h[1-6]$/.test(node.type)) {
     const element = node as ReactElement<{ children?: ReactNode }>;
     return element.props.children === undefined ? element : cloneElement(element, undefined, marked(element.props.children));
   }
@@ -127,7 +128,10 @@ export function UtgruppertForsvarLesson({ random = Math.random }: { random?: () 
       }
     }
     if (step === "roller") next = { ...base, setup: "noL", ball: "MB", zones: true };
-    if (step === "ballen") next = { ...base, formation: "221", setup: "noL", ball: "VB", zones: true };
+    // «Forflytning med ball» opens without zones, so the movement is what the
+    // eye follows first; «Vis soner» brings them in. «Overgang» has no such
+    // button, so its zones stay on.
+    if (step === "ballen") next = { ...base, formation: "221", setup: "noL", ball: "VB", zones: false };
     if (step === "overgang") next = overgangReset({ ...base, formation: "221", zones: true });
     if (step === "spill") next = withTask(base, newPlacementTask(random, null));
     if (step === "quiz") setQuiz((current) => current ?? startQuiz());
@@ -305,8 +309,10 @@ export function UtgruppertForsvarLesson({ random = Math.random }: { random?: () 
   });
   const ballX = holder >= 0 ? attack[holder][0] : 10;
   pieces.push({ id: "mv", kind: "keeper", label: "MV", at: [10 + (ballX - 10) * 0.12, KEEPER_Y], duration: s.motion.defence });
-  const zones = s.zones && !s.nedgruppert ? zonesFor(s.formation, s.kantRun ? "L" : s.setup).map((zone) => ({ ...zone, dim: s.focus !== 0 && s.focus !== zone.role })) : [];
-  const ball = holder >= 0 ? { at: [attack[holder][0] + 0.8, attack[holder][1] - 0.8] as Point, duration: s.motion.ball } : null;
+  const zones = s.zones && !s.nedgruppert ? zonesFor(s.formation, s.kantRun ? "L" : s.setup).map((zone) => ({ ...zone, dim: s.focus !== 0 && s.focus !== zone.role, focus: s.focus === zone.role })) : [];
+  // The ball sits on the far side of its holder from the goal, where no
+  // defender stands, so it never covers a number.
+  const ball = holder >= 0 ? { at: [attack[holder][0] + (attack[holder][0] < 10 ? -0.9 : 0.9), attack[holder][1] + 0.9] as Point, duration: s.motion.ball } : null;
 
   const pressed = (on: boolean) => ({ "aria-pressed": on });
   const ballTip = s.ball ? tipFor(s.formation, s.setup, s.ball) : "";
@@ -421,7 +427,7 @@ export function UtgruppertForsvarLesson({ random = Math.random }: { random?: () 
             <div className="lesson-roles">
               {([1, 2, 3] as const).map((role) => <button key={role} type="button" className="lesson-card lesson-role-card" {...pressed(s.focus === role)} onClick={() => toggleFocus(role, true)}>
                 <i className={`lesson-dot lesson-dot-${role} lesson-dot-big`} aria-hidden="true">{role}</i>
-                <span><b><RoleText text={roleNames[role]} /></b><br /><RoleText text={ROLE_TASKS[s.formation][role - 1]} /></span>
+                <span><b>{roleNames[role]}</b><br /><RoleText text={ROLE_TASKS[s.formation][role - 1]} /></span>
               </button>)}
             </div>
           </>}
@@ -495,7 +501,9 @@ export function UtgruppertForsvarLesson({ random = Math.random }: { random?: () 
 
           <div className="lesson-pager">
             <Button variant="ghost" disabled={stepIndex === 0} onClick={() => jump(-1)}><ArrowLeft size={17} aria-hidden="true" />Forrige</Button>
-            <Button onClick={() => jump(1)}>{stepIndex < STEPS.length - 1 ? <>Neste: {STEPS[stepIndex + 1].title}<ArrowRight size={17} aria-hidden="true" /></> : "Til start"}</Button>
+            {/* One apricot button per step: where the step has its own action
+                («Kjør overgang», «Sjekk», the quiz's answers), «Neste» steps back. */}
+            <Button variant={["overgang", "spill", "quiz"].includes(s.step) ? "secondary" : "primary"} onClick={() => jump(1)}>{stepIndex < STEPS.length - 1 ? <>Neste: {STEPS[stepIndex + 1].title}<ArrowRight size={17} aria-hidden="true" /></> : "Til start"}</Button>
           </div>
         </section>
       </div>
