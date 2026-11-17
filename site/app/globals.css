@@ -158,6 +158,25 @@
   --lilac-edge: #b493cb;
   --lilac-ink: #40244f;
   --lilac-ink-soft: #715287;
+  /* Håndballskolen's court (decision 10): a purple hall floor so the role
+     brights and the dark opponents both stand out on it. Markings and labels
+     are read on the floor and in the 6 m area. */
+  --court-ground: #6e5190;
+  --court-floor: #8565a6;
+  --court-area: #5a3d78;
+  --court-marking: #ffffff;
+  --court-label: #ffffff;
+  --court-net: #b9a3d1;
+  --court-goal: #ffb28a;
+  --court-shadow: #2e1b3d4d;
+  /* The defence's three roles, in Grep's brights, numbered in --on-bright.
+     Opponents wear --chrome. */
+  --role-1: var(--grep-apricot);
+  --role-2: var(--lime);
+  --role-3: #a8e6c4;
+  --keeper: #9cc9ea;
+  --ball: #ffffff;
+  --ball-seam: #e0622a;
 }
 
 /* Screen only: «Skriv ut» on a session is read on white paper whatever the
@@ -263,6 +282,22 @@
     --lilac-edge: #7b5f99;
     --lilac-ink: #e0cff5;
     --lilac-ink-soft: #c8a6e4;
+    --court-ground: #2a2036;
+    --court-floor: #4a3a5e;
+    --court-area: #33264a;
+    --court-marking: #e9ddf7;
+    --court-label: #e9ddf7;
+    --court-net: #6d5a85;
+    --court-goal: #f0a07c;
+    --court-shadow: #00000066;
+    /* A step down from the light brights, so five of them on a dark floor
+       do not glare on a TV in a dim hall. */
+    --role-1: #f0a07c;
+    --role-2: #c9d88a;
+    --role-3: #94d1b0;
+    --keeper: #8ab8da;
+    --ball: #f2ecf5;
+    --ball-seam: #f08a55;
   }
 }
 
@@ -1115,6 +1150,188 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
   .overview-next .grep-action { width: 100%; }
   .overview-shortcut { min-height: 78px; padding: 15px 18px; }
   .overview-shortcut-icon { width: 44px; height: 44px; border-radius: 12px; }
+}
+/* Håndballskolen (decision 10). The index is a list of cards; a lesson is a
+   court beside a panel, with the steps above. «Vis på storskjerm» drops the
+   shell (`AppShell presenting`) and scales type up for the back of a hall. */
+@media (min-width: 1024px) { .grep-shell.grep-shell-presenting { display: block; } }
+.lesson-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.lesson-index-card { display: flex; align-items: flex-start; gap: 16px; height: 100%; padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); transition: border-color .15s; }
+.lesson-index-card:hover { border-color: var(--line-hover-strong); }
+.lesson-index-icon { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 48px; border-radius: 14px; background: var(--grep-lilac); color: var(--lilac-ink); }
+.lesson-index-copy { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 0; }
+.lesson-index-copy strong { font-size: 21px; font-weight: 650; letter-spacing: -.03em; }
+.lesson-index-summary { color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
+.lesson-index-steps { color: var(--ink-soft); font-size: 12px; font-weight: 600; }
+.lesson-index-arrow { flex-shrink: 0; color: var(--ink-soft); }
+
+.lesson { max-width: 1320px; }
+.lesson-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 24px; margin-bottom: 20px; }
+.lesson-back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; border-radius: 8px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.lesson-back:hover { color: var(--ink); }
+.lesson-header h1 { margin: 0; font-size: clamp(30px, 4vw, 40px); font-weight: 650; letter-spacing: -.045em; line-height: 1.1; }
+.lesson-lead { max-width: 62ch; margin: 8px 0 0; color: var(--ink-soft); font-size: 15px; line-height: 1.55; }
+.lesson-steps { display: flex; flex-wrap: wrap; gap: 6px; width: fit-content; max-width: 100%; margin-bottom: 22px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper-deep); }
+.lesson-steps button { min-height: 44px; padding: 10px 16px; border-radius: 10px; color: var(--ink-soft); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.lesson-steps button:hover { background: var(--hover-wash-strong); color: var(--ink); }
+.lesson-steps button[aria-current="step"] { background: var(--grep-lilac); color: var(--ink); }
+.lesson-stage { display: grid; align-items: start; gap: 22px; }
+.lesson-board { overflow: hidden; border-radius: 20px; background: var(--court-ground); }
+.lesson-hud { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lesson-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 14px; white-space: nowrap; }
+.lesson-chip b { font-weight: 700; }
+.lesson-chip.is-ok { border-color: var(--success-line); background: var(--success-bg); color: var(--success-ink); }
+.lesson-chip.is-bad { border-color: var(--danger-line); background: var(--danger-bg); color: var(--danger-ink); }
+.lesson-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 10px; color: var(--ink-soft); font-size: 13px; }
+.lesson-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.lesson-dot { display: inline-grid; flex-shrink: 0; place-items: center; width: 15px; height: 15px; border: 2px solid var(--court-marking); border-radius: 50%; box-shadow: 0 0 0 1px var(--line-strong); font-style: normal; }
+.lesson-dot-1 { background: var(--role-1); }
+.lesson-dot-2 { background: var(--role-2); }
+.lesson-dot-3 { background: var(--role-3); }
+.lesson-dot-opponent { background: var(--chrome); }
+.lesson-dot-keeper { background: var(--keeper); }
+.lesson-dot-big { width: 38px; height: 38px; color: var(--on-bright); font-size: 18px; font-weight: 750; }
+.lesson-panel { padding: 24px 22px 20px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); font-size: 15px; line-height: 1.6; }
+.lesson-panel h2 { margin: 0 0 10px; font-size: clamp(24px, 2.6vw, 30px); font-weight: 650; letter-spacing: -.04em; line-height: 1.15; text-wrap: balance; }
+.lesson-panel h3 { margin: 22px 0 8px; font-size: 17px; font-weight: 650; letter-spacing: -.02em; }
+.lesson-panel p { margin: 0 0 10px; }
+.lesson-panel b { font-weight: 650; }
+.lesson-small { color: var(--ink-soft); font-size: 13px; }
+.lesson-label { display: block; margin-bottom: 6px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.lesson-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.lesson-controls-wide { gap: 16px; }
+.lesson-panel .grep-segments { margin-bottom: 4px; }
+.lesson-panel .grep-segments button { font-size: 14px; }
+/* The shell styles a span in a segment as a count badge; a role name is not one. */
+.lesson-panel .grep-segments button .lesson-role { display: inline; min-width: 0; padding: .04em .32em; border-radius: .35em; background: var(--role-1); color: var(--on-bright); font-size: inherit; }
+.lesson-panel .grep-segments button .lesson-role-2 { background: var(--role-2); }
+.lesson-panel .grep-segments button .lesson-role-3 { background: var(--role-3); }
+.lesson-panel .grep-segments button:disabled { cursor: not-allowed; opacity: .4; }
+.lesson-panel .grep-button[aria-pressed="true"] { border-color: var(--lilac-line); background: var(--grep-lilac); }
+.lesson-rules { margin: 0; padding-left: 22px; }
+ol.lesson-rules { list-style: decimal; }
+ul.lesson-rules { list-style: disc; }
+.lesson-rules li { margin-bottom: 8px; }
+.lesson-card { display: grid; align-content: start; gap: 8px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); color: var(--ink); text-align: left; }
+.lesson-card:hover { border-color: var(--line-hover-strong); }
+.lesson-card[aria-pressed="true"] { border-color: var(--lilac-line); background: var(--lilac-wash); box-shadow: inset 0 0 0 1px var(--lilac-line); }
+.lesson-formations { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 0 0 12px; }
+.lesson-card-title { font-size: 28px; font-weight: 700; letter-spacing: -.04em; line-height: 1; }
+.lesson-card-text { display: block; font-size: 13px; line-height: 1.5; }
+.lesson-mini { position: relative; display: grid; gap: 9px; padding: 10px 34px 12px; border-radius: 10px; background: var(--court-floor); }
+.lesson-mini::before { content: ""; justify-self: center; width: 54px; height: 6px; border-radius: 3px; background: repeating-linear-gradient(90deg, var(--court-goal) 0 6px, var(--court-marking) 6px 12px); }
+.lesson-mini-row { position: relative; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.lesson-mini-row .lesson-dot { width: 20px; height: 20px; box-shadow: none; }
+.lesson-mini-row em { position: absolute; right: -24px; color: var(--court-label); font-size: 18px; font-style: normal; font-weight: 700; }
+.lesson-roles { display: grid; gap: 10px; margin: 12px 0; }
+.lesson-role-card { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; width: 100%; font-size: 14px; }
+.lesson-setups { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 6px; }
+.lesson-setups .lesson-card { gap: 2px; }
+.lesson-setups b { font-size: 15px; }
+.lesson-setups span { font-size: 13px; }
+.lesson-setups em { margin-left: 4px; font-size: 22px; font-style: normal; font-weight: 700; letter-spacing: -.03em; }
+.lesson-tip { margin: 14px 0; padding: 12px 14px; border-radius: 14px; background: var(--warn-bg); color: var(--ink); }
+.lesson-result { margin: 12px 0; padding: 12px 14px; border-radius: 14px; }
+.lesson-result.is-good { background: var(--success-bg); color: var(--success-ink); }
+.lesson-result.is-mid { background: var(--warn-bg); color: var(--ink); }
+.lesson-result.is-bad { background: var(--danger-bg); color: var(--danger-ink); }
+.lesson-role { padding: .04em .32em; border-radius: .35em; color: var(--on-bright); font-weight: 650; white-space: nowrap; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lesson-role-1 { background: var(--role-1); }
+.lesson-role-2 { background: var(--role-2); }
+.lesson-role-3 { background: var(--role-3); }
+.lesson-pager { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+.lesson-source { max-width: 80ch; margin-top: 28px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+@media (min-width: 880px) {
+  .lesson-stage { grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr); }
+  .lesson-board-column { position: sticky; top: 16px; }
+}
+@media (max-width: 639px) {
+  .lesson-steps { flex-wrap: nowrap; width: auto; overflow-x: auto; scrollbar-width: none; }
+  .lesson-board { border-radius: 16px; }
+}
+
+/* The court. Pieces move by a CSS transition on `transform`, set per move by
+   the lesson; the reduced-motion block below makes every move a jump. */
+.handball-court { display: block; width: 100%; height: auto; aspect-ratio: 208 / 168; -webkit-user-select: none; user-select: none; }
+.handball-court.is-placing { cursor: crosshair; }
+.court-distance { fill: var(--court-label); font-size: 8px; font-weight: 700; }
+.court-nine { stroke-width: 1.1; transition: stroke-width .3s; }
+.court-nine[data-highlight] { stroke-width: 2.2; }
+.court-zone { fill-opacity: .22; stroke-width: 1.5; transition: opacity .3s; }
+.court-zone-1 { fill: var(--role-1); stroke: var(--role-1); }
+.court-zone-2 { fill: var(--role-2); stroke: var(--role-2); }
+.court-zone-3 { fill: var(--role-3); stroke: var(--role-3); }
+.court-zone.is-dim { opacity: .12; }
+.court-run { fill: none; stroke: var(--court-marking); stroke-width: 1.6; stroke-dasharray: 3 2.5; }
+@keyframes court-pass-fade { from { opacity: .95; } to { opacity: 0; } }
+.court-pass { stroke: var(--court-marking); stroke-width: 1.4; stroke-dasharray: 3 2.5; animation: court-pass-fade 1.3s forwards; }
+.court-piece text { pointer-events: none; text-anchor: middle; font-weight: 750; }
+.court-piece.is-clickable { cursor: pointer; }
+.court-piece.is-dim { opacity: .25; }
+.court-piece.is-hidden { opacity: 0; pointer-events: none; }
+.court-hit { fill: transparent; }
+.court-shadow { fill: var(--court-shadow); }
+.court-body { stroke: var(--court-marking); stroke-width: 1.4; }
+.court-role-1 .court-body { fill: var(--role-1); }
+.court-role-2 .court-body { fill: var(--role-2); }
+.court-role-3 .court-body { fill: var(--role-3); }
+.court-defender .court-number { fill: var(--on-bright); font-size: 12.5px; }
+.court-attacker .court-body { fill: var(--chrome); }
+.court-attacker .court-number { fill: var(--on-chrome); font-size: 8.6px; }
+.court-keeper .court-body { fill: var(--keeper); }
+.court-keeper .court-number { fill: var(--on-bright); font-size: 8px; }
+.court-piece.is-standin .court-body { stroke-dasharray: 3 2; stroke-width: 2; }
+.court-ring { fill: none; stroke: var(--court-marking); stroke-width: 1.5; opacity: 0; }
+.court-ring.is-dashed { opacity: .95; stroke-dasharray: 3 2.2; }
+.court-ring.is-solid { opacity: 1; stroke-width: 2.4; }
+.court-piece:focus { outline: none; }
+.court-piece:focus-visible .court-ring { opacity: 1; stroke: var(--ink); stroke-width: 2.6; stroke-dasharray: none; }
+.court-caption { fill: var(--court-label); paint-order: stroke; stroke: var(--court-area); stroke-width: 2.6px; text-anchor: middle; font-size: 8.5px; font-weight: 750; }
+.court-guide { stroke: var(--court-marking); stroke-width: 1.4; stroke-dasharray: 2 2; }
+.court-guide-ring { fill: var(--court-marking); fill-opacity: .18; stroke: var(--court-marking); stroke-width: 1.6; stroke-dasharray: 3 2; }
+
+/* «Riktig eller feil?» takes the court's place: a dark band in both themes. */
+.lesson-quiz { display: flex; flex-direction: column; justify-content: center; gap: 18px; min-height: min(78vw, 520px); padding: clamp(20px, 4vw, 44px); background: var(--chrome); color: var(--on-chrome); }
+.lesson-quiz-count { margin: 0; color: var(--on-chrome-soft); font-weight: 600; }
+.lesson-quiz-statement { margin: 0; font-size: clamp(26px, 3.4vw, 40px); font-weight: 650; letter-spacing: -.035em; line-height: 1.15; text-wrap: balance; }
+.lesson-quiz-answers { display: flex; flex-wrap: wrap; gap: 12px; }
+.lesson-quiz-answers button { min-width: 130px; min-height: 58px; padding: 0 26px; border-radius: 14px; color: var(--on-bright); font-size: 19px; font-weight: 650; }
+.lesson-quiz-answers .is-yes { background: var(--role-3); }
+.lesson-quiz-answers .is-no { background: var(--grep-apricot); }
+.lesson-quiz-answers button:disabled { cursor: default; opacity: .45; }
+.lesson-quiz-answers button.is-picked { opacity: 1; box-shadow: 0 0 0 4px var(--on-chrome); }
+.lesson-quiz-feedback { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, var(--on-chrome) 12%, transparent); }
+.lesson-quiz-feedback b { font-size: 22px; font-weight: 650; }
+.lesson-quiz-feedback button { margin-top: 8px; min-height: 46px; padding: 0 22px; border-radius: 12px; background: var(--grep-apricot); color: var(--on-bright); font-weight: 650; }
+/* The shell's ring is ink, which is the band's own colour in the light theme. */
+.lesson-quiz button:focus-visible { outline-color: var(--on-chrome); }
+
+/* Storskjerm: everything a row of players reads gets bigger. */
+.lesson.is-presenting { max-width: none; padding: 18px 28px 28px; }
+.is-presenting .lesson-header { margin-bottom: 14px; }
+.is-presenting .lesson-header h1 { font-size: clamp(32px, 3vw, 48px); }
+.is-presenting .lesson-steps button { min-height: 52px; font-size: 18px; }
+.is-presenting .lesson-panel { font-size: clamp(17px, 1.35vw, 22px); }
+.is-presenting .lesson-panel h2 { font-size: clamp(30px, 2.8vw, 46px); }
+.is-presenting .lesson-panel h3 { font-size: 1.25em; }
+.is-presenting :is(.lesson-small, .lesson-label, .lesson-card-text, .lesson-setups span) { font-size: .9em; }
+.is-presenting .lesson-panel .grep-segments button { font-size: 1em; }
+.is-presenting .lesson-chip { min-height: 42px; font-size: 18px; }
+.is-presenting .lesson-legend { font-size: 17px; }
+.is-presenting .lesson-quiz { min-height: calc(100dvh - 200px); }
+.is-presenting .lesson-quiz-count { font-size: 22px; }
+.is-presenting .lesson-quiz-statement { font-size: clamp(36px, 4.6vw, 76px); }
+.is-presenting .lesson-quiz-answers button { min-width: 180px; min-height: 76px; font-size: 26px; }
+.is-presenting .lesson-quiz-feedback { font-size: 22px; }
+.is-presenting .lesson-quiz-feedback b { font-size: 30px; }
+/* The court is as wide as the screen's height allows with the steps above it
+   and the chips below, so it is never cut off; the panel takes the rest. */
+@media (min-width: 880px) { .lesson.is-presenting .lesson-stage { grid-template-columns: minmax(0, calc((100dvh - 330px) * 208 / 168)) minmax(360px, 1fr); } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Håndballskolen: pieces jump to their places and pass lines never show. */
+  .court-piece, .court-zone, .court-nine { transition: none !important; }
+  .court-pass { animation: none !important; opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

@@ -121,6 +121,21 @@ first load settles, success or failure, and start true in demo mode.
 - Refetches after the first load (Realtime, after an RPC) never show the
   loading state again.
 
+## 10. Håndballskolen: lessons are code, shown by the coach (2026-11-17)
+
+Issue #33. A new sidebar item, «Håndballskolen» (`/handballskolen`), holds
+interactive lessons for coaches to show their players. The first is
+«Utgruppert forsvar», ported from a claude.ai prototype.
+
+- Lessons are written in the repo (a registry in `lib/lessons/` plus a component
+  per lesson), not authored in the app. No tables, no migration.
+- Signed-in coaches only, inside the shell, with a «Vis på storskjerm» mode for
+  showing it on a projector. No public link for players.
+- Nothing is saved: scores and the current step live in memory.
+- The prototype's own look stays behind: Grep's type and tokens throughout,
+  roles in Grep's brights, the court on `--court-*` tokens in both themes.
+- On a phone it lives in the «Mer» drawer; the bottom bar is unchanged.
+
 ## Open questions
 
 None recorded yet.

@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CalendarDays, ChevronDown, Home, LifeBuoy, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, Trophy, Users, X } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronDown, GraduationCap, Home, LifeBuoy, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, Trophy, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -19,11 +19,19 @@ const nav = [
   { href: "/sessions", label: "Øktkalender", icon: CalendarDays },
   { href: "/matches", label: "Kampkalender", icon: Trophy },
   { href: "/exercises", label: "Øvelsesbank", icon: BookOpen },
+  { href: "/handballskolen", label: "Håndballskolen", icon: GraduationCap },
   { href: "/team", label: "Laget", icon: Users },
 ];
 const activeRoute = (pathname: string, href: string) => href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 
-export function AppShell({ children, immersive = false }: { children: React.ReactNode; immersive?: boolean }) {
+/**
+ * `immersive` drops the phone's header and bottom bar (a live workout);
+ * `presenting` drops the desktop sidebar as well, for a page shown on a
+ * projector or TV (Håndballskolen's «Vis på storskjerm»). Either way the
+ * children stay mounted, so their state survives the switch.
+ */
+export function AppShell({ children, immersive = false, presenting = false }: { children: React.ReactNode; immersive?: boolean; presenting?: boolean }) {
+  const bare = immersive || presenting;
   const { user, authLoading, workspaceLoaded, isDemoMode, teams, currentTeam, setCurrentTeamId, sidebarCollapsed, setSidebarCollapsed, signOut, notice, clearNotice } = useGrep();
   const pathname = usePathname();
   const router = useRouter();
@@ -39,7 +47,7 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
   const seenVersion = useSyncExternalStore(subscribeSeenVersion, readSeenVersion, () => false as const);
   const [whatsNewDismissed, setWhatsNewDismissed] = useState(false);
   const announce = seenVersion === false ? [] : releasesToAnnounce(seenVersion, RELEASES);
-  const whatsNewOpen = Boolean(user) && !authLoading && workspaceLoaded && !immersive && !whatsNewDismissed && announce.length > 0 && !supportOpen && !mobileOpen;
+  const whatsNewOpen = Boolean(user) && !authLoading && workspaceLoaded && !bare && !whatsNewDismissed && announce.length > 0 && !supportOpen && !mobileOpen;
   function closeWhatsNew() { setWhatsNewDismissed(true); rememberSeenVersion(CURRENT_VERSION); }
 
   useEffect(() => {
@@ -101,13 +109,13 @@ export function AppShell({ children, immersive = false }: { children: React.Reac
   if (authLoading || signedOutHome) return <div className="grep-auth-gate" role="status">Henter trenerrommet …</div>;
   if (!user) return <div className="grep-auth-gate"><section className="overview-card"><Logo /><h1>Lagets øktplaner finner du her</h1><p>Logg inn for å planlegge økter sammen med trenerteamet.</p><Link href={"/sign-in?next=" + encodeURIComponent(pathname)} className="grep-action">Logg inn</Link></section></div>;
 
-  return <div className={cn("grep-shell", sidebarCollapsed && "grep-shell-collapsed")}>
+  return <div className={cn("grep-shell", sidebarCollapsed && "grep-shell-collapsed", presenting && "grep-shell-presenting")}>
     <a href="#main-content" className="grep-skip-link">Hopp til innhold</a>
-    <aside id="app-sidebar" className="grep-sidebar" inert={mobileOpen || undefined}>{navigation()}<button className="grep-sidebar-toggle grep-icon-button" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-controls="app-sidebar" aria-label={sidebarCollapsed ? "Utvid sidemenyen" : "Skjul sidemenyen"} aria-expanded={!sidebarCollapsed}>{sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button></aside>
+    {!presenting && <aside id="app-sidebar" className="grep-sidebar" inert={mobileOpen || undefined}>{navigation()}<button className="grep-sidebar-toggle grep-icon-button" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-controls="app-sidebar" aria-label={sidebarCollapsed ? "Utvid sidemenyen" : "Skjul sidemenyen"} aria-expanded={!sidebarCollapsed}>{sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button></aside>}
     <div className="grep-content" inert={mobileOpen || undefined}>
-      {!immersive && <header className="grep-mobile-header"><Logo /><button className="grep-icon-button" onClick={() => setMobileOpen(true)} aria-label="Åpne menyen" aria-expanded={mobileOpen} aria-controls="mobile-navigation"><Menu size={22} /></button></header>}
-      <main id="main-content" tabIndex={-1} className={cn("grep-main", !immersive && "grep-main-with-mobile-nav")}>{children}</main>
-      {!immersive && <nav className="grep-mobile-nav" aria-label="Hurtigmeny">{[nav[0], nav[1], nav[3]].map(({ href, label, icon: Icon }) => <Link key={href} href={href} aria-current={activeRoute(pathname, href) ? "page" : undefined}><Icon size={21} strokeWidth={1.8} /><span>{label}</span></Link>)}<button onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-controls="mobile-navigation"><Menu size={21} /><span>Mer</span></button></nav>}
+      {!bare && <header className="grep-mobile-header"><Logo /><button className="grep-icon-button" onClick={() => setMobileOpen(true)} aria-label="Åpne menyen" aria-expanded={mobileOpen} aria-controls="mobile-navigation"><Menu size={22} /></button></header>}
+      <main id="main-content" tabIndex={-1} className={cn("grep-main", !bare && "grep-main-with-mobile-nav")}>{children}</main>
+      {!bare && <nav className="grep-mobile-nav" aria-label="Hurtigmeny">{[nav[0], nav[1], nav[3]].map(({ href, label, icon: Icon }) => <Link key={href} href={href} aria-current={activeRoute(pathname, href) ? "page" : undefined}><Icon size={21} strokeWidth={1.8} /><span>{label}</span></Link>)}<button onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-controls="mobile-navigation"><Menu size={21} /><span>Mer</span></button></nav>}
     </div>
     {mobileOpen && <div className="grep-drawer-overlay" onClick={(event) => { if (event.target === event.currentTarget) setMobileOpen(false); }}><div ref={drawer} id="mobile-navigation" className="grep-drawer" role="dialog" aria-modal="true" aria-label="Navigasjon">{navigation(true)}</div></div>}
     <SupportDialog open={supportOpen} onClose={() => setSupportOpen(false)} />
