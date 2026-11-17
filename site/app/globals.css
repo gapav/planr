@@ -158,23 +158,28 @@
   --lilac-edge: #b493cb;
   --lilac-ink: #40244f;
   --lilac-ink-soft: #715287;
-  /* Håndballskolen's court (decision 10): a purple hall floor so the role
-     brights and the dark opponents both stand out on it. Markings and labels
-     are read on the floor and in the 6 m area. */
-  --court-ground: #6e5190;
-  --court-floor: #8565a6;
-  --court-area: #5a3d78;
+  /* Håndballskolen's court (decision 10). The court is context, so it is
+     quiet: a pale floor, thin white lines and small labels. What a player
+     looks for — the defenders — carries the colour and the contrast.
+     Captions on the court use --ink. */
+  --court-ground: #d9cfe5;
+  --court-floor: #ebe5f2;
+  --court-area: #ddd2e9;
   --court-marking: #ffffff;
-  --court-label: #ffffff;
-  --court-net: #b9a3d1;
-  --court-goal: #ffb28a;
-  --court-shadow: #2e1b3d4d;
-  /* The defence's three roles, in Grep's brights, numbered in --on-bright.
-     Opponents wear --chrome. */
+  --court-label: #63526e;
+  --court-net: #cdbfe0;
+  --court-goal: #b9a3d1;
+  --court-shadow: #2e1b3d24;
+  /* Rings, arrows and pass lines drawn over the floor. */
+  --court-ring: #2e1b3d;
+  /* The defence's three roles, in Grep's brights, numbered in --on-bright. */
   --role-1: var(--grep-apricot);
   --role-2: var(--lime);
   --role-3: #a8e6c4;
-  --keeper: #9cc9ea;
+  /* Opponents step back: smaller and a softer dark than the defenders' fills. */
+  --opponent: #4b3a5c;
+  --on-opponent: #f2ecf5;
+  --keeper: #b9d6ec;
   --ball: #ffffff;
   --ball-seam: #e0622a;
 }
@@ -282,19 +287,22 @@
     --lilac-edge: #7b5f99;
     --lilac-ink: #e0cff5;
     --lilac-ink-soft: #c8a6e4;
-    --court-ground: #2a2036;
-    --court-floor: #4a3a5e;
-    --court-area: #33264a;
-    --court-marking: #e9ddf7;
-    --court-label: #e9ddf7;
-    --court-net: #6d5a85;
-    --court-goal: #f0a07c;
-    --court-shadow: #00000066;
+    --court-ground: #1d1624;
+    --court-floor: #2a2133;
+    --court-area: #241c2c;
+    --court-marking: #6f637b;
+    --court-label: #b1a4bb;
+    --court-net: #4a3e55;
+    --court-goal: #6d6178;
+    --court-shadow: #00000059;
+    --court-ring: #e9ddf7;
     /* A step down from the light brights, so five of them on a dark floor
        do not glare on a TV in a dim hall. */
     --role-1: #f0a07c;
     --role-2: #c9d88a;
     --role-3: #94d1b0;
+    --opponent: #5a4d66;
+    --on-opponent: #f2ecf5;
     --keeper: #8ab8da;
     --ball: #f2ecf5;
     --ball-seam: #f08a55;
@@ -1188,8 +1196,8 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
 .lesson-dot-1 { background: var(--role-1); }
 .lesson-dot-2 { background: var(--role-2); }
 .lesson-dot-3 { background: var(--role-3); }
-.lesson-dot-opponent { background: var(--chrome); }
-.lesson-dot-keeper { background: var(--keeper); }
+.lesson-dot-opponent { width: 12px; height: 12px; background: var(--opponent); }
+.lesson-dot-keeper { width: 12px; height: 12px; background: var(--keeper); }
 .lesson-dot-big { width: 38px; height: 38px; color: var(--on-bright); font-size: 18px; font-weight: 750; }
 .lesson-panel { padding: 24px 22px 20px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); font-size: 15px; line-height: 1.6; }
 .lesson-panel h2 { margin: 0 0 10px; font-size: clamp(24px, 2.6vw, 30px); font-weight: 650; letter-spacing: -.04em; line-height: 1.15; text-wrap: balance; }
@@ -1203,9 +1211,9 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
 .lesson-panel .grep-segments { margin-bottom: 4px; }
 .lesson-panel .grep-segments button { font-size: 14px; }
 /* The shell styles a span in a segment as a count badge; a role name is not one. */
-.lesson-panel .grep-segments button .lesson-role { display: inline; min-width: 0; padding: .04em .32em; border-radius: .35em; background: var(--role-1); color: var(--on-bright); font-size: inherit; }
-.lesson-panel .grep-segments button .lesson-role-2 { background: var(--role-2); }
-.lesson-panel .grep-segments button .lesson-role-3 { background: var(--role-3); }
+.lesson-panel .grep-segments button .lesson-role { display: inline; min-width: 0; padding: .02em .28em; border-radius: .35em; background: color-mix(in srgb, var(--role-1) 45%, transparent); color: var(--ink); font-size: inherit; }
+.lesson-panel .grep-segments button .lesson-role-2 { background: color-mix(in srgb, var(--role-2) 45%, transparent); }
+.lesson-panel .grep-segments button .lesson-role-3 { background: color-mix(in srgb, var(--role-3) 45%, transparent); }
 .lesson-panel .grep-segments button:disabled { cursor: not-allowed; opacity: .4; }
 .lesson-panel .grep-button[aria-pressed="true"] { border-color: var(--lilac-line); background: var(--grep-lilac); }
 .lesson-rules { margin: 0; padding-left: 22px; }
@@ -1230,15 +1238,17 @@ ul.lesson-rules { list-style: disc; }
 .lesson-setups b { font-size: 15px; }
 .lesson-setups span { font-size: 13px; }
 .lesson-setups em { margin-left: 4px; font-size: 22px; font-style: normal; font-weight: 700; letter-spacing: -.03em; }
-.lesson-tip { margin: 14px 0; padding: 12px 14px; border-radius: 14px; background: var(--warn-bg); color: var(--ink); }
+.lesson-tip { margin: 14px 0; padding: 12px 14px; border-radius: 14px; background: var(--lilac-wash); color: var(--ink); }
 .lesson-result { margin: 12px 0; padding: 12px 14px; border-radius: 14px; }
 .lesson-result.is-good { background: var(--success-bg); color: var(--success-ink); }
 .lesson-result.is-mid { background: var(--warn-bg); color: var(--ink); }
 .lesson-result.is-bad { background: var(--danger-bg); color: var(--danger-ink); }
-.lesson-role { padding: .04em .32em; border-radius: .35em; color: var(--on-bright); font-weight: 650; white-space: nowrap; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.lesson-role-1 { background: var(--role-1); }
-.lesson-role-2 { background: var(--role-2); }
-.lesson-role-3 { background: var(--role-3); }
+/* A role named in the copy gets a soft wash of its colour, not a solid pill:
+   it marks the word without outshouting the sentence. */
+.lesson-role { padding: .02em .28em; border-radius: .35em; color: var(--ink); font-weight: 600; white-space: nowrap; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lesson-role-1 { background: color-mix(in srgb, var(--role-1) 45%, transparent); }
+.lesson-role-2 { background: color-mix(in srgb, var(--role-2) 45%, transparent); }
+.lesson-role-3 { background: color-mix(in srgb, var(--role-3) 45%, transparent); }
 .lesson-pager { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
 .lesson-source { max-width: 80ch; margin-top: 28px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
 @media (min-width: 880px) {
@@ -1254,41 +1264,45 @@ ul.lesson-rules { list-style: disc; }
    the lesson; the reduced-motion block below makes every move a jump. */
 .handball-court { display: block; width: 100%; height: auto; aspect-ratio: 208 / 168; -webkit-user-select: none; user-select: none; }
 .handball-court.is-placing { cursor: crosshair; }
-.court-distance { fill: var(--court-label); font-size: 8px; font-weight: 700; }
-.court-nine { stroke-width: 1.1; transition: stroke-width .3s; }
-.court-nine[data-highlight] { stroke-width: 2.2; }
-.court-zone { fill-opacity: .22; stroke-width: 1.5; transition: opacity .3s; }
+.court-distance { fill: var(--court-label); font-size: 6px; font-weight: 600; }
+.court-nine { stroke-width: .9; transition: stroke-width .3s; }
+.court-nine[data-highlight] { stroke-width: 1.8; }
+/* Zones are a wash with no edge, so five of them overlapping stay a light
+   tint; the role in focus gets its outline back. */
+.court-zone { fill-opacity: .26; stroke-width: 0; transition: opacity .3s; }
 .court-zone-1 { fill: var(--role-1); stroke: var(--role-1); }
 .court-zone-2 { fill: var(--role-2); stroke: var(--role-2); }
 .court-zone-3 { fill: var(--role-3); stroke: var(--role-3); }
-.court-zone.is-dim { opacity: .12; }
-.court-run { fill: none; stroke: var(--court-marking); stroke-width: 1.6; stroke-dasharray: 3 2.5; }
+.court-zone.is-focus { stroke-width: 1.4; }
+.court-zone.is-dim { opacity: .15; }
+.court-run { fill: none; stroke: var(--court-ring); stroke-width: 1.3; stroke-dasharray: 3 2.5; }
 @keyframes court-pass-fade { from { opacity: .95; } to { opacity: 0; } }
-.court-pass { stroke: var(--court-marking); stroke-width: 1.4; stroke-dasharray: 3 2.5; animation: court-pass-fade 1.3s forwards; }
+.court-pass { stroke: var(--court-ring); stroke-width: 1.1; stroke-dasharray: 3 2.5; animation: court-pass-fade 1.3s forwards; }
 .court-piece text { pointer-events: none; text-anchor: middle; font-weight: 750; }
 .court-piece.is-clickable { cursor: pointer; }
 .court-piece.is-dim { opacity: .25; }
 .court-piece.is-hidden { opacity: 0; pointer-events: none; }
 .court-hit { fill: transparent; }
 .court-shadow { fill: var(--court-shadow); }
-.court-body { stroke: var(--court-marking); stroke-width: 1.4; }
+.court-body { stroke: var(--surface-raised); stroke-width: 1.4; }
 .court-role-1 .court-body { fill: var(--role-1); }
 .court-role-2 .court-body { fill: var(--role-2); }
 .court-role-3 .court-body { fill: var(--role-3); }
-.court-defender .court-number { fill: var(--on-bright); font-size: 12.5px; }
-.court-attacker .court-body { fill: var(--chrome); }
-.court-attacker .court-number { fill: var(--on-chrome); font-size: 8.6px; }
+.court-defender .court-number { fill: var(--on-bright); font-size: 11.5px; font-weight: 700; }
+.court-attacker .court-body, .court-keeper .court-body { stroke: var(--court-floor); stroke-width: 1.2; }
+.court-attacker .court-body { fill: var(--opponent); }
+.court-attacker .court-number { fill: var(--on-opponent); font-size: 6.4px; font-weight: 600; }
 .court-keeper .court-body { fill: var(--keeper); }
-.court-keeper .court-number { fill: var(--on-bright); font-size: 8px; }
-.court-piece.is-standin .court-body { stroke-dasharray: 3 2; stroke-width: 2; }
-.court-ring { fill: none; stroke: var(--court-marking); stroke-width: 1.5; opacity: 0; }
-.court-ring.is-dashed { opacity: .95; stroke-dasharray: 3 2.2; }
-.court-ring.is-solid { opacity: 1; stroke-width: 2.4; }
+.court-keeper .court-number { fill: var(--on-bright); font-size: 6px; font-weight: 600; }
+.court-piece.is-standin .court-body { stroke: var(--court-ring); stroke-dasharray: 2 1.6; stroke-width: 1.2; }
+.court-ring { fill: none; stroke: var(--court-ring); stroke-width: .9; opacity: 0; }
+.court-ring.is-dashed { opacity: .42; stroke-dasharray: 2 2; }
+.court-ring.is-solid { opacity: .85; stroke-width: 1.8; }
 .court-piece:focus { outline: none; }
 .court-piece:focus-visible .court-ring { opacity: 1; stroke: var(--ink); stroke-width: 2.6; stroke-dasharray: none; }
-.court-caption { fill: var(--court-label); paint-order: stroke; stroke: var(--court-area); stroke-width: 2.6px; text-anchor: middle; font-size: 8.5px; font-weight: 750; }
-.court-guide { stroke: var(--court-marking); stroke-width: 1.4; stroke-dasharray: 2 2; }
-.court-guide-ring { fill: var(--court-marking); fill-opacity: .18; stroke: var(--court-marking); stroke-width: 1.6; stroke-dasharray: 3 2; }
+.court-caption { fill: var(--ink); paint-order: stroke; stroke: var(--court-floor); stroke-width: 2.6px; text-anchor: middle; font-size: 8.5px; font-weight: 750; }
+.court-guide { stroke: var(--court-ring); stroke-width: 1.1; stroke-dasharray: 2 2; }
+.court-guide-ring { fill: var(--court-ring); fill-opacity: .08; stroke: var(--court-ring); stroke-width: 1.6; stroke-dasharray: 3 2; }
 
 /* «Riktig eller feil?» takes the court's place: a dark band in both themes. */
 .lesson-quiz { display: flex; flex-direction: column; justify-content: center; gap: 18px; min-height: min(78vw, 520px); padding: clamp(20px, 4vw, 44px); background: var(--chrome); color: var(--on-chrome); }

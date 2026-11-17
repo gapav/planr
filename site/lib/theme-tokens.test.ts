@@ -63,8 +63,8 @@ describe("theme tokens", () => {
   // The court is drawn for each theme rather than inherited, so a court token
   // the dark block forgets is a light floor on a dark page.
   it("gives every court, role and piece token a dark value", () => {
-    const lesson = [...light.keys()].filter((name) => /^--(court-(ground|floor|area|marking|label|net|goal|shadow)|role-\d|keeper|ball)/.test(name));
-    expect(lesson.length).toBeGreaterThanOrEqual(14);
+    const lesson = [...light.keys()].filter((name) => /^--(court-(ground|floor|area|marking|label|net|goal|shadow|ring)|role-\d|opponent|on-opponent|keeper|ball)/.test(name));
+    expect(lesson.length).toBeGreaterThanOrEqual(17);
     expect(lesson.filter((name) => !darkOnly.has(name))).toEqual([]);
   });
 
@@ -100,18 +100,20 @@ describe("theme tokens", () => {
     ["--danger-ink", "--danger-bg", 4.5],
     ["--green", "--surface", 4.5],
     ["--ink", "--mint", 4.5],
-    // Håndballskolen's court: role numbers on their fills, the keeper's on its
-    // own, opponents on --chrome, and the court's labels and markings on the
-    // floor and the 6 m area.
+    // Håndballskolen's court: role numbers on their fills, the opponents' and
+    // keeper's labels on theirs, captions (--ink) and distance labels on the
+    // floor and the 6 m area, and the tip box. Court lines are left out on
+    // purpose: the floor is meant to be quiet, and nothing is read from them.
     ["--on-bright", "--role-1", 4.5],
     ["--on-bright", "--role-2", 4.5],
     ["--on-bright", "--role-3", 4.5],
     ["--on-bright", "--keeper", 4.5],
+    ["--on-opponent", "--opponent", 4.5],
+    ["--ink", "--court-floor", 4.5],
+    ["--ink", "--court-area", 4.5],
     ["--court-label", "--court-floor", 4.5],
     ["--court-label", "--court-area", 4.5],
-    ["--court-marking", "--court-floor", 3],
-    ["--court-marking", "--court-area", 3],
-    ["--on-chrome", "--court-floor", 3],
+    ["--ink", "--lilac-wash", 4.5],
     ...["sky", "apricot", "rose", "teal", "sage", "gold", "band-1", "band-2", "band-3"]
       .map((tag): [string, string, number] => [`--tag-${tag}-ink`, `--tag-${tag}`, 5]),
     ...[1, 2, 3].map((band): [string, string, number] => ["--on-accent", `--tag-band-${band}-fill`, 4.5]),
