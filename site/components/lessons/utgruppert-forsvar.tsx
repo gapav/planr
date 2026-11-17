@@ -8,10 +8,10 @@ import { bandTone } from "@/components/exercise-age-group-filter";
 import { Button, Tag } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
-  ATTACKERS, ATTACKER_NAMES, DEFENDER_ROLES, FORMATION_HEADINGS, KEEPER_Y, NEDGRUPPERT, PLACEMENT_START, PLACEMENT_VERDICTS, QUIZ, ROLE_TASKS, STEPS,
+  ATTACKERS, ATTACKER_NAMES, DEFENDER_ROLES, FORMATION_HEADINGS, KEEPER_Y, NEDGRUPPERT, PLACEMENT_START, QUIZ, ROLE_TASKS, STEPS,
   attackPositions, autoPassSequence, ballAfterSetupChange, clampPlacement, countOutsideNine, defencePositions, distanceFromGoal, effectiveFormation,
-  formatMetres, formationName, isStepId, newPlacementTask, overgangDefence, overgangRunPath, overgangRunnerPosition, overgangTip, placementSide,
-  placementTarget, quizVerdict, scorePlacement, shuffledOrder, splitRoleMentions, tipFor, zonesFor,
+  ballX as taskBallX, formationName, isStepId, newPlacementTask, overgangDefence, overgangRunPath, overgangRunnerPosition, overgangTip, placementSide,
+  placementFeedback, placementTarget, quizVerdict, scorePlacement, shuffledOrder, splitRoleMentions, tipFor, zonesFor,
   type Attacker, type Formation, type OvergangRunner, type PlacementTask, type Point, type Role, type Score, type Setup, type StepId,
 } from "@/lib/lessons/utgruppert-forsvar";
 import { HandballCourt, type CourtLine, type CourtPiece } from "./handball-court";
@@ -21,7 +21,7 @@ type Motion = { attack: number; defence: number; ball: number; delay: number };
 const MOTION: Motion = { attack: 650, defence: 850, ball: 480, delay: 0 };
 const STILL: Motion = { attack: 0, defence: 0, ball: 0, delay: 0 };
 
-type Game = PlacementTask & { result: { score: Score; distance: number } | null };
+type Game = PlacementTask & { result: { score: Score; verdict: string; cue: string | null } | null };
 type Quiz = { order: number[]; index: number; score: number; done: number; picked: boolean | null };
 
 type LessonState = {
@@ -216,7 +216,8 @@ export function UtgruppertForsvarLesson({ random = Math.random }: { random?: () 
     if (!game || game.result || !target) return;
     const distance = Math.hypot(s.me[0] - target[0], s.me[1] - target[1]);
     const score = scorePlacement(distance);
-    update({ game: { ...game, result: { score, distance } }, points: s.points + score, tasks: s.tasks + 1, zones: true, dragging: false });
+    const { verdict, cue } = placementFeedback(s.me, target, taskBallX(game));
+    update({ game: { ...game, result: { score, verdict, cue } }, points: s.points + score, tasks: s.tasks + 1, zones: true, dragging: false });
   }
   const placing = Boolean(game && !game.result);
   function moveTo(event: PointerEvent<SVGSVGElement>) {
@@ -385,7 +386,7 @@ export function UtgruppertForsvarLesson({ random = Math.random }: { random?: () 
           {s.step === "hva" && <Copy>
             <h2 id="lesson-hva">Fra nedgruppert til utgruppert</h2>
             <p>I 10-årsklassen spilte vi nedgruppert forsvar med fire forsvarsspillere ved 6-meteren. Målvakten var med i angrepet, så angrepet hadde overtall: fem mot fire.</p>
-            <p>I 11-årsserien har hvert lag fem utespillere og målvakt, og målvakten er ikke med i angrepet. Det blir fem mot fem. Nå spiller vi utgruppert forsvar: minimum to spillere skal være utenfor 9-meteren og søke ball, og hele forsvaret forflytter seg med ball.</p>
+            <p>I 11-årsserien har hvert lag fem utespillere og målvakt, og målvakten er ikke med i angrepet. Det blir fem mot fem. <b>I 11-årsserien er det påbudt å spille første omgang med utgruppert forsvar!</b> Dette spiller vi slik: minimum to spillere skal være utenfor 9-meteren og søke ball, og hele forsvaret forflytter seg med ball.</p>
             <div className="lesson-controls"><div><span className="lesson-label" id="lesson-velg-forsvar">Velg forsvar</span><div className="grep-segments" role="group" aria-labelledby="lesson-velg-forsvar"><button type="button" {...pressed(s.nedgruppert)} onClick={() => setNedgruppert(true)}>Nedgruppert</button><button type="button" {...pressed(!s.nedgruppert)} onClick={() => setNedgruppert(false)}>Utgruppert</button></div></div></div>
             <p className="lesson-small">Banen viser standardoppsettet, uten ball. Bytt mellom de to knappene for å se forskjellen. I utgruppert forsvar kommer den nye femte forsvarsspilleren inn som 3&apos;er. Den stiplede ringen viser hvem som er utenfor 9-meteren.</p>
             <h3>Fire regler å huske</h3>
@@ -486,10 +487,10 @@ export function UtgruppertForsvarLesson({ random = Math.random }: { random?: () 
               <Button variant="secondary" aria-pressed={s.zones} onClick={() => update({ zones: !s.zones })}>Vis soner</Button>
             </div>
             <div aria-live="polite">{game?.result && <p className={cn("lesson-result", ["is-bad", "is-mid", "is-good"][game.result.score])}>
-              <b>{PLACEMENT_VERDICTS[game.result.score]}</b> <RoleText text={`Du sto ${formatMetres(game.result.distance)} m fra plassen i den stiplede ringen. ${tipFor(game.formation, game.setup, game.ball)}`} />
+              <b>{game.result.verdict}</b>{game.result.cue && ` ${game.result.cue}`} <RoleText text={tipFor(game.formation, game.setup, game.ball)} />
             </p>}</div>
             <p>Poeng: <b>{s.points}</b> av <b>{s.tasks * 2}</b></p>
-            <p className="lesson-small">2 poeng for perfekt (under 1,6 m unna), 1 poeng for nesten (under 2,8 m unna).</p>
+            <p className="lesson-small">2 poeng når du står riktig, 1 poeng når du er nesten der.</p>
           </>}
 
           {s.step === "quiz" && <>

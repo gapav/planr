@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LESSONS } from "./index";
 import {
   ATTACKERS, NEDGRUPPERT, PLACEMENT_START, QUIZ, STEPS, attackPositions, ballAfterSetupChange, clampPlacement, countOutsideNine, defencePositions,
-  distanceFromGoal, effectiveFormation, formatMetres, mirror, newPlacementTask, overgangDefence, overgangTip, placementTarget, quizVerdict,
+  ballX, distanceFromGoal, effectiveFormation, mirror, placementDirection, placementFeedback, newPlacementTask, overgangDefence, overgangTip, placementTarget, quizVerdict,
   scorePlacement, shuffledOrder, splitRoleMentions, tipFor, zonesFor, type Point,
 } from "./utgruppert-forsvar";
 
@@ -134,9 +134,27 @@ describe("«Hvor står du?»", () => {
     expect(placementTarget({ formation: "221", setup: "noL", ball: "HK", role: 4 })).toEqual(defencePositions("221", "noL", "HK")[4]);
   });
 
-  it("writes metres with a decimal comma", () => {
-    expect(formatMetres(1.25)).toBe("1,3");
-    expect(formatMetres(3)).toBe("3,0");
+  // A coaching cue, not a measurement: praise on the spot, a direction otherwise.
+  it("praises a player within half a metre, with no cue", () => {
+    expect(placementFeedback([5, 9], [5.3, 9.3], 4.6)).toEqual({ verdict: "Bra! Der står du perfekt.", cue: null });
+  });
+
+  it("says which way to move, and how far in words", () => {
+    expect(placementFeedback([5, 10], [5, 9], 4.6)).toEqual({ verdict: "Bra! Du står riktig.", cue: "Ett lite steg nærmere mål, så er det perfekt." });
+    expect(placementFeedback([5, 7], [5, 9.2], 4.6)).toEqual({ verdict: "Nesten!", cue: "Flytt deg litt lenger ut." });
+    expect(placementFeedback([12, 9], [6, 9], 4.6)).toEqual({ verdict: "Ikke helt.", cue: "Du skal stå mot ballen. Se på den stiplede ringen." });
+  });
+
+  it("names the side relative to the ball, and both ways when both matter", () => {
+    expect(placementDirection([8, 9], [10, 9], 4.6)).toBe("bort fra ballen");
+    expect(placementDirection([12, 9], [14, 9], 15.4)).toBe("mot ballen");
+    expect(placementDirection([10, 12], [8, 9.5], 4.6)).toBe("nærmere mål og mot ballen");
+    expect(placementDirection([10, 12], [9.6, 9], 4.6)).toBe("nærmere mål");
+  });
+
+  it("finds the ball across the court from its holder", () => {
+    expect(ballX({ setup: "noL", ball: "VB" })).toBe(4.6);
+    expect(ballX({ setup: "L", ball: "HK" })).toBe(19);
   });
 });
 

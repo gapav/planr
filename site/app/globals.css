@@ -1267,14 +1267,15 @@ ul.lesson-rules { list-style: disc; }
 .court-distance { fill: var(--court-label); font-size: 6px; font-weight: 600; }
 .court-nine { stroke-width: .9; transition: stroke-width .3s; }
 .court-nine[data-highlight] { stroke-width: 1.8; }
-/* Zones are a wash with no edge, so five of them overlapping stay a light
-   tint; the role in focus gets its outline back. */
-.court-zone { fill-opacity: .26; stroke-width: 0; transition: opacity .3s; }
+/* Each zone is a clear tint with a thin edge in its role's colour, so where
+   two overlap you can still tell whose is whose. The role in focus gets a
+   stronger edge and fill; the others fade. */
+.court-zone { fill-opacity: .36; stroke-width: 1; stroke-opacity: .9; transition: opacity .3s; }
 .court-zone-1 { fill: var(--role-1); stroke: var(--role-1); }
 .court-zone-2 { fill: var(--role-2); stroke: var(--role-2); }
 .court-zone-3 { fill: var(--role-3); stroke: var(--role-3); }
-.court-zone.is-focus { stroke-width: 1.4; }
-.court-zone.is-dim { opacity: .15; }
+.court-zone.is-focus { fill-opacity: .45; stroke-width: 1.8; stroke-opacity: 1; }
+.court-zone.is-dim { opacity: .12; }
 .court-run { fill: none; stroke: var(--court-ring); stroke-width: 1.3; stroke-dasharray: 3 2.5; }
 @keyframes court-pass-fade { from { opacity: .95; } to { opacity: 0; } }
 .court-pass { stroke: var(--court-ring); stroke-width: 1.1; stroke-dasharray: 3 2.5; animation: court-pass-fade 1.3s forwards; }
