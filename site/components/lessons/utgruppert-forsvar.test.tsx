@@ -27,7 +27,7 @@ const headings: Record<string, string> = {
   spill: "Hvor står du?",
   quiz: "Riktig eller feil?",
 };
-const steps = () => within(screen.getByRole("navigation", { name: "Steg i leksjonen" }));
+const steps = () => within(screen.getByRole("navigation", { name: "Steg i temaet" }));
 const lesson = (random = () => 0.25) => render(<UtgruppertForsvarLesson random={random} />);
 
 describe("Utgruppert forsvar", () => {

@@ -12,7 +12,7 @@ describe("Håndballskolen", () => {
   it("lists one lesson card that opens Utgruppert forsvar", () => {
     render(<HandballskolenPage />);
     expect(screen.getByRole("heading", { level: 1, name: "Håndballskolen" })).toBeInTheDocument();
-    const cards = within(screen.getByRole("list", { name: "Leksjoner" })).getAllByRole("link");
+    const cards = within(screen.getByRole("list", { name: "Temaer" })).getAllByRole("link");
     expect(cards).toHaveLength(1);
     expect(cards[0]).toHaveAttribute("href", "/handballskolen/utgruppert-forsvar");
     expect(cards[0]).toHaveTextContent("Utgruppert forsvar");

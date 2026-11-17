@@ -325,7 +325,7 @@ export function UtgruppertForsvarLesson({ random = Math.random }: { random?: () 
           : <Button variant="secondary" size="lg" onClick={() => present(true)}><Maximize2 size={18} aria-hidden="true" />Vis på storskjerm</Button>}
       </header>
 
-      <nav className="lesson-steps" aria-label="Steg i leksjonen">
+      <nav className="lesson-steps" aria-label="Steg i temaet">
         {STEPS.map((step) => <button key={step.id} type="button" aria-current={step.id === s.step ? "step" : undefined} onClick={() => enter(step.id)}>{step.title}</button>)}
       </nav>
 
