@@ -12,7 +12,7 @@ import { LESSONS, lessonHref } from "@/lib/lessons";
 export default function HandballskolenPage() {
   return <AppShell>
     <div className="grep-page">
-      <PageHeading eyebrow="Lær det bort. Vis det på tavla." title="Håndballskolen" description="Temaer og konsepter du kan gå gjennom med laget, på en skjerm i hallen eller i garderoben." />
+      <PageHeading eyebrow="Lær det bort. Vis det på tavla." title="Håndballskolen" description="Lær nye konsepter, spill og trekk" />
       <ul className="lesson-index" aria-label="Temaer">
         {LESSONS.map((lesson) => <li key={lesson.slug}>
           <Link href={lessonHref(lesson.slug)} className="lesson-index-card">
