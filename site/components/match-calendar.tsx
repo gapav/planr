@@ -167,7 +167,7 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
           <p className="grep-match-today">I dag · {dayHeadFormat.format(new Date())}</p>
         </div>}
         {season.upcoming.length ? <MatchMonths days={season.upcoming} routine={routine} onOpen={setOpen} onWarmup={(fixture) => setWarmup({ fixture })} />
-          : <p className="rounded-2xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen flere kamper i terminlisten.</p>}
+          : <div className="grid justify-items-center gap-3 rounded-2xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-center text-sm text-[var(--ink-soft)]"><p>Ingen flere kamper i terminlisten.</p>{onImport && <Button onClick={onImport}><Upload size={16} />Importer nye kamper</Button>}</div>}
       </>}
     </div>
 
@@ -178,7 +178,7 @@ export function MatchCalendar({ fixtures: rawFixtures, canManage, canEditWarmup,
 }
 
 function FilterChip({ active, color, onClick, children }: { active: boolean; color?: string; onClick(): void; children: React.ReactNode }) {
-  return <button type="button" onClick={onClick} aria-pressed={active} className={cn("inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-bold transition", active ? "border-[var(--warn-line)] bg-[var(--warn-bg)] text-[var(--ink)]" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]")}>
+  return <button type="button" onClick={onClick} aria-pressed={active} className={cn("inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-bold transition", active ? "border-[var(--ink)] bg-[var(--grep-lilac)] text-[var(--ink)]" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]")}>
     {color && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} aria-hidden />}{children}
   </button>;
 }

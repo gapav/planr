@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, FileSpreadsheet, Hash, Trash2, Upload, UsersRound } from "lucide-react";
+import { CheckCircle2, FileSpreadsheet, Trash2, Upload, UsersRound } from "lucide-react";
 import { useRef, useState } from "react";
 import { parseRosterRows, type RosterParseResult } from "@/lib/roster";
 import type { TeamPlayer } from "@/lib/types";
@@ -46,10 +46,13 @@ export function RosterManager({ players, canManage }: { players: TeamPlayer[]; c
         <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--tag-sage)] text-[var(--success-ink)]"><UsersRound size={21} /></span><div><div className="flex items-center gap-2"><h2 className="text-xl font-black">Spillerliste</h2><HelpTip topic="roster-import" /></div><p className="mt-1 text-sm text-[var(--ink-soft)]">{players.length} {players.length === 1 ? "spiller" : "spillere"} tilgjengelig for oppmøteregistrering</p></div></div>
         {canManage && <Button variant="secondary" onClick={() => setOpen(true)}><Upload size={17} />Importer fra Hoopit</Button>}
       </div>
-      {players.length ? <div className="divide-y divide-[var(--line)]">{players.map((player) => <div key={player.id} className="grid grid-cols-[minmax(0,1fr)_90px_40px] items-center gap-3 px-5 py-3.5 sm:px-6">
+      {players.length ? <div className="divide-y divide-[var(--line)]">{players.map((player) => <div key={player.id} className="group grid grid-cols-[36px_minmax(0,1fr)_40px] items-center gap-3 px-5 py-3.5 transition hover:bg-[var(--paper)] sm:px-6">
+        <span className="text-right text-sm font-black tabular-nums text-[var(--ink-soft)]">{player.jerseyNumber ? <><span className="sr-only">Draktnummer </span>{player.jerseyNumber}</> : <><span aria-hidden="true">—</span><span className="sr-only">Uten draktnummer</span></>}</span>
         <div className="min-w-0"><p className="truncate font-bold">{player.fullName}</p></div>
-        <span className="flex items-center gap-1.5 text-sm font-bold text-[var(--ink-soft)]"><Hash size={14} />{player.jerseyNumber || "—"}</span>
-        {canManage ? <Button variant="ghost" size="sm" className="px-2 text-[var(--danger)]" aria-label={`Fjern ${player.fullName}`} onClick={() => { if (confirm(`Vil du fjerne ${player.fullName} fra spillerlisten?`)) void removePlayer(player.id); }}><Trash2 size={16} /></Button> : <span />}
+        {/* Removing a player is rare and one tap from losing them, so the control
+            stays quiet: grey, and on a mouse only on the row being pointed at.
+            Red is for the confirmation, not for every row of the list. */}
+        {canManage ? <Button variant="ghost" size="sm" className="px-2 text-[var(--ink-soft)] transition hover:text-[var(--danger)] focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100" aria-label={`Fjern ${player.fullName}`} onClick={() => { if (confirm(`Vil du fjerne ${player.fullName} fra spillerlisten?`)) void removePlayer(player.id); }}><Trash2 size={16} /></Button> : <span />}
       </div>)}</div> : !workspaceLoaded ? <LoadingState compact>Henter spillerne …</LoadingState> : <div className="px-6 py-10 text-center"><FileSpreadsheet className="mx-auto text-[var(--ink-soft)]" size={27} /><p className="mt-3 font-black">Ingen spillere ennå</p><p className="mt-1 text-sm text-[var(--ink-soft)]">Importer medlemslisten fra Hoopit for å opprette spillerlisten.</p></div>}
     </section>
 

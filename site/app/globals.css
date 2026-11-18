@@ -55,11 +55,13 @@
   --success-line: #83ad9c;
   --success-fill: #34745f;
   --success-ink: #285546;
-  /* Stikkord, "publiser først" and every other peach note. */
-  --warn-bg: #fff0e8;
-  --warn-bg-strong: #fde1d5;
-  --warn-line: #eac8b6;
-  --warn-ink: #9c3913;
+  /* Something is in the way: "publiser først", a stale attendance list, a
+     warm-up longer than the time before the match. Amber, so a warning never
+     shares a hue with apricot, which only ever means the next thing to do. */
+  --warn-bg: #fdf3d7;
+  --warn-bg-strong: #f8e5ae;
+  --warn-line: #e3cb86;
+  --warn-ink: #75500a;
   /* Bands that stay dark in both themes: the live session's header, the
      builder's time check, the sign-in hero. Being dark is what they say. */
   --chrome: #2e1b3d;
@@ -158,6 +160,30 @@
   --lilac-edge: #b493cb;
   --lilac-ink: #40244f;
   --lilac-ink-soft: #715287;
+  /* Håndballskolen's court (decision 10). The court is context, so it is
+     quiet: a pale floor, thin white lines and small labels. What a player
+     looks for — the defenders — carries the colour and the contrast.
+     Captions on the court use --ink. */
+  --court-ground: #d9cfe5;
+  --court-floor: #ebe5f2;
+  --court-area: #ddd2e9;
+  --court-marking: #ffffff;
+  --court-label: #63526e;
+  --court-net: #cdbfe0;
+  --court-goal: #b9a3d1;
+  --court-shadow: #2e1b3d24;
+  /* Rings, arrows and pass lines drawn over the floor. */
+  --court-ring: #2e1b3d;
+  /* The defence's three roles, in Grep's brights, numbered in --on-bright. */
+  --role-1: var(--grep-apricot);
+  --role-2: var(--lime);
+  --role-3: #a8e6c4;
+  /* Opponents step back: smaller and a softer dark than the defenders' fills. */
+  --opponent: #4b3a5c;
+  --on-opponent: #f2ecf5;
+  --keeper: #b9d6ec;
+  --ball: #ffffff;
+  --ball-seam: #e0622a;
 }
 
 /* Screen only: «Skriv ut» on a session is read on white paper whatever the
@@ -205,10 +231,10 @@
     --success-line: #3e6d57;
     --success-fill: #3f8a6b;
     --success-ink: #9fd3b8;
-    --warn-bg: #3a2219;
-    --warn-bg-strong: #4a2a1d;
-    --warn-line: #6b3e2a;
-    --warn-ink: #ffb28a;
+    --warn-bg: #352a12;
+    --warn-bg-strong: #463717;
+    --warn-line: #66511f;
+    --warn-ink: #f2c14e;
     --chrome: #2b2036;
     --on-chrome: #f2ecf5;
     --on-chrome-soft: #d9cde2;
@@ -263,6 +289,25 @@
     --lilac-edge: #7b5f99;
     --lilac-ink: #e0cff5;
     --lilac-ink-soft: #c8a6e4;
+    --court-ground: #1d1624;
+    --court-floor: #2a2133;
+    --court-area: #241c2c;
+    --court-marking: #6f637b;
+    --court-label: #b1a4bb;
+    --court-net: #4a3e55;
+    --court-goal: #6d6178;
+    --court-shadow: #00000059;
+    --court-ring: #e9ddf7;
+    /* A step down from the light brights, so five of them on a dark floor
+       do not glare on a TV in a dim hall. */
+    --role-1: #f0a07c;
+    --role-2: #c9d88a;
+    --role-3: #94d1b0;
+    --opponent: #5a4d66;
+    --on-opponent: #f2ecf5;
+    --keeper: #8ab8da;
+    --ball: #f2ecf5;
+    --ball-seam: #f08a55;
   }
 }
 
@@ -338,7 +383,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-mobile-header .grep-logo-lockup { width: 96px; height: 32px; }
 .grep-mobile-nav { position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border-top: 1px solid var(--grep-line); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(12px); }
 .grep-mobile-nav :is(a,button) { display: flex; min-height: 48px; align-items: center; justify-content: center; flex-direction: column; gap: 4px; border-radius: 12px; font-size: 10px; font-weight: 600; color: var(--grep-muted); }
-.grep-mobile-nav [aria-current="page"] { color: var(--grep-ink); background: var(--apricot-wash); }
+.grep-mobile-nav [aria-current="page"] { color: var(--grep-ink); background: var(--grep-lilac); }
 .grep-drawer-overlay { position: fixed; inset: 0; z-index: 60; background: var(--scrim); backdrop-filter: blur(3px); }
 .grep-drawer { display: flex; flex-direction: column; width: min(320px,90vw); height: 100dvh; padding: 24px 16px; overflow-y: auto; background: var(--grep-paper); }
 .grep-sidebar-brand { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; }
@@ -350,7 +395,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-nav { display: grid; gap: 5px; }
 .grep-nav a, .grep-admin-link { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 14px; border-radius: 11px; color: var(--ink-mid); font-size: 13px; font-weight: 500; }
 .grep-nav a:hover, .grep-admin-link:hover { background: var(--hover-wash); color: var(--grep-ink); }
-.grep-nav a[aria-current="page"] { background: var(--apricot-wash); color: var(--grep-ink); font-weight: 650; }
+.grep-nav a[aria-current="page"] { background: var(--grep-lilac); color: var(--grep-ink); font-weight: 650; }
 .grep-nav a[aria-current="page"] svg { fill: var(--hover-wash-strong); }
 .grep-sidebar-footer { margin-top: auto; padding-top: 48px; }
 .grep-admin-link { font-size: 12px; }
@@ -508,7 +553,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-sidebar-brand { position: relative; }
 .grep-sidebar-brand::after { display: none; }
 .grep-drawer .grep-sidebar-brand::after, .grep-shell-collapsed .grep-sidebar-brand::after { display: none; }
-.grep-nav a[aria-current="page"] { background: var(--apricot-wash); color: var(--grep-ink); }
+.grep-nav a[aria-current="page"] { background: var(--grep-lilac); color: var(--grep-ink); }
 .grep-nav a[aria-current="page"] svg { fill: transparent; }
 .grep-nav a[aria-current="page"]::after { display: none; }
 .grep-shell-collapsed .grep-nav a::after { display: none; }
@@ -519,7 +564,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-drawer { background: var(--surface); }
 .grep-mobile-header { background: var(--surface); }
 .grep-mobile-nav { background: color-mix(in srgb, var(--surface) 96%, transparent); }
-.grep-mobile-nav [aria-current="page"] { background: var(--apricot-wash); }
+.grep-mobile-nav [aria-current="page"] { background: var(--grep-lilac); }
 .grep-eyebrow { display: flex; align-items: center; gap: 9px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
 .grep-eyebrow > .grep-logo-mark { width: 16px; height: 18px; color: var(--grep-ink); flex-shrink: 0; }
 .overview-next, .overview-match { position: relative; border-color: var(--grep-line); border-radius: 20px; }
@@ -654,8 +699,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    and accents of its own, which read as a page from another product. */
 .grep-calendar-controls { margin-bottom: 28px; }
 .grep-planning-views.grep-segments { margin: 0 0 22px; background: var(--surface); }
-.grep-planning-views.grep-segments button[aria-pressed="true"] { background: var(--apricot-wash-strong); }
 .grep-season-page { max-width: 1480px; }
+/* The builder's time budget on screens without the side column: it sticks to
+   the foot of the viewport while the plan scrolls, clear of the phone's tab
+   bar, and settles at the end of the plan once the last bolk is in view. */
+.grep-time-bar { position: sticky; z-index: 15; bottom: calc(76px + env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) { .grep-time-bar { bottom: 16px; } }
 .season-loading { min-height: 260px; padding: 32px; border: 1px solid var(--grep-line); border-radius: 17px; color: var(--ink-soft); }
 .season-overview { display: grid; gap: 18px; }
 .season-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 28px 30px; border: 1px solid var(--grep-line); border-radius: 20px; background: linear-gradient(120deg,var(--lilac-wash),var(--surface) 72%); }
@@ -925,7 +974,7 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
 .grep-rail-favorites:hover { border-color: var(--line-hover); color: var(--grep-ink); }
 .grep-rail-favorites.is-empty { color: var(--ink-disabled); cursor: default; }
 .grep-rail-favorites.is-empty:hover { border-color: var(--grep-line); color: var(--ink-disabled); }
-.grep-rail-favorites.is-on { border-color: var(--warn-line); background: var(--apricot-wash); color: var(--warn-ink); }
+.grep-rail-favorites.is-on { border-color: var(--grep-ink); background: var(--grep-lilac); color: var(--grep-ink); }
 .grep-rail-favorites .grep-rail-count { margin-left: auto; }
 
 /* Starting a samling is an offer, not an option in the list above it: the same
@@ -1116,6 +1165,195 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
   .overview-shortcut { min-height: 78px; padding: 15px 18px; }
   .overview-shortcut-icon { width: 44px; height: 44px; border-radius: 12px; }
 }
+/* Håndballskolen (decision 10). The index is a list of cards; a lesson is a
+   court beside a panel, with the steps above. «Vis på storskjerm» drops the
+   shell (`AppShell presenting`) and scales type up for the back of a hall. */
+@media (min-width: 1024px) { .grep-shell.grep-shell-presenting { display: block; } }
+.lesson-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.lesson-index-card { display: flex; align-items: flex-start; gap: 16px; height: 100%; padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); transition: border-color .15s; }
+.lesson-index-card:hover { border-color: var(--line-hover-strong); }
+.lesson-index-icon { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 48px; border-radius: 14px; background: var(--grep-lilac); color: var(--lilac-ink); }
+.lesson-index-copy { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 0; }
+.lesson-index-copy strong { font-size: 21px; font-weight: 650; letter-spacing: -.03em; }
+.lesson-index-summary { color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
+.lesson-index-steps { color: var(--ink-soft); font-size: 12px; font-weight: 600; }
+.lesson-index-arrow { flex-shrink: 0; color: var(--ink-soft); }
+
+.lesson { max-width: 1320px; }
+.lesson-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 24px; margin-bottom: 20px; }
+.lesson-back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; border-radius: 8px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.lesson-back:hover { color: var(--ink); }
+.lesson-header h1 { margin: 0; font-size: clamp(30px, 4vw, 40px); font-weight: 650; letter-spacing: -.045em; line-height: 1.1; }
+.lesson-lead { max-width: 62ch; margin: 8px 0 0; color: var(--ink-soft); font-size: 15px; line-height: 1.55; }
+.lesson-steps { display: flex; flex-wrap: wrap; gap: 6px; width: fit-content; max-width: 100%; margin-bottom: 22px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper-deep); }
+.lesson-steps button { min-height: 44px; padding: 10px 16px; border-radius: 10px; color: var(--ink-soft); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.lesson-steps button:hover { background: var(--hover-wash-strong); color: var(--ink); }
+.lesson-steps button[aria-current="step"] { background: var(--grep-lilac); color: var(--ink); }
+.lesson-stage { display: grid; align-items: start; gap: 22px; }
+.lesson-board { overflow: hidden; border-radius: 20px; background: var(--court-ground); }
+.lesson-hud { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lesson-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 14px; white-space: nowrap; }
+.lesson-chip b { font-weight: 700; }
+.lesson-chip.is-ok { border-color: var(--success-line); background: var(--success-bg); color: var(--success-ink); }
+.lesson-chip.is-bad { border-color: var(--danger-line); background: var(--danger-bg); color: var(--danger-ink); }
+.lesson-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 10px; color: var(--ink-soft); font-size: 13px; }
+.lesson-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.lesson-dot { display: inline-grid; flex-shrink: 0; place-items: center; width: 15px; height: 15px; border: 2px solid var(--court-marking); border-radius: 50%; box-shadow: 0 0 0 1px var(--line-strong); font-style: normal; }
+.lesson-dot-1 { background: var(--role-1); }
+.lesson-dot-2 { background: var(--role-2); }
+.lesson-dot-3 { background: var(--role-3); }
+.lesson-dot-opponent { width: 12px; height: 12px; background: var(--opponent); }
+.lesson-dot-keeper { width: 12px; height: 12px; background: var(--keeper); }
+.lesson-dot-big { width: 38px; height: 38px; color: var(--on-bright); font-size: 18px; font-weight: 750; }
+.lesson-panel { padding: 24px 22px 20px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); font-size: 15px; line-height: 1.6; }
+.lesson-panel h2 { margin: 0 0 10px; font-size: clamp(24px, 2.6vw, 30px); font-weight: 650; letter-spacing: -.04em; line-height: 1.15; text-wrap: balance; }
+.lesson-panel h3 { margin: 22px 0 8px; font-size: 17px; font-weight: 650; letter-spacing: -.02em; }
+.lesson-panel p { margin: 0 0 10px; }
+.lesson-panel b { font-weight: 650; }
+.lesson-small { color: var(--ink-soft); font-size: 13px; }
+.lesson-label { display: block; margin-bottom: 6px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.lesson-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.lesson-controls-wide { gap: 16px; }
+.lesson-panel .grep-segments { margin-bottom: 4px; }
+.lesson-panel .grep-segments button { font-size: 14px; }
+/* The shell styles a span in a segment as a count badge; a role name is not one. */
+.lesson-panel .grep-segments button .lesson-role { display: inline; min-width: 0; padding: .02em .28em; border-radius: .35em; background: color-mix(in srgb, var(--role-1) 45%, transparent); color: var(--ink); font-size: inherit; }
+.lesson-panel .grep-segments button .lesson-role-2 { background: color-mix(in srgb, var(--role-2) 45%, transparent); }
+.lesson-panel .grep-segments button .lesson-role-3 { background: color-mix(in srgb, var(--role-3) 45%, transparent); }
+.lesson-panel .grep-segments button:disabled { cursor: not-allowed; opacity: .4; }
+.lesson-panel .grep-button[aria-pressed="true"] { border-color: var(--lilac-line); background: var(--grep-lilac); }
+.lesson-rules { margin: 0; padding-left: 22px; }
+ol.lesson-rules { list-style: decimal; }
+ul.lesson-rules { list-style: disc; }
+.lesson-rules li { margin-bottom: 8px; }
+.lesson-card { display: grid; align-content: start; gap: 8px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); color: var(--ink); text-align: left; }
+.lesson-card:hover { border-color: var(--line-hover-strong); }
+.lesson-card[aria-pressed="true"] { border-color: var(--lilac-line); background: var(--lilac-wash); box-shadow: inset 0 0 0 1px var(--lilac-line); }
+.lesson-formations { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 0 0 12px; }
+.lesson-card-title { font-size: 28px; font-weight: 700; letter-spacing: -.04em; line-height: 1; }
+.lesson-card-text { display: block; font-size: 13px; line-height: 1.5; }
+.lesson-mini { position: relative; display: grid; gap: 9px; padding: 10px 34px 12px; border-radius: 10px; background: var(--court-floor); }
+.lesson-mini::before { content: ""; justify-self: center; width: 54px; height: 6px; border-radius: 3px; background: repeating-linear-gradient(90deg, var(--court-goal) 0 6px, var(--court-marking) 6px 12px); }
+.lesson-mini-row { position: relative; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.lesson-mini-row .lesson-dot { width: 20px; height: 20px; box-shadow: none; }
+.lesson-mini-row em { position: absolute; right: -24px; color: var(--court-label); font-size: 18px; font-style: normal; font-weight: 700; }
+.lesson-roles { display: grid; gap: 10px; margin: 12px 0; }
+.lesson-role-card { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; width: 100%; font-size: 14px; }
+.lesson-setups { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 6px; }
+.lesson-setups .lesson-card { gap: 2px; }
+.lesson-setups b { font-size: 15px; }
+.lesson-setups span { font-size: 13px; }
+.lesson-setups em { margin-left: 4px; font-size: 22px; font-style: normal; font-weight: 700; letter-spacing: -.03em; }
+.lesson-tip { margin: 14px 0; padding: 12px 14px; border-radius: 14px; background: var(--lilac-wash); color: var(--ink); }
+.lesson-result { margin: 12px 0; padding: 12px 14px; border-radius: 14px; }
+.lesson-result.is-good { background: var(--success-bg); color: var(--success-ink); }
+.lesson-result.is-mid { background: var(--warn-bg); color: var(--ink); }
+.lesson-result.is-bad { background: var(--danger-bg); color: var(--danger-ink); }
+/* A role named in the copy gets a soft wash of its colour, not a solid pill:
+   it marks the word without outshouting the sentence. */
+.lesson-role { padding: .02em .28em; border-radius: .35em; color: var(--ink); font-weight: 600; white-space: nowrap; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lesson-role-1 { background: color-mix(in srgb, var(--role-1) 45%, transparent); }
+.lesson-role-2 { background: color-mix(in srgb, var(--role-2) 45%, transparent); }
+.lesson-role-3 { background: color-mix(in srgb, var(--role-3) 45%, transparent); }
+.lesson-pager { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+.lesson-source { max-width: 80ch; margin-top: 28px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+@media (min-width: 880px) {
+  .lesson-stage { grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr); }
+  .lesson-board-column { position: sticky; top: 16px; }
+}
+@media (max-width: 639px) {
+  .lesson-steps { flex-wrap: nowrap; width: auto; overflow-x: auto; scrollbar-width: none; }
+  .lesson-board { border-radius: 16px; }
+}
+
+/* The court. Pieces move by a CSS transition on `transform`, set per move by
+   the lesson; the reduced-motion block below makes every move a jump. */
+.handball-court { display: block; width: 100%; height: auto; aspect-ratio: 208 / 168; -webkit-user-select: none; user-select: none; }
+.handball-court.is-placing { cursor: crosshair; }
+.court-distance { fill: var(--court-label); font-size: 6px; font-weight: 600; }
+.court-nine { stroke-width: .9; transition: stroke-width .3s; }
+.court-nine[data-highlight] { stroke-width: 1.8; }
+/* Each zone is a clear tint with a thin edge in its role's colour, so where
+   two overlap you can still tell whose is whose. The role in focus gets a
+   stronger edge and fill; the others fade. */
+.court-zone { fill-opacity: .36; stroke-width: 1; stroke-opacity: .9; transition: opacity .3s; }
+.court-zone-1 { fill: var(--role-1); stroke: var(--role-1); }
+.court-zone-2 { fill: var(--role-2); stroke: var(--role-2); }
+.court-zone-3 { fill: var(--role-3); stroke: var(--role-3); }
+.court-zone.is-focus { fill-opacity: .45; stroke-width: 1.8; stroke-opacity: 1; }
+.court-zone.is-dim { opacity: .12; }
+.court-run { fill: none; stroke: var(--court-ring); stroke-width: 1.3; stroke-dasharray: 3 2.5; }
+@keyframes court-pass-fade { from { opacity: .95; } to { opacity: 0; } }
+.court-pass { stroke: var(--court-ring); stroke-width: 1.1; stroke-dasharray: 3 2.5; animation: court-pass-fade 1.3s forwards; }
+.court-piece text { pointer-events: none; text-anchor: middle; font-weight: 750; }
+.court-piece.is-clickable { cursor: pointer; }
+.court-piece.is-dim { opacity: .25; }
+.court-piece.is-hidden { opacity: 0; pointer-events: none; }
+.court-hit { fill: transparent; }
+.court-shadow { fill: var(--court-shadow); }
+.court-body { stroke: var(--surface-raised); stroke-width: 1.4; }
+.court-role-1 .court-body { fill: var(--role-1); }
+.court-role-2 .court-body { fill: var(--role-2); }
+.court-role-3 .court-body { fill: var(--role-3); }
+.court-defender .court-number { fill: var(--on-bright); font-size: 11.5px; font-weight: 700; }
+.court-attacker .court-body, .court-keeper .court-body { stroke: var(--court-floor); stroke-width: 1.2; }
+.court-attacker .court-body { fill: var(--opponent); }
+.court-attacker .court-number { fill: var(--on-opponent); font-size: 6.4px; font-weight: 600; }
+.court-keeper .court-body { fill: var(--keeper); }
+.court-keeper .court-number { fill: var(--on-bright); font-size: 6px; font-weight: 600; }
+.court-piece.is-standin .court-body { stroke: var(--court-ring); stroke-dasharray: 2 1.6; stroke-width: 1.2; }
+.court-ring { fill: none; stroke: var(--court-ring); stroke-width: .9; opacity: 0; }
+.court-ring.is-dashed { opacity: .42; stroke-dasharray: 2 2; }
+.court-ring.is-solid { opacity: .85; stroke-width: 1.8; }
+.court-piece:focus { outline: none; }
+.court-piece:focus-visible .court-ring { opacity: 1; stroke: var(--ink); stroke-width: 2.6; stroke-dasharray: none; }
+.court-caption { fill: var(--ink); paint-order: stroke; stroke: var(--court-floor); stroke-width: 2.6px; text-anchor: middle; font-size: 8.5px; font-weight: 750; }
+.court-guide { stroke: var(--court-ring); stroke-width: 1.1; stroke-dasharray: 2 2; }
+.court-guide-ring { fill: var(--court-ring); fill-opacity: .08; stroke: var(--court-ring); stroke-width: 1.6; stroke-dasharray: 3 2; }
+
+/* «Riktig eller feil?» takes the court's place: a dark band in both themes. */
+.lesson-quiz { display: flex; flex-direction: column; justify-content: center; gap: 18px; min-height: min(78vw, 520px); padding: clamp(20px, 4vw, 44px); background: var(--chrome); color: var(--on-chrome); }
+.lesson-quiz-count { margin: 0; color: var(--on-chrome-soft); font-weight: 600; }
+.lesson-quiz-statement { margin: 0; font-size: clamp(26px, 3.4vw, 40px); font-weight: 650; letter-spacing: -.035em; line-height: 1.15; text-wrap: balance; }
+.lesson-quiz-answers { display: flex; flex-wrap: wrap; gap: 12px; }
+.lesson-quiz-answers button { min-width: 130px; min-height: 58px; padding: 0 26px; border-radius: 14px; color: var(--on-bright); font-size: 19px; font-weight: 650; }
+.lesson-quiz-answers .is-yes { background: var(--role-3); }
+.lesson-quiz-answers .is-no { background: var(--grep-apricot); }
+.lesson-quiz-answers button:disabled { cursor: default; opacity: .45; }
+.lesson-quiz-answers button.is-picked { opacity: 1; box-shadow: 0 0 0 4px var(--on-chrome); }
+.lesson-quiz-feedback { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, var(--on-chrome) 12%, transparent); }
+.lesson-quiz-feedback b { font-size: 22px; font-weight: 650; }
+.lesson-quiz-feedback button { margin-top: 8px; min-height: 46px; padding: 0 22px; border-radius: 12px; background: var(--grep-apricot); color: var(--on-bright); font-weight: 650; }
+/* The shell's ring is ink, which is the band's own colour in the light theme. */
+.lesson-quiz button:focus-visible { outline-color: var(--on-chrome); }
+
+/* Storskjerm: everything a row of players reads gets bigger. */
+.lesson.is-presenting { max-width: none; padding: 18px 28px 28px; }
+.is-presenting .lesson-header { margin-bottom: 14px; }
+.is-presenting .lesson-header h1 { font-size: clamp(32px, 3vw, 48px); }
+.is-presenting .lesson-steps button { min-height: 52px; font-size: 18px; }
+.is-presenting .lesson-panel { font-size: clamp(17px, 1.35vw, 22px); }
+.is-presenting .lesson-panel h2 { font-size: clamp(30px, 2.8vw, 46px); }
+.is-presenting .lesson-panel h3 { font-size: 1.25em; }
+.is-presenting :is(.lesson-small, .lesson-label, .lesson-card-text, .lesson-setups span) { font-size: .9em; }
+.is-presenting .lesson-panel .grep-segments button { font-size: 1em; }
+.is-presenting .lesson-chip { min-height: 42px; font-size: 18px; }
+.is-presenting .lesson-legend { font-size: 17px; }
+.is-presenting .lesson-quiz { min-height: calc(100dvh - 200px); }
+.is-presenting .lesson-quiz-count { font-size: 22px; }
+.is-presenting .lesson-quiz-statement { font-size: clamp(36px, 4.6vw, 76px); }
+.is-presenting .lesson-quiz-answers button { min-width: 180px; min-height: 76px; font-size: 26px; }
+.is-presenting .lesson-quiz-feedback { font-size: 22px; }
+.is-presenting .lesson-quiz-feedback b { font-size: 30px; }
+/* The court is as wide as the screen's height allows with the steps above it
+   and the chips below, so it is never cut off; the panel takes the rest. */
+@media (min-width: 880px) { .lesson.is-presenting .lesson-stage { grid-template-columns: minmax(0, calc((100dvh - 330px) * 208 / 168)) minmax(360px, 1fr); } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Håndballskolen: pieces jump to their places and pass lines never show. */
+  .court-piece, .court-zone, .court-nine { transition: none !important; }
+  .court-pass { animation: none !important; opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
@@ -1131,7 +1369,7 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
  * kept whole so a bolk is never split across two sheets.
  *
  * Browsers print backgrounds only if the reader ticks the box, so nothing here
- * may depend on one: the cue box earns a border instead of its peach fill.
+ * may depend on one.
  */
 @media print {
   @page { margin: 14mm; }
@@ -1157,5 +1395,4 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
      alone at the foot of a page with its first activity overleaf. */
   [data-print="item"] { break-inside: avoid; }
   [data-print="block-head"] { break-after: avoid; }
-  [data-print="cue"] { border: 1px solid var(--line); }
 }

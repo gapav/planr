@@ -109,6 +109,41 @@ describe("AppShell navigation", () => {
     expect(nav.getByRole("link", { name: "Øvelsesbank" })).toHaveAttribute("aria-current", "page");
   });
 
+  // Decision 10: Håndballskolen sits after Øvelsesbank in the sidebar and in
+  // «Mer», and the phone's bottom bar keeps its four.
+  it("lists Håndballskolen after Øvelsesbank, marked current on its lessons", () => {
+    mocks.pathname.mockReturnValue("/handballskolen/utgruppert-forsvar");
+    mocks.useGrep.mockReturnValue(grepState(demoUser));
+    render(<AppShell>Innhold</AppShell>);
+    const links = within(screen.getByRole("navigation", { name: "Hovedmeny" })).getAllByRole("link");
+    const labels = links.map((link) => link.getAttribute("aria-label"));
+    expect(labels.indexOf("Håndballskolen")).toBe(labels.indexOf("Øvelsesbank") + 1);
+    const lessons = links.find((link) => link.getAttribute("aria-label") === "Håndballskolen")!;
+    expect(lessons).toHaveAttribute("href", "/handballskolen");
+    expect(lessons).toHaveAttribute("aria-current", "page");
+    expect(links.filter((link) => link.getAttribute("aria-current") === "page")).toHaveLength(1);
+  });
+
+  it("keeps Håndballskolen in the collapsed sidebar, named for its tooltip", () => {
+    mocks.pathname.mockReturnValue("/handballskolen");
+    mocks.useGrep.mockReturnValue(grepState(demoUser, true));
+    render(<AppShell>Innhold</AppShell>);
+    const link = within(screen.getByRole("navigation", { name: "Hovedmeny" })).getByRole("link", { name: "Håndballskolen" });
+    expect(link).toHaveAttribute("title", "Håndballskolen");
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("offers Håndballskolen in «Mer» but leaves the bottom bar at four", () => {
+    mocks.useGrep.mockReturnValue(grepState(demoUser));
+    render(<AppShell>Innhold</AppShell>);
+    const bar = screen.getByRole("navigation", { name: "Hurtigmeny" });
+    expect(within(bar).getAllByRole("link").map((link) => link.textContent)).toEqual(["Oversikt", "Øktkalender", "Øvelsesbank"]);
+    expect(within(bar).getAllByRole("button").map((button) => button.textContent)).toEqual(["Mer"]);
+    fireEvent.click(within(bar).getByRole("button", { name: "Mer" }));
+    const drawer = within(screen.getByRole("dialog", { name: "Navigasjon" }));
+    expect(drawer.getByRole("link", { name: "Håndballskolen" })).toHaveAttribute("href", "/handballskolen");
+  });
+
   it("does not offer system administration to ordinary coaches", () => {
     mocks.useGrep.mockReturnValue(grepState({ ...demoUser, isGlobalAdmin: false }));
     render(<AppShell>Innhold</AppShell>);

@@ -36,6 +36,10 @@ function SessionsRoute() {
 function SessionsContent({ initialTab, initialPlanningView, initialSeasonFocus }: { initialTab: SessionTab; initialPlanningView: "calendar" | "season"; initialSeasonFocus: string | null }) {
   const { sessions, fixtures, currentTeam, focusPeriods, user, workspaceLoaded, createSession, deleteSession } = useGrep(); const [tab, setTab] = useState<SessionTab>(initialTab); const [planningView, setPlanningView] = useState<"calendar" | "season">(initialPlanningView); const [creating, setCreating] = useState(false); const [pendingDelete, setPendingDelete] = useState<PlannedSession | null>(null); const [deleting, setDeleting] = useState(false); const [copySource, setCopySource] = useState<PlannedSession | null>(null); const [reopenSource, setReopenSource] = useState<PlannedSession | null>(null); const router = useRouter();
   const current = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === tab).sort((a, b) => tab === "drafts" ? b.updatedAt.localeCompare(a.updatedAt) : tab === "upcoming" ? (a.startsAt ?? "").localeCompare(b.startsAt ?? "") : (b.startsAt ?? "").localeCompare(a.startsAt ?? "")), [sessions, currentTeam, tab]);
+  // Drafts waiting to be published. When nothing is upcoming they are the next
+  // thing to work on, so the empty «Kommende» tab offers them rather than
+  // telling the coach to go and find one.
+  const waitingDrafts = useMemo(() => sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === "drafts").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [sessions, currentTeam]);
   const counts = useMemo(() => tabs.reduce((acc, entry) => { acc[entry.id] = sessions.filter((session) => session.teamId === currentTeam?.id && deriveSessionTab(session) === entry.id).length; return acc; }, {} as Record<SessionTab, number>), [sessions, currentTeam]);
   // The nearest session is lifted out of its month so the one plan being
   // prepared for is not one card among ten identical ones.
@@ -74,7 +78,7 @@ function SessionsContent({ initialTab, initialPlanningView, initialSeasonFocus }
       // the thing to do then.
       : tab === "upcoming"
       ? <div className="grep-session-sections">
-        {!current.length && <EmptyState icon={<CalendarDays size={22} />} title="Ingen planlagte økter ennå" body="Publiser et utkast, så vises det automatisk her." />}
+        {!current.length && <EmptyState icon={<CalendarDays size={22} />} title="Ingen planlagte økter ennå" body={waitingDrafts.length === 1 ? "Du har ett utkast som venter. Publiser det, så vises det her." : waitingDrafts.length > 1 ? `Du har ${waitingDrafts.length} utkast som venter. Publiser dem, så vises de her.` : "Publiser et utkast, så vises det automatisk her."} action={waitingDrafts.length > 0 && <WaitingDrafts drafts={waitingDrafts.slice(0, 3)} />} />}
         {hero && <section><ul><SessionRow session={hero} tab={tab} hero onCopy={() => setCopySource(hero)} onReopen={() => setReopenSource(hero)} onDelete={() => setPendingDelete(hero)} /></ul></section>}
         {calendarMonthGroups(listed).map((group) => <MonthSection key={group.key} group={group} tab={tab} onCopy={setCopySource} onReopen={setReopenSource} onDelete={setPendingDelete} />)}
       </div>
@@ -230,4 +234,12 @@ function CompactSessionRow({ session, onCopy, onReopen, onDelete }: { session: P
       <SessionMenu session={session} open={menuOpen} onOpenChange={setMenuOpen} onCopy={onCopy} onReopen={onReopen} onDelete={onDelete} />
     </span>
   </li>;
+}
+
+/** The drafts the empty «Kommende» tab offers, newest first, each one tap from the builder. */
+function WaitingDrafts({ drafts }: { drafts: PlannedSession[] }) {
+  return <ul className="grid w-full gap-2 text-left">{drafts.map((draft) => <li key={draft.id}><Link href={`/sessions/${draft.id}/edit`} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 transition hover:border-[var(--ink)]">
+    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-black">{draft.title || UNTITLED_SESSION_TITLE}</span><span className="block text-xs text-[var(--ink-soft)]">{sessionDuration(draft)} av {draft.plannedDurationMinutes} min planlagt</span></span>
+    <span className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] px-3 text-sm font-semibold text-[var(--ink)]">Fortsett<ArrowRight size={15} aria-hidden /></span>
+  </Link></li>)}</ul>;
 }

@@ -176,3 +176,26 @@ export function workspaceSettle(last: WorkspaceLoad | null, inFlightUserId: stri
   if (shouldLoadWorkspace(last, userId, now, minIntervalMs)) return "load";
   return inFlightUserId === userId ? "wait" : "settle";
 }
+
+/**
+ * The tables `loadPrivateData` reads, in the order of its batch. Only used to
+ * name the ones that failed.
+ */
+export const WORKSPACE_QUERIES = ["team_memberships", "sessions", "team_invitations", "profiles", "team_players", "team_fixtures", "team_focus_periods", "warmup_routines", "session_attendance", "session_groupings", "exercise_favorites", "exercise_collections"] as const;
+
+/**
+ * Which queries of the workspace batch came back with an error. supabase-js does
+ * not throw for a failed request — a dropped connection included — it answers
+ * `{ data: null, error }`, so a batch where one query failed looks like a batch
+ * where that table is simply empty unless the errors are read.
+ */
+export function workspaceQueryFailures(results: ReadonlyArray<{ error: unknown }>): string[] {
+  return results.flatMap((result, index) => result.error ? [WORKSPACE_QUERIES[index] ?? `#${index}`] : []);
+}
+
+/**
+ * How long to wait before each retry of a workspace load that failed, in full
+ * or in part. The app keeps showing «Henter …» meanwhile; past the last one it
+ * settles on what it has, and the next refocus or `online` event tries again.
+ */
+export const WORKSPACE_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000];

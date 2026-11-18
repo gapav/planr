@@ -14,6 +14,7 @@ import {
   Flag,
   LayoutGrid,
   ListChecks,
+  MessageCircle,
   LockKeyhole,
   RotateCcw,
   Shuffle,
@@ -171,7 +172,7 @@ function SessionSetup({ sessionId }: { sessionId: string }) {
         <Link href="/sessions" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] transition hover:border-[var(--ink)]" aria-label="Tilbake til øktkalenderen"><ArrowLeft size={19} /></Link>
         {sessionTeam && <TeamCrest team={sessionTeam} />}
         <div className="min-w-0 flex-1"><p className="text-[11px] font-black uppercase tracking-[.14em] text-[var(--accent)]">Klargjør økten</p><h1 className="mt-0.5 truncate text-xl font-black tracking-[-.035em] sm:text-2xl">{session.title}</h1></div>
-        <Tag tone={session.status === "published" ? "green" : "orange"}>{session.status === "published" ? "Klar til start" : "Utkast"}</Tag>
+        <Tag tone={session.status === "published" ? "green" : "neutral"}>{session.status === "published" ? "Klar til start" : "Utkast"}</Tag>
         <HelpTip topic="session-day" />
       </div>
     </header>
@@ -348,7 +349,7 @@ function ExerciseDetail({ item }: { item: SessionItem }) {
     {item.mediaUrl && embedUrl ? <div className="aspect-video overflow-hidden rounded-[20px] bg-black"><iframe src={embedUrl} title={`${item.title} video`} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div> : item.mediaUrl && mediaKind === "video" ? <video src={item.mediaUrl} controls playsInline preload="metadata" className="aspect-video w-full rounded-[20px] bg-black object-contain" /> : item.mediaUrl && mediaKind === "image" ? <img src={item.mediaUrl} alt={item.title} className="max-h-[55vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" /> : item.mediaUrl && mediaKind === "link" ? <MediaLinkCard mediaUrl={item.mediaUrl} /> : item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="max-h-[45vh] w-full rounded-[20px] bg-[var(--paper)] object-contain" /> : null}
     <MediaCreditLine mediaUrl={item.mediaUrl} />
     {item.description && <section><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--accent)]">Instruksjoner</p><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--ink-soft)]">{item.description}</p></section>}
-    {item.coachingNotes && <section className="rounded-2xl bg-[var(--warn-bg)] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--warn-ink)]">Stikkord</p><PointList points={noteLines(item.coachingNotes)} className="mt-2 text-sm font-semibold leading-6" /></section>}
+    {item.coachingNotes && <section className="rounded-2xl border border-[var(--line)] p-4"><p className="flex items-center gap-2 text-[13px] font-bold text-[var(--ink-soft)]"><MessageCircle size={15} aria-hidden="true" className="text-[var(--accent)]" />Stikkord</p><PointList points={noteLines(item.coachingNotes)} className="mt-2 text-sm font-semibold leading-6" /></section>}
     {!item.mediaUrl && !item.description && !item.coachingNotes && <p className="rounded-2xl bg-[var(--paper)] px-5 py-8 text-center text-sm text-[var(--ink-soft)]">Ingen flere øvelsesdetaljer er tilgjengelige.</p>}
   </div>;
 }
