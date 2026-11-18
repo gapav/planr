@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, LifeBuoy, LogOut, Settings, ShieldCheck } from "lucide-react";
+import { LifeBuoy, LogOut, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useGrep } from "./app-provider";
@@ -31,7 +31,6 @@ export function AccountMenu() {
       <div className="px-3 pb-2 pt-1.5"><p className="truncate font-bold">{user?.fullName}</p><p className="truncate text-xs font-normal text-[var(--ink-soft)]">{user?.email}</p></div>
       <div className="my-1 h-px bg-[var(--line)]" />
       <Link href="/team" role="menuitem" autoFocus onClick={() => setOpen(false)} className={entry}><Settings size={16} />Innstillinger</Link>
-      <Link href="/account/password?next=%2F" role="menuitem" onClick={() => setOpen(false)} className={entry}><KeyRound size={16} />Bytt passord</Link>
       <button type="button" role="menuitem" onClick={() => { setOpen(false); setSupportOpen(true); }} className={entry}><LifeBuoy size={16} />Hjelp og support</button>
       {user?.isGlobalAdmin && <Link href="/admin" role="menuitem" onClick={() => setOpen(false)} className={entry}><ShieldCheck size={16} />Administrasjon</Link>}
       <div className="my-1 h-px bg-[var(--line)]" />

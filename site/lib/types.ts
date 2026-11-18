@@ -80,7 +80,7 @@ export const MIN_STATIONS = 2;
  * preference is none of their business, so the members read off a membership
  * carry it as `undefined`.
  */
-export interface Profile { id: string; email: string; fullName: string; initials: string; color: string; isGlobalAdmin?: boolean; mustSetPassword?: boolean; sessionDigestEmail?: boolean; teamRole?: TeamRole; }
+export interface Profile { id: string; email: string; fullName: string; initials: string; color: string; isGlobalAdmin?: boolean; sessionDigestEmail?: boolean; teamRole?: TeamRole; }
 export interface Team { id: string; name: string; shortName: string; logoUrl: string | null; role: TeamRole; members: Profile[]; }
 export interface TeamPlayer {
   id: string; teamId: string; fullName: string; jerseyNumber: string | null; createdAt: string; updatedAt: string;
