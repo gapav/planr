@@ -133,7 +133,6 @@ interface GrepContextValue {
   clearNotice(): void;
   signIn(email: string, password: string): Promise<void>;
   requestMagicLink(email: string, next?: string): Promise<void>;
-  setPassword(password: string): Promise<void>;
   signOut(): Promise<void>;
   addExercise(input: ExerciseInput): Promise<void>;
   updateExercise(id: string, input: ExerciseInput): Promise<void>;
@@ -403,7 +402,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name, logo_url), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
-      supabase.from("profiles").select("id, email, full_name, is_global_admin, must_set_password, session_digest_email").eq("id", authUser.id).single(),
+      supabase.from("profiles").select("id, email, full_name, is_global_admin, session_digest_email").eq("id", authUser.id).single(),
       supabase.from("team_players").select("id, team_id, full_name, jersey_number, created_at, updated_at").order("full_name"),
       supabase.from("team_fixtures").select("*").order("starts_at"),
       supabase.from("team_focus_periods").select("id, team_id, title, note, notes, starts_on, weeks, updated_at, updated_by"),
@@ -426,9 +425,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // must not replace anything. The same goes for a batch that lost the
     // network altogether.
     //
-    // `profiles` also carries `must_set_password`, so losing it silently would
-    // let a coach skip the forced password change. Say so — but only the first
-    // time, when there is nothing to fall back on. Every later load is a
+    // A coach whose own profile cannot be read has nothing to work with. Say
+    // so — but only the first time, when there is nothing to fall back on. Every later load is a
     // refresh of a profile already in hand, which a failure leaves untouched;
     // and refreshes are unprompted (any auth event past the throttle, so every
     // tab refocus), so a notice then reads as "the thing you just did failed"
@@ -438,7 +436,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     loadedProfileId.current = profileRow.id;
-    setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: COACH_AVATAR_SELF, isGlobalAdmin: profileRow.is_global_admin, mustSetPassword: profileRow.must_set_password, sessionDigestEmail: profileRow.session_digest_email !== false });
+    setUser({ id: profileRow.id, email: profileRow.email, fullName: profileRow.full_name, initials: initials(profileRow.full_name), color: COACH_AVATAR_SELF, isGlobalAdmin: profileRow.is_global_admin, sessionDigestEmail: profileRow.session_digest_email !== false });
     setNotice((current) => current === WORKSPACE_LOAD_FAILED_MESSAGE ? null : current);
     let memberTeamIds: Set<string> | null = null;
     if (memberships) {
@@ -634,28 +632,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
     });
     if (error && !isUnknownMagicLinkAddressError(error)) throw new Error(norwegianServerMessage(error.message, "Innloggingslenken kunne ikke sendes. Vent litt og prøv igjen."));
-  }, [supabase]);
-
-  // Accounts are created by an admin with a temporary password, so the first
-  // sign-in is routed here before anything else in the app is reachable.
-  const setPassword = useCallback(async (password: string) => {
-    if (!supabase) { setUser((current) => current && { ...current, mustSetPassword: false }); setNotice("Demomodus — passordet ble ikke endret."); return; }
-    // `updateUser` reads the session straight out of the cookie store and only
-    // says "Auth session missing!" when it has gone, which strands a coach on a
-    // form that can never succeed. Drop the stale local user instead so the page
-    // sends them back to sign in with the password they were given.
-    const { data: current } = await supabase.auth.getSession();
-    if (!current.session) { setUser(null); throw new Error("Innloggingen din har utløpt. Logg inn på nytt med passordet du fikk av lagadministratoren, og velg deretter ditt eget."); }
-    const { data, error } = await supabase.auth.updateUser({ password });
-    if (error) throw new Error(norwegianServerMessage(error.message, "Passordet kunne ikke endres."));
-    setUser((current) => current && { ...current, mustSetPassword: false });
-    // Migration 202609020026 clears the flag from a trigger on the real event —
-    // the stored password changing — and revokes the column, so this write is
-    // only the fallback for a database that has not had it applied yet. Its
-    // refusal is the expected answer afterwards, so it is deliberately not run
-    // through `persist`: a permission error here must not strand a coach on the
-    // form they have just completed.
-    await supabase.from("profiles").update({ must_set_password: false }).eq("id", data.user.id);
   }, [supabase]);
 
   const signOut = useCallback(async () => {
@@ -1635,7 +1611,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedAdminSessions = useMemo(() => resolveAll(adminSessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [adminSessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, exercisesLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, exercisesLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, focusPeriods, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, setPassword, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, exercisesLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, exercisesLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, focusPeriods, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

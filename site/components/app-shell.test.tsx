@@ -92,17 +92,8 @@ describe("AppShell navigation", () => {
     expect(mocks.replace).not.toHaveBeenCalled();
   });
 
-  it("ignores the retired temporary-password flag for passwordless accounts", () => {
-    mocks.useGrep.mockReturnValue(grepState({ ...demoUser, mustSetPassword: true }));
-
-    render(<AppShell><div>Exercise library</div></AppShell>);
-
-    expect(mocks.replace).not.toHaveBeenCalled();
-    expect(screen.getByRole("main")).toHaveTextContent("Exercise library");
-  });
-
   it("renders an ordinary passwordless coach session", () => {
-    mocks.useGrep.mockReturnValue(grepState({ ...demoUser, mustSetPassword: false }));
+    mocks.useGrep.mockReturnValue(grepState(demoUser));
 
     render(<AppShell><div>Exercise library</div></AppShell>);
 

@@ -1,24 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, shouldLoadWorkspace, WORKSPACE_QUERIES, WORKSPACE_RELOAD_INTERVAL_MS, workspaceQueryFailures, workspaceSettle } from "./auth";
+import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, shouldLoadWorkspace, WORKSPACE_QUERIES, WORKSPACE_RELOAD_INTERVAL_MS, workspaceQueryFailures, workspaceSettle } from "./auth";
 import type { TeamInvitation } from "./types";
-
-describe("passwordProblem", () => {
-  it("accepts a long enough matching password", () => {
-    expect(passwordProblem("correct horse battery", "correct horse battery")).toBeNull();
-  });
-
-  it("rejects a password under the minimum length", () => {
-    expect(passwordProblem("short", "short")).toContain(String(MIN_PASSWORD_LENGTH));
-  });
-
-  it("rejects whitespace padded to the minimum length", () => {
-    expect(passwordProblem(" ".repeat(MIN_PASSWORD_LENGTH), " ".repeat(MIN_PASSWORD_LENGTH))).toBe("Bruk minst ett tegn som ikke er et mellomrom.");
-  });
-
-  it("rejects a mismatched confirmation", () => {
-    expect(passwordProblem("correct horse battery", "correct horse batteru")).toBe("Passordene er ikke like.");
-  });
-});
 
 describe("invitationUrl", () => {
   it("builds the invite link from the current origin", () => {
