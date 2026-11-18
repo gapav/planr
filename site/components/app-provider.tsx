@@ -3,7 +3,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { mapAdminAccount, mapAdminTeam, partitionSessionsByMembership, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
-import { authEventLoadsWorkspace, claimableInvitations, invitationUrl, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, seedProfile, type WorkspaceLoad, workspaceSettle } from "@/lib/auth";
+import { authEventLoadsWorkspace, claimableInvitations, invitationUrl, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, seedProfile, WORKSPACE_RETRY_DELAYS_MS, type WorkspaceLoad, workspaceQueryFailures, workspaceSettle } from "@/lib/auth";
 import { demoCollections, demoExercises, demoFixtures, demoFocusPeriods, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { collectionNameError, normalizeCollectionName, sortCollections } from "@/lib/collections";
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
@@ -399,7 +399,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // has left the workspace untouched and is the caller's cue to retry.
   const loadPrivateData = useCallback(async (authUser: User): Promise<boolean> => {
     if (!supabase) return true;
-    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: focusRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }, { data: favoriteRows }, { data: collectionRows }] = await Promise.all([
+    const results = await Promise.all([
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name, logo_url), profiles(id, email, full_name, avatar_url)"),
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
@@ -415,6 +415,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // contents, and there is no view that wants one without the other.
       supabase.from("exercise_collections").select("id, team_id, name, created_by, created_at, updated_at, exercise_collection_items(exercise_id)"),
     ]);
+    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: focusRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }, { data: favoriteRows }, { data: collectionRows }] = results;
     // supabase-js does not fail a query it has no session for: it sends the
     // publishable key and runs it as `anon`, which every team-scoped policy
     // answers with zero rows and no error. That is what a tab opened on an
@@ -482,6 +483,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAdminTeamsLoaded(true);
       setAdminAccountsLoaded(true);
     }
+    // One query of the twelve failing on its own — the sessions one, the
+    // heaviest, cut off when iOS suspends or resumes the app — used to leave
+    // its slice empty and still report success, so nothing ever retried it and
+    // the calendar said «Kommende (0)» until the app was restarted. Everything
+    // that did arrive is applied above; the batch as a whole reports failure so
+    // the caller retries it.
+    const failed = workspaceQueryFailures(results);
+    if (failed.length) { console.error("[grep] deler av arbeidsområdet kunne ikke leses", failed); return false; }
     return true;
   }, [loadAdminAccounts, loadAdminTeams, supabase]);
 
@@ -507,11 +516,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastWorkspaceLoad.current = { userId: authUser.id, at: Date.now() };
     const load = { userId: authUser.id };
     workspaceLoadInFlight.current = load;
+    // A load that fails, in full or in part, is retried a couple of times
+    // before the flag settles, so the screens keep saying «Henter …» rather
+    // than showing an empty calendar on one dropped request.
+    const loadWithRetries = async (): Promise<boolean> => {
+      for (let attempt = 0; ; attempt += 1) {
+        const loaded = await loadPrivateData(authUser).catch(() => false);
+        if (loaded || workspaceLoadInFlight.current !== load) return loaded;
+        const delay = WORKSPACE_RETRY_DELAYS_MS[attempt];
+        if (delay === undefined) return false;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        if (workspaceLoadInFlight.current !== load) return false;
+      }
+    };
     // `finally`, not `then`: a failed load still settles the workspace, or a
     // waiting page spins for ever on the arena wifi this app is used on.
-    void loadPrivateData(authUser)
-      .then((loaded) => { if (!loaded) lastWorkspaceLoad.current = null; })
-      .catch(() => { lastWorkspaceLoad.current = null; })
+    void loadWithRetries()
+      // Giving the claim back lets the next refocus or `online` event retry.
+      .then((loaded) => { if (!loaded && workspaceLoadInFlight.current === load) lastWorkspaceLoad.current = null; })
       .finally(() => {
         // A load overtaken by another coach's, or by signing out, leaves the
         // flag to whoever replaced it.
