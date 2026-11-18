@@ -8,6 +8,8 @@ import { AppProvider, useGrep } from "./app-provider";
 const mocks = vi.hoisted(() => ({ configured: false, client: null as unknown }));
 vi.mock("@/lib/supabase/config", () => ({ get isSupabaseConfigured() { return mocks.configured; }, supabaseUrl: "https://example.supabase.co", supabasePublishableKey: "key" }));
 vi.mock("@/lib/supabase/client", () => ({ getSupabaseBrowserClient: () => mocks.client }));
+// No real waiting between retries of a failed workspace load.
+vi.mock("@/lib/auth", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/auth")>(), WORKSPACE_RETRY_DELAYS_MS: [0, 0] }));
 
 type Result = { data: unknown; error: unknown };
 const refused: Result = { data: null, error: { message: "nope" } };
@@ -72,5 +74,54 @@ describe("exercisesLoaded", () => {
     mocks.client = fakeClient({ id: "coach-1", email: "coach@example.com" }, () => Promise.resolve(refused));
     render(<AppProvider><Probe /></AppProvider>);
     await waitFor(() => expect(probe()).toBe("true"));
+  });
+});
+
+describe("workspace load", () => {
+  afterEach(() => { mocks.configured = false; mocks.client = null; });
+
+  const coach = { id: "coach-1", email: "coach@example.com" };
+  const sessionRow = { id: "session-1", team_id: "team-1", title: "Tirsdagstrening", status: "published", scheduled_for: "2026-11-20", session_blocks: [], created_by: "coach-1", updated_by: "coach-1", created_at: "2026-11-01T10:00:00Z", updated_at: "2026-11-01T10:00:00Z" };
+
+  /** A signed-in coach whose profile always reads; `sessions` answers from the given sequence, the rest with no rows. */
+  function clientWithSessions(sessionAnswers: Result[]) {
+    let sessionCalls = 0;
+    const client = fakeClient(coach, () => Promise.resolve({ data: [], error: null }));
+    return {
+      ...client,
+      from: (table: string) => query(() => {
+        if (table === "profiles") return Promise.resolve({ data: { id: coach.id, email: coach.email, full_name: "Coach One", is_global_admin: false, session_digest_email: true }, error: null });
+        if (table === "team_memberships") return Promise.resolve({ data: [{ team_id: "team-1", profile_id: coach.id, role: "admin", teams: { id: "team-1", name: "Kolbotn - B2020", logo_url: null }, profiles: { id: coach.id, email: coach.email, full_name: "Coach One", avatar_url: null } }], error: null });
+        if (table === "sessions") { const answer = sessionAnswers[Math.min(sessionCalls, sessionAnswers.length - 1)]; sessionCalls += 1; return Promise.resolve(answer); }
+        return Promise.resolve({ data: [], error: null });
+      }),
+      sessionCalls: () => sessionCalls,
+    };
+  }
+
+  function WorkspaceProbe() {
+    const { workspaceLoaded, sessions } = useGrep();
+    return <p data-testid="workspace">{workspaceLoaded ? `loaded:${sessions.length}` : "loading"}</p>;
+  }
+  const workspace = () => screen.getByTestId("workspace").textContent;
+
+  // The bug behind «Kommende (0)»: the sessions query alone failing (iOS
+  // cutting a request off on suspend/resume) was taken as "no sessions".
+  it("retries when only the sessions query fails, instead of settling on an empty calendar", async () => {
+    const client = clientWithSessions([refused, { data: [sessionRow], error: null }]);
+    mocks.configured = true;
+    mocks.client = client;
+    render(<AppProvider><WorkspaceProbe /></AppProvider>);
+    await waitFor(() => expect(workspace()).toBe("loaded:1"));
+    expect(client.sessionCalls()).toBe(2);
+  });
+
+  it("settles after the last retry when the sessions query keeps failing", async () => {
+    const client = clientWithSessions([refused]);
+    mocks.configured = true;
+    mocks.client = client;
+    render(<AppProvider><WorkspaceProbe /></AppProvider>);
+    await waitFor(() => expect(workspace()).toBe("loaded:0"));
+    expect(client.sessionCalls()).toBe(3);
   });
 });

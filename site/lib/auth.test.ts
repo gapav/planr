@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, shouldLoadWorkspace, WORKSPACE_RELOAD_INTERVAL_MS, workspaceSettle } from "./auth";
+import { authEventLoadsWorkspace, claimableInvitations, internalPath, invitationUrl, isIdentityChange, isLocalhost, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, MIN_PASSWORD_LENGTH, passwordProblem, shouldLoadWorkspace, WORKSPACE_QUERIES, WORKSPACE_RELOAD_INTERVAL_MS, workspaceQueryFailures, workspaceSettle } from "./auth";
 import type { TeamInvitation } from "./types";
 
 describe("passwordProblem", () => {
@@ -244,5 +244,24 @@ describe("workspaceSettle", () => {
   it("settles at once when no one is signed in", () => {
     expect(workspaceSettle(null, null, null, 1_000_000)).toBe("settle");
     expect(workspaceSettle(last, "coach-1", null, last.at + 40)).toBe("settle");
+  });
+});
+
+describe("workspaceQueryFailures", () => {
+  const ok = { data: [], error: null };
+  const failed = { data: null, error: { message: "Load failed" } };
+
+  it("is empty when every query answered", () => {
+    expect(workspaceQueryFailures(WORKSPACE_QUERIES.map(() => ok))).toEqual([]);
+  });
+
+  it("names a query that failed on its own, such as the sessions one", () => {
+    const results = WORKSPACE_QUERIES.map((name) => name === "sessions" ? failed : ok);
+    expect(workspaceQueryFailures(results)).toEqual(["sessions"]);
+  });
+
+  it("names every failed query, in batch order", () => {
+    const results = WORKSPACE_QUERIES.map((name) => name === "team_fixtures" || name === "team_memberships" ? failed : ok);
+    expect(workspaceQueryFailures(results)).toEqual(["team_memberships", "team_fixtures"]);
   });
 });
