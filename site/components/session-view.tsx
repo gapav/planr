@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- session thumbnails snapshot arbitrary library media */
 
-import { ArrowLeft, Calendar, CirclePlay, Clock3, Eye, LayoutList, MapPin, Pencil, Printer, Sparkles, Target } from "lucide-react";
+import { ArrowLeft, Calendar, CirclePlay, Clock3, Eye, LayoutList, MapPin, MessageCircle, Pencil, Printer, Sparkles, Target } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AppShell } from "./app-shell";
@@ -39,6 +39,10 @@ export function SessionViewScreen({ sessionId }: { sessionId: string }) {
   return session?.status === "in_progress" || session?.status === "completed" ? <WorkoutSession sessionId={sessionId} /> : <SessionView sessionId={sessionId} />;
 }
 
+const headerAction = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition hover:-translate-y-0.5";
+const headerPrimary = "bg-[var(--grep-apricot)] text-[var(--on-bright)] hover:bg-[var(--apricot-hover)]";
+const headerSecondary = "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] hover:border-[var(--ink)]";
+
 const statusLabel = { draft: "Øktutkast", published: "Publisert", in_progress: "Pågår", completed: "Gjennomført" } as const;
 
 export function SessionView({ sessionId, readOnly = false }: { sessionId: string; readOnly?: boolean }) {
@@ -65,15 +69,17 @@ export function SessionView({ sessionId, readOnly = false }: { sessionId: string
     <header data-print="hide" className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--paper)]/92 px-4 py-3 backdrop-blur-xl sm:px-7"><div className="mx-auto flex max-w-[1000px] items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3"><Link href={backHref} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl hover:bg-[var(--hover-wash-strong)]" aria-label={readOnly ? "Tilbake til lagets økter" : "Tilbake til øktkalenderen"}><ArrowLeft size={20} /></Link><div className="min-w-0"><p className="truncate text-sm font-black">{session.title}</p><p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--ink-soft)]"><Eye size={12} />{readOnly ? `Kun lesing${sessionTeam ? ` · ${sessionTeam.shortName}` : ""}` : "Visning"}</p></div></div>
       {readOnly ? <Button variant="secondary" onClick={() => window.print()}><Printer size={16} /><span className="hidden sm:inline">Skriv ut</span></Button> : <div className="flex items-center gap-2">
-        <Link href={`/sessions/${sessionId}/live`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:-translate-y-0.5 hover:border-[var(--ink)]"><CirclePlay size={17} /><span className="hidden sm:inline">Start økten</span><span className="sm:hidden">Start</span></Link>
-        <Link href={`/sessions/${sessionId}/edit`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--accent-fill)] px-4 text-sm font-bold text-[var(--on-accent)] shadow-[0_8px_20px_rgba(240,100,46,.22)] transition hover:-translate-y-0.5 hover:bg-[var(--accent-fill-hover)]"><Pencil size={16} />Rediger</Link>
+        {/* Apricot marks the one next step: finishing a draft, or running a
+            published plan. The other is an ordinary outlined button. */}
+        <Link href={`/sessions/${sessionId}/live`} className={cn(headerAction, session.status === "draft" ? headerSecondary : headerPrimary)}><CirclePlay size={17} /><span className="hidden sm:inline">Start økten</span><span className="sm:hidden">Start</span></Link>
+        <Link href={`/sessions/${sessionId}/edit`} className={cn(headerAction, session.status === "draft" ? headerPrimary : headerSecondary)}><Pencil size={16} />Rediger</Link>
         <SessionMenu session={session} open={menuOpen} onOpenChange={setMenuOpen} onCopy={() => setCopying(true)} onPrint={() => window.print()} />
       </div>}
     </div></header>
 
     <div data-print="body" className="mx-auto max-w-[1000px] px-4 pt-7 sm:px-7">
       <section className="rounded-[26px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(16,32,29,.04)] sm:p-7">
-        <div className="flex flex-wrap items-center gap-2.5">{sessionTeam && <TeamCrest team={sessionTeam} />}<Tag tone={session.status === "draft" ? "orange" : "green"}>{statusLabel[session.status]}</Tag>{!readOnly && <HelpTip topic="session-publish" />}</div>
+        <div className="flex flex-wrap items-center gap-2.5">{sessionTeam && <TeamCrest team={sessionTeam} />}<Tag tone={session.status === "draft" ? "neutral" : "green"}>{statusLabel[session.status]}</Tag>{!readOnly && <HelpTip topic="session-publish" />}</div>
         <h1 className="mt-3 text-3xl font-black tracking-[-.045em] sm:text-4xl">{session.title}</h1>
         <dl className="mt-6 grid gap-4 border-t border-[var(--line)] pt-6 sm:grid-cols-2">
           <Detail icon={<Calendar size={17} />} label="Dato og klokkeslett" value={formatSessionDate(session.startsAt)} />
@@ -96,7 +102,7 @@ export function SessionView({ sessionId, readOnly = false }: { sessionId: string
           {block.notes && <BlockNote notes={block.notes} />}
           <div className="grid gap-2.5 p-3 sm:p-4">{block.items.length ? block.items.map((item, itemIndex) => <button key={item.id} type="button" data-print="item" onClick={() => setPreviewItem(item)} aria-label={`Vis ${item.title}`} className="group flex items-start gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-3 text-left transition hover:border-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]">
             <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl sm:h-12 sm:w-12">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <ItemThumbnailPlaceholder item={item} />}<span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition group-hover:opacity-100"><span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--surface-raised)]/90"><Eye size={14} /></span></span>{stations && <span className="absolute left-0 top-0 grid h-5 w-5 place-items-center rounded-br-lg bg-[var(--ink)] text-[10px] font-black text-[var(--paper)]">{itemIndex + 1}</span>}</span>
-            <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-3"><strong className="text-[15px] tracking-[-.015em]">{item.title}</strong>{!stations && <span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span>}</span>{item.description && <span className="clamp-2 mt-1 block text-sm leading-6 text-[var(--ink-soft)]">{item.description}</span>}{item.coachingNotes && <span data-print="cue" className="mt-2 block rounded-xl bg-[var(--warn-bg)] px-3 py-2"><span className="text-[10px] font-black uppercase tracking-[.11em] text-[var(--warn-ink)]">Stikkord</span><PointList points={noteLines(item.coachingNotes)} className="mt-0.5 text-sm font-semibold leading-6" /></span>}<ItemCoach item={item} members={sessionTeam?.members ?? []} /></span>
+            <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-3"><strong className="text-[15px] tracking-[-.015em]">{item.title}</strong>{!stations && <span className="shrink-0 text-sm font-black text-[var(--ink-soft)]">{item.durationMinutes} min</span>}</span>{item.description && <span className="clamp-2 mt-1 block text-sm leading-6 text-[var(--ink-soft)]">{item.description}</span>}{item.coachingNotes && <span data-print="cue" className="mt-2 flex gap-2"><MessageCircle size={15} aria-hidden="true" className="mt-[5px] shrink-0 text-[var(--accent)]" /><span className="min-w-0 flex-1"><span className="sr-only">Stikkord: </span>{noteLines(item.coachingNotes).length === 1 ? <span className="block text-sm font-semibold leading-6 text-[var(--ink)]">{noteLines(item.coachingNotes)[0]}</span> : <PointList points={noteLines(item.coachingNotes)} className="text-sm font-semibold leading-6 text-[var(--ink)]" />}</span></span>}<ItemCoach item={item} members={sessionTeam?.members ?? []} /></span>
           </button>) : <p className="py-6 text-center text-sm text-[var(--ink-soft)]">{stations ? "Ingen stasjoner i denne bolken." : "Ingen aktiviteter i denne bolken."}</p>}</div>
         </article>; })}</div> : <div className="mt-6">{readOnly ? <EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Laget har ikke lagt inn noen bolker i økten ennå." /> : <EmptyState icon={<Sparkles size={22} />} title="Planen er tom" body="Økten har ingen bolker ennå. Åpne den i redigering for å bygge den opp." action={<Link href={`/sessions/${sessionId}/edit`}><Button><Pencil size={16} />Rediger økten</Button></Link>} />}</div>}
       </section>

@@ -44,6 +44,14 @@ describe("before the workspace has loaded", () => {
     expect(screen.queryByText("Henter økter …")).not.toBeInTheDocument();
   });
 
+  it("offers the drafts waiting to be published when nothing is upcoming", () => {
+    const draft = upcoming("draft-1", "Torsdag — forsvar", "2026-09-10T16:00:00.000Z", { status: "draft", updatedAt: "2026-09-01T10:00:00.000Z" });
+    renderPage([draft]);
+    expect(screen.getByText("Ingen planlagte økter ennå")).toBeInTheDocument();
+    expect(screen.getByText("Du har ett utkast som venter. Publiser det, så vises det her.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Torsdag — forsvar/ })).toHaveAttribute("href", "/sessions/draft-1/edit");
+  });
+
   it("waits before saying the coach is on no team", () => {
     renderPage([], [], { workspaceLoaded: false, currentTeam: null });
     expect(screen.getByRole("status")).toHaveTextContent("Henter økter …");

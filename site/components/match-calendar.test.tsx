@@ -180,6 +180,17 @@ describe("MatchCalendar", () => {
     expect(within(agenda).getByRole("button", { name: "Vis 7 spilte kamper" })).toBeInTheDocument();
   });
 
+  it("offers the import where the season has run out, for a coach who can import", () => {
+    vi.setSystemTime(new Date("2026-11-02T09:00:00.000Z"));
+    const onImport = vi.fn();
+    const { unmount } = render(<MatchCalendar fixtures={demoFixtures} canManage canEditWarmup onImport={onImport} />);
+    fireEvent.click(within(screen.getByLabelText("Terminliste")).getByRole("button", { name: "Importer nye kamper" }));
+    expect(onImport).toHaveBeenCalledTimes(1);
+    unmount();
+    render(<MatchCalendar fixtures={demoFixtures} canManage={false} canEditWarmup />);
+    expect(screen.queryByRole("button", { name: "Importer nye kamper" })).not.toBeInTheDocument();
+  });
+
   // At the end of September the month is spent; the grid opens where the next
   // match is, and «I dag» still brings it back to the current month.
   it("opens the grid on the next match's month", () => {
