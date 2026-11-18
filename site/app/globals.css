@@ -55,11 +55,13 @@
   --success-line: #83ad9c;
   --success-fill: #34745f;
   --success-ink: #285546;
-  /* Stikkord, "publiser først" and every other peach note. */
-  --warn-bg: #fff0e8;
-  --warn-bg-strong: #fde1d5;
-  --warn-line: #eac8b6;
-  --warn-ink: #9c3913;
+  /* Something is in the way: "publiser først", a stale attendance list, a
+     warm-up longer than the time before the match. Amber, so a warning never
+     shares a hue with apricot, which only ever means the next thing to do. */
+  --warn-bg: #fdf3d7;
+  --warn-bg-strong: #f8e5ae;
+  --warn-line: #e3cb86;
+  --warn-ink: #75500a;
   /* Bands that stay dark in both themes: the live session's header, the
      builder's time check, the sign-in hero. Being dark is what they say. */
   --chrome: #2e1b3d;
@@ -229,10 +231,10 @@
     --success-line: #3e6d57;
     --success-fill: #3f8a6b;
     --success-ink: #9fd3b8;
-    --warn-bg: #3a2219;
-    --warn-bg-strong: #4a2a1d;
-    --warn-line: #6b3e2a;
-    --warn-ink: #ffb28a;
+    --warn-bg: #352a12;
+    --warn-bg-strong: #463717;
+    --warn-line: #66511f;
+    --warn-ink: #f2c14e;
     --chrome: #2b2036;
     --on-chrome: #f2ecf5;
     --on-chrome-soft: #d9cde2;
@@ -381,7 +383,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-mobile-header .grep-logo-lockup { width: 96px; height: 32px; }
 .grep-mobile-nav { position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border-top: 1px solid var(--grep-line); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(12px); }
 .grep-mobile-nav :is(a,button) { display: flex; min-height: 48px; align-items: center; justify-content: center; flex-direction: column; gap: 4px; border-radius: 12px; font-size: 10px; font-weight: 600; color: var(--grep-muted); }
-.grep-mobile-nav [aria-current="page"] { color: var(--grep-ink); background: var(--apricot-wash); }
+.grep-mobile-nav [aria-current="page"] { color: var(--grep-ink); background: var(--grep-lilac); }
 .grep-drawer-overlay { position: fixed; inset: 0; z-index: 60; background: var(--scrim); backdrop-filter: blur(3px); }
 .grep-drawer { display: flex; flex-direction: column; width: min(320px,90vw); height: 100dvh; padding: 24px 16px; overflow-y: auto; background: var(--grep-paper); }
 .grep-sidebar-brand { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; }
@@ -393,7 +395,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-nav { display: grid; gap: 5px; }
 .grep-nav a, .grep-admin-link { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 14px; border-radius: 11px; color: var(--ink-mid); font-size: 13px; font-weight: 500; }
 .grep-nav a:hover, .grep-admin-link:hover { background: var(--hover-wash); color: var(--grep-ink); }
-.grep-nav a[aria-current="page"] { background: var(--apricot-wash); color: var(--grep-ink); font-weight: 650; }
+.grep-nav a[aria-current="page"] { background: var(--grep-lilac); color: var(--grep-ink); font-weight: 650; }
 .grep-nav a[aria-current="page"] svg { fill: var(--hover-wash-strong); }
 .grep-sidebar-footer { margin-top: auto; padding-top: 48px; }
 .grep-admin-link { font-size: 12px; }
@@ -551,7 +553,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-sidebar-brand { position: relative; }
 .grep-sidebar-brand::after { display: none; }
 .grep-drawer .grep-sidebar-brand::after, .grep-shell-collapsed .grep-sidebar-brand::after { display: none; }
-.grep-nav a[aria-current="page"] { background: var(--apricot-wash); color: var(--grep-ink); }
+.grep-nav a[aria-current="page"] { background: var(--grep-lilac); color: var(--grep-ink); }
 .grep-nav a[aria-current="page"] svg { fill: transparent; }
 .grep-nav a[aria-current="page"]::after { display: none; }
 .grep-shell-collapsed .grep-nav a::after { display: none; }
@@ -562,7 +564,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .grep-drawer { background: var(--surface); }
 .grep-mobile-header { background: var(--surface); }
 .grep-mobile-nav { background: color-mix(in srgb, var(--surface) 96%, transparent); }
-.grep-mobile-nav [aria-current="page"] { background: var(--apricot-wash); }
+.grep-mobile-nav [aria-current="page"] { background: var(--grep-lilac); }
 .grep-eyebrow { display: flex; align-items: center; gap: 9px; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
 .grep-eyebrow > .grep-logo-mark { width: 16px; height: 18px; color: var(--grep-ink); flex-shrink: 0; }
 .overview-next, .overview-match { position: relative; border-color: var(--grep-line); border-radius: 20px; }
@@ -697,8 +699,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    and accents of its own, which read as a page from another product. */
 .grep-calendar-controls { margin-bottom: 28px; }
 .grep-planning-views.grep-segments { margin: 0 0 22px; background: var(--surface); }
-.grep-planning-views.grep-segments button[aria-pressed="true"] { background: var(--apricot-wash-strong); }
 .grep-season-page { max-width: 1480px; }
+/* The builder's time budget on screens without the side column: it sticks to
+   the foot of the viewport while the plan scrolls, clear of the phone's tab
+   bar, and settles at the end of the plan once the last bolk is in view. */
+.grep-time-bar { position: sticky; z-index: 15; bottom: calc(76px + env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) { .grep-time-bar { bottom: 16px; } }
 .season-loading { min-height: 260px; padding: 32px; border: 1px solid var(--grep-line); border-radius: 17px; color: var(--ink-soft); }
 .season-overview { display: grid; gap: 18px; }
 .season-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 28px 30px; border: 1px solid var(--grep-line); border-radius: 20px; background: linear-gradient(120deg,var(--lilac-wash),var(--surface) 72%); }
@@ -968,7 +974,7 @@ i.season-agenda-marker { justify-self: center; background: var(--lilac-ink-soft)
 .grep-rail-favorites:hover { border-color: var(--line-hover); color: var(--grep-ink); }
 .grep-rail-favorites.is-empty { color: var(--ink-disabled); cursor: default; }
 .grep-rail-favorites.is-empty:hover { border-color: var(--grep-line); color: var(--ink-disabled); }
-.grep-rail-favorites.is-on { border-color: var(--warn-line); background: var(--apricot-wash); color: var(--warn-ink); }
+.grep-rail-favorites.is-on { border-color: var(--grep-ink); background: var(--grep-lilac); color: var(--grep-ink); }
 .grep-rail-favorites .grep-rail-count { margin-left: auto; }
 
 /* Starting a samling is an offer, not an option in the list above it: the same
@@ -1363,7 +1369,7 @@ ul.lesson-rules { list-style: disc; }
  * kept whole so a bolk is never split across two sheets.
  *
  * Browsers print backgrounds only if the reader ticks the box, so nothing here
- * may depend on one: the cue box earns a border instead of its peach fill.
+ * may depend on one.
  */
 @media print {
   @page { margin: 14mm; }
@@ -1389,5 +1395,4 @@ ul.lesson-rules { list-style: disc; }
      alone at the foot of a page with its first activity overleaf. */
   [data-print="item"] { break-inside: avoid; }
   [data-print="block-head"] { break-after: avoid; }
-  [data-print="cue"] { border: 1px solid var(--line); }
 }

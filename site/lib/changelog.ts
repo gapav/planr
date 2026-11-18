@@ -17,6 +17,15 @@ export type Release = {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: "1.4.0",
+    date: "2026-11-18",
+    highlights: [
+      "Øktplanleggeren fungerer nå på mobil: øvelsene stables, og tidskontrollen følger med nederst på skjermen mens du planlegger.",
+      "Stikkordene står tydeligere i økta, og utkast og «Legg til trener» er ikke lenger farget som advarsler.",
+      "Har du et utkast som venter, ligger det klart under «Kommende» med en snarvei tilbake til planen.",
+    ],
+  },
+  {
     version: "1.3.0",
     date: "2026-11-17",
     highlights: [

@@ -118,7 +118,7 @@ describe("session builder", () => {
     const unassigned = draft.blocks[0].items.find((item) => !item.assignedCoachIds.length)!;
     render(<SessionBuilder sessionId={draft.id} />);
 
-    expect(screen.getByRole("button", { name: `Ansvarlig trener for ${unassigned.title}` })).toHaveTextContent("Sett ansvarlig trener");
+    expect(screen.getByRole("button", { name: `Ansvarlig trener for ${unassigned.title}` })).toHaveTextContent("Legg til trener");
     fireEvent.click(screen.getByRole("button", { name: `Ansvarlig trener for ${unassigned.title}` }));
     expect(screen.queryByRole("menuitem", { name: "Fjern alle" })).toBeNull();
   });
