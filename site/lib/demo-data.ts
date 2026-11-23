@@ -1,5 +1,5 @@
 import { COACH_AVATAR_PEER, COACH_AVATAR_SELF } from "./team-palette";
-import type { Exercise, ExerciseCollection, FocusPeriod, PlannedSession, Profile, Team, TeamFixture, TeamPlayer, WarmupRoutine } from "./types";
+import type { Exercise, ExerciseCollection, FocusPeriod, PlannedSession, Profile, Team, TeamFixture, WarmupRoutine } from "./types";
 
 export const demoUser: Profile = {
   id: "user-gard", email: "gard@fjordvik.no", fullName: "Gard Pavel", initials: "GP", color: COACH_AVATAR_SELF, isGlobalAdmin: true, teamRole: "admin",
@@ -15,12 +15,6 @@ export const demoTeams: Team[] = [
   { id: "team-senior", name: "Fjordvik HK — Senior kvinner", shortName: "Senior kvinner", logoUrl: null, role: "admin", members: demoProfiles },
   { id: "team-u16", name: "Fjordvik HK — Jenter 16", shortName: "Jenter 16", logoUrl: null, role: "coach", members: [demoUser, demoProfiles[1]] },
 ];
-
-const playerNames = ["Ada L.", "Mina B.", "Thea S.", "Selma V.", "Lea N.", "Ingrid D.", "Sara H.", "Oda S.", "Emma L.", "Nora E.", "Live A.", "Tuva M."];
-export const demoPlayers: TeamPlayer[] = playerNames.map((fullName, index) => ({
-  id: `player-${index + 1}`, teamId: "team-senior", fullName,
-  jerseyNumber: String(index + 2), createdAt: "2026-08-20T08:00:00.000Z", updatedAt: "2026-08-20T08:00:00.000Z",
-}));
 
 // The demo calendar carries the two sub-teams the age group is split into, so
 // the colour coding and the team filter have something to show without a file.

@@ -115,17 +115,13 @@ export function GrepIntroduction() {
       <div className={styles.mobileCopy} data-reveal>
         <p className={styles.eyebrow}>04 / TA PLANEN MED</p>
         <h2 id="mobile-heading">Planen i lomma.<br /><span>Blikket på laget.</span></h2>
-        <p>Når dere møtes på banen, ligger økten klar i appen for hele teamet. Registrer oppmøte, generer laginndeling og følg planen, én bolk om gangen.</p>
+        <p>Når dere møtes på banen, ligger økten klar i appen for hele teamet. Trykk «Start økten» og følg planen, én bolk om gangen.</p>
         <div className={styles.deviceNote}><Smartphone size={23} aria-hidden /><span>Enklere når treningen er i gang.<br /><strong>Laget for mobilen på banen.</strong></span></div>
       </div>
       <div className={styles.phonePair}>
-        <figure className={styles.preparePhone} data-reveal>
-          <span className={styles.phoneShot}><Image src="/intro/groups-v2.png" alt="Grep på mobil: klargjør økten ved å velge lag eller par og generere grupper." width={1000} height={1374} sizes="(max-width: 760px) 45vw, 25vw" /></span>
-          <figcaption>Før fløyta går.</figcaption>
-        </figure>
         <figure className={styles.livePhone} data-reveal>
-          <span className={styles.phoneShot}><Image src="/intro/live-demo-v2.png" alt="En pågående økt i Grep på mobil, med oppvarming, øvelser, treneransvar og Neste-knapp." width={1000} height={1374} sizes="(max-width: 760px) 45vw, 25vw" /></span>
-          <figcaption>Og mens økten pågår.</figcaption>
+          <span className={styles.phoneShot}><Image src="/intro/live-demo-v2.png" alt="En pågående økt i Grep på mobil, med oppvarming, øvelser, treneransvar og Neste-knapp." width={1000} height={1374} sizes="(max-width: 760px) 70vw, 340px" /></span>
+          <figcaption>Mens økten pågår.</figcaption>
         </figure>
       </div>
     </section>

@@ -38,12 +38,10 @@ export const HELP_TOPICS = {
     intro: "På dagen økten er satt opp, får den en «Start»-knapp i kalenderen. Den tar deg hit, til klargjøringen.",
     ordered: true,
     points: [
-      "Registrer oppmøte: huk av hvem som er der i dag. Dette krever at spillerlisten er importert under Lag og spillere.",
-      "Generer lag eller par ut fra dem som er til stede. Endrer oppmøtet seg etterpå, må du generere på nytt før du starter.",
-      "Start økten. Da låses planen: bolker og aktiviteter kan ikke endres mens økten pågår, og gruppene fryses som de er.",
+      "Trykk «Start økten». Da låses planen: bolker og aktiviteter kan ikke endres mens økten pågår.",
       "Underveis blar du gjennom bolkene og åpner aktiviteter for å vise bilde eller video. «Avslutt økten» flytter den til Gjennomførte.",
     ],
-    note: "Startet du for tidlig? «Angre start» på første bolk setter økten tilbake til klar-til-start med oppmøte og grupper i behold. Du kan også starte uten oppmøte og grupper hvis det haster.",
+    note: "Startet du for tidlig? «Angre start» på første bolk setter økten tilbake til klar-til-start, slik at du kan rette planen og starte på nytt.",
   },
   "session-builder": {
     title: "Slik bygger du en økt",
@@ -86,26 +84,16 @@ export const HELP_TOPICS = {
     ],
     note: "YouTube fungerer på samme måte: bruk «Del» og kopier lenken. Har du bare en videofil, kan du laste den opp som MP4 i stedet.",
   },
-  "roster-import": {
-    title: "Spillerlisten",
-    intro: "Spillerlisten brukes til å registrere oppmøte og til å trekke lag eller par på treningsdagen.",
-    points: [
-      "Importer Excel-eksporten fra Hoopit. Du får en forhåndsvisning før noe lagres.",
-      "En ny import erstatter listen, så draktnumre og navn kan oppdateres ved å importere på nytt.",
-      "Uten spillerliste kan du fortsatt gjennomføre økten, men uten oppmøte og grupper.",
-    ],
-    note: "Av personvernhensyn lagres bare fornavn, første bokstav i etternavnet og draktnummer — både i appen og i databasen.",
-  },
   "team-access": {
     title: "Hvem har tilgang til laget",
-    intro: "Bare medlemmene av laget kan se lagets økter og spillerliste. Øvelsesbanken er åpen for alle.",
+    intro: "Bare medlemmene av laget kan se lagets økter. Øvelsesbanken er åpen for alle.",
     ordered: true,
     points: [
       "Trenerteamet settes opp av systemadministratoren, som både gir treneren plass på laget og oppretter innloggingen.",
       "En trener som er lagt til, blir med på laget automatisk ved første innlogging.",
       "Skal laget ha en trener til — eller miste en — er det systemadministratoren som gjør det.",
     ],
-    note: "Lagadministratorer styrer spillerlisten, klubblogoen og kampkalenderen. Trenere kan planlegge, redigere og publisere økter.",
+    note: "Lagadministratorer styrer klubblogoen og kampkalenderen. Trenere kan planlegge, redigere og publisere økter.",
   },
   "match-calendar": {
     title: "Slik fungerer kampkalenderen",

@@ -303,7 +303,7 @@ from `site/vercel.json` or unset `CRON_SECRET`.
 
 ## 8. Smoke test with fake data
 
-Before any real roster goes in:
+Before any real coach starts planning:
 
 - [ ] Request a sign-in link on a real phone and follow it
 - [ ] Confirm an unknown address gets the same «check your inbox» answer and
@@ -317,12 +317,10 @@ Before any real roster goes in:
       true where id = auth.uid()` must be rejected
 - [ ] Add an exercise with a YouTube link and one with a Vimeo link (Vimeo goes
       through `/api/media/thumbnail` — worth confirming it works on Vercel)
-- [ ] Import a test `.xls` and `.xlsx` roster; confirm stored names are
-      `"Firstname L."` only
 - [ ] Build and publish a session
 - [ ] Open it in two browsers: edits appear live, presence shows which block the
       other coach is on
-- [ ] Check players in, generate groups, start the workout, confirm the plan locks
+- [ ] Start the workout with «Start økten», confirm the plan locks
 - [ ] Finish the workout; confirm it moves to the past and stays locked; reopen it
 - [ ] Do the last three **on the phone you'll actually use in the hall**
 - [ ] Trigger the morning email by hand (section 7) and read it on a phone
@@ -370,13 +368,14 @@ of '<table>' in the schema cache`.
 
 ## Privacy
 
-Player first names, surname initials, jersey numbers and coach emails are personal
-data, and the players are likely minors. The app already minimizes what it stores,
-which does most of the work. What's left is short:
+Coach names and emails are personal data. Grep stores nothing about players
+(decision 12) — no roster, attendance or groups — which does most of the work. What's left is short:
 
 - Write down why the club processes this and on what legal basis, and publish a
   two-paragraph privacy notice on the site.
-- Decide when former players, coaches and old sessions get deleted — and do it.
+- Decide when former coaches and old sessions get deleted — and do it.
+- Backups taken before `202611230001` was applied still hold the old rosters;
+  delete them once they are no longer needed.
 - Vercel, Supabase and Resend process personal data on the club's behalf, so
   accept their data-processing agreements. Resend sees every coach's address and
   the full session plans in the morning email.
@@ -395,7 +394,7 @@ and [data-processing agreements](https://www.datatilsynet.no/rettigheter-og-plik
 3. Vercel import → production env vars → domain.
 4. Create your own account in the dashboard, make it global admin, sign in.
 5. Smoke test with fake data, two coaches, on a phone.
-6. Create the real teams, invite the coaches, import the rosters.
+6. Create the real teams and invite the coaches.
 
 ## Applying migrations
 

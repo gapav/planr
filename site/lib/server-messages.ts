@@ -18,8 +18,6 @@ const serverMessageTranslations: Record<string, string> = {
   "Item list is incomplete": "Listen over aktiviteter er ufullstendig",
   "Every team must keep at least one admin": "Hvert lag må ha minst én administrator",
   "Only a published session can be started": "Bare en publisert økt kan startes",
-  "Generate groups before starting the workout": "Generer grupper før økten startes",
-  "Attendance changed — generate groups again": "Oppmøtet er endret — generer grupper på nytt",
   "This workout is in progress and is locked": "Denne økten pågår og er låst",
   "Only a workout in progress can be finished": "Bare en pågående økt kan avsluttes",
   "This workout is finished and is locked": "Denne økten er avsluttet og låst",

@@ -31,7 +31,7 @@ restore a working app.
 | | Lives in | Captured by |
 |---|---|---|
 | **Schema** — tables, RLS policies, RPCs, triggers | Postgres `public` | `schema.sql` |
-| **Application data** — teams, sessions, exercises, players | Postgres `public` | `data.sql` |
+| **Application data** — teams, sessions, exercises | Postgres `public` | `data.sql` |
 | **Coach accounts** — including password hashes | Postgres `auth.users` | `data.sql` |
 | **Uploaded media** — exercise videos, team logos | Storage buckets (blobs) | `storage/` |
 | **Hooks into platform schemas** — see below | `auth`, `storage`, `realtime` | `platform_objects.sql` |
@@ -145,7 +145,7 @@ claim. Diffing it across two backups shows exactly what a release changed.
 - **Before every schema change.** `make migrate-prod` does it for you and
   applies nothing if the backup fails — there is no undo.
 - **Monthly** in season.
-- **After bulk imports** — a roster import is hard to redo.
+- **After bulk imports** — a fixture import is tedious to redo.
 
 ### Afterwards
 

@@ -4,7 +4,7 @@ import { demoSessions } from "./demo-data";
 import { clockTime } from "./utils";
 import { DEFAULT_ROTATION_MINUTES, MIN_STATIONS } from "./types";
 import type { PlannedSession, Profile } from "./types";
-import { assignedCoaches, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, coachNameList, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, itemTextPatch, stationRotation, suggestedGroupCount, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanProgress, sessionPlanSummary, splitSessionStart, splitSessionTime, toggleAssignedCoach, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
+import { assignedCoaches, autoSessionTitle, blockDuration, buildSessionCopy, calendarMonthGroups, canReopenSession, coachAssignmentOptions, coachNameList, combineSessionStart, DEFAULT_SESSION_TIME, deriveSessionTab, groupSessionsByMonth, isAutoSessionTitle, isNearTerm, isSessionStartable, isoWeekNumber, isStationBlock, itemTextPatch, stationRotation, nextPosition, pickTodaySession, sessionSchedule, relativeDayLabel, reopenedSessionTab, SESSION_HOUR_OPTIONS, sessionCopyDefaults, sessionDuration, sessionMinuteOptions, sessionPlanProgress, sessionPlanSummary, splitSessionStart, splitSessionTime, toggleAssignedCoach, UNTITLED_SESSION_TITLE, validatePublish } from "./session";
 
 describe("session calculations", () => {
   it("sums activity, block and session durations", () => {
@@ -35,10 +35,6 @@ describe("session calculations", () => {
   });
   it("falls back to the default rotation for a block written before the column existed", () => {
     expect(stationRotation({ rotationMinutes: null })).toBe(DEFAULT_ROTATION_MINUTES);
-  });
-  it("proposes one group per station, from the largest stations block", () => {
-    expect(suggestedGroupCount(demoSessions[0])).toBe(4);
-    expect(suggestedGroupCount(demoSessions[1])).toBeNull();
   });
   it("refuses to publish a stations block that holds fewer than two stations", () => {
     const [warmup, stations, game] = demoSessions[0].blocks;
@@ -392,7 +388,7 @@ describe("copying a session", () => {
     let counter = 0;
     const copy = (overrides: Partial<Parameters<typeof buildSessionCopy>[1]> = {}) => {
       counter = 0;
-      return buildSessionCopy({ ...demoSessions[0], status: "completed", startedAt: "2026-09-04T16:30:00.000Z", completedAt: "2026-09-04T18:00:00.000Z", groupingKind: "teams" }, {
+      return buildSessionCopy({ ...demoSessions[0], status: "completed", startedAt: "2026-09-04T16:30:00.000Z", completedAt: "2026-09-04T18:00:00.000Z" }, {
         id: "session-copy", title: "Fredag - Uke 39", startsAt: "2026-09-25T14:30:00.000Z", userId: "user-nora",
         makeId: () => `copied-${(counter += 1)}`, now: new Date("2026-09-19T08:00:00.000Z"), ...overrides,
       });
@@ -400,7 +396,7 @@ describe("copying a session", () => {
 
     it("lands as a fresh draft on the chosen date, owned by whoever copied it", () => {
       const made = copy();
-      expect(made).toMatchObject({ id: "session-copy", title: "Fredag - Uke 39", startsAt: "2026-09-25T14:30:00.000Z", status: "draft", startedAt: null, completedAt: null, groupingKind: null, createdBy: "user-nora", updatedBy: "user-nora" });
+      expect(made).toMatchObject({ id: "session-copy", title: "Fredag - Uke 39", startsAt: "2026-09-25T14:30:00.000Z", status: "draft", startedAt: null, completedAt: null, createdBy: "user-nora", updatedBy: "user-nora" });
       expect(made.createdAt).toBe("2026-09-19T08:00:00.000Z");
     });
     it("carries the whole plan over with fresh ids", () => {

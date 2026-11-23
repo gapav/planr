@@ -17,6 +17,15 @@ export type Release = {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: "1.5.0",
+    date: "2026-11-23",
+    highlights: [
+      "Grep lagrer ikke lenger noen opplysninger om spillerne. Det som var lagret, er slettet.",
+      "Du starter økten med én knapp, «Start økten», uten noe oppsett først.",
+      "Lagsiden åpner nå på «Trenere».",
+    ],
+  },
+  {
     version: "1.4.0",
     date: "2026-11-18",
     highlights: [

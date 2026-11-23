@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/ui";
 export function AdminFrame({ children }: { children: ReactNode }) {
   const { user, workspaceLoaded } = useGrep();
   if (!workspaceLoaded) return <AppShell><div className="grid min-h-[60vh] place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--line)] border-t-[var(--accent)]" aria-label="Laster" /></div></AppShell>;
-  if (user?.isGlobalAdmin !== true) return <AppShell><div className="mx-auto max-w-3xl px-4 py-20"><EmptyState icon={<ShieldCheck size={22} />} title="Ingen tilgang" body="Bare en systemadministrator kan opprette lag og tildele trenere. Spillerlisten og klubblogoen til laget ditt finner du under Lag og spillere." /></div></AppShell>;
+  if (user?.isGlobalAdmin !== true) return <AppShell><div className="mx-auto max-w-3xl px-4 py-20"><EmptyState icon={<ShieldCheck size={22} />} title="Ingen tilgang" body="Bare en systemadministrator kan opprette lag og tildele trenere. Trenerteamet og klubblogoen til laget ditt finner du under Lag." /></div></AppShell>;
   return <AppShell><div className="mx-auto max-w-[1100px] px-4 pb-16 pt-7 sm:px-8 sm:pt-10">{children}</div></AppShell>;
 }
 

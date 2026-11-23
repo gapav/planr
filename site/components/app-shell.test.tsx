@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { demoPlayers, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
+import { demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { CURRENT_VERSION, RELEASES } from "@/lib/changelog";
 import { SEEN_VERSION_KEY } from "@/lib/release-notes";
 import { AppShell } from "./app-shell";
@@ -266,8 +266,8 @@ describe("AppShell «Velkommen tilbake!»", () => {
   });
 
   it("does not interrupt a live workout", () => {
-    const live = { ...demoSessions[0], status: "in_progress" as const, groupingKind: null };
-    mocks.useGrep.mockReturnValue({ ...grepState(demoUser), sessions: [live], players: demoPlayers, attendance: [], groupings: [], undoWorkoutStart: vi.fn(), finishWorkout: vi.fn(), reopenSession: vi.fn(), copySession: vi.fn() });
+    const live = { ...demoSessions[0], status: "in_progress" as const };
+    mocks.useGrep.mockReturnValue({ ...grepState(demoUser), sessions: [live], undoWorkoutStart: vi.fn(), finishWorkout: vi.fn(), reopenSession: vi.fn(), copySession: vi.fn() });
     render(<WorkoutSession sessionId={live.id} />);
     expect(screen.getByText("Økten pågår")).toBeInTheDocument();
     expect(whatsNew()).not.toBeInTheDocument();

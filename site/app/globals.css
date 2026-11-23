@@ -55,7 +55,7 @@
   --success-line: #83ad9c;
   --success-fill: #34745f;
   --success-ink: #285546;
-  /* Something is in the way: "publiser først", a stale attendance list, a
+  /* Something is in the way: "publiser først", a
      warm-up longer than the time before the match. Amber, so a warning never
      shares a hue with apricot, which only ever means the next thing to do. */
   --warn-bg: #fdf3d7;

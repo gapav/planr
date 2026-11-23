@@ -6,8 +6,8 @@ model: inherit
 ---
 
 The browser talks to PostgREST directly, so Postgres is Grep's security
-boundary, and production holds real coaches and players, many of them
-minors. Review the change as if an attacker holds a valid login as a coach on
+boundary, and production holds real coaches — and, since decision 12, no
+player data, which must stay that way. Review the change as if an attacker holds a valid login as a coach on
 some other team — or as a team admin, who can reserve a seat for any address.
 
 Read the changed files, `.claude/rules/supabase.md`, and the earlier migrations they build on (the helpers live
@@ -30,7 +30,7 @@ in `202609020001_initial.sql`). Check:
    `prevent_in_progress_session_changes`, broadcast by
    `broadcast_session_change`, and copied by `copy_session`; a data fix on a
    locked plan unlocks only its own session, for one transaction.
-5. **Privacy**: player names minimised by the trigger, nothing medical
+5. **Privacy**: no player data at all (decision 12), nothing medical
    stored, a new column holding personal data justified.
 6. **The server routes**: `SUPABASE_SECRET_KEY` read only in
    `app/api/admin/auth-link`, `app/api/admin/accounts` and

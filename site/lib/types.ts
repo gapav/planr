@@ -62,7 +62,6 @@ export type ExerciseSubtopic = (typeof EXERCISE_SUBTOPICS)[ExerciseCategory][num
 /** Every key, in topic order then list order — the canonical order of a stored or linked list. */
 export const EXERCISE_SUBTOPIC_KEYS: readonly ExerciseSubtopic[] = EXERCISE_CATEGORIES.flatMap((category) => EXERCISE_SUBTOPICS[category].map((entry) => entry.key));
 export type SaveState = "saved" | "saving" | "offline" | "error";
-export type SessionGroupingKind = "teams" | "pairs";
 /**
  * How a bolk is run. A `sequence` block is the activities one after the other;
  * a `stations` block runs them all at once, the team split into as many groups
@@ -82,10 +81,6 @@ export const MIN_STATIONS = 2;
  */
 export interface Profile { id: string; email: string; fullName: string; initials: string; color: string; isGlobalAdmin?: boolean; sessionDigestEmail?: boolean; teamRole?: TeamRole; }
 export interface Team { id: string; name: string; shortName: string; logoUrl: string | null; role: TeamRole; members: Profile[]; }
-export interface TeamPlayer {
-  id: string; teamId: string; fullName: string; jerseyNumber: string | null; createdAt: string; updatedAt: string;
-}
-export type TeamPlayerInput = Pick<TeamPlayer, "fullName" | "jerseyNumber">;
 /**
  * `ageGroups` is empty when the author did not state one; that reads as "suits
  * every age". `subtopics` is empty when untagged, which reads the other way: the
@@ -130,7 +125,7 @@ export interface ExerciseCollection {
  * whole coaching team does, which is the common case, and more than one when a
  * station needs a pair. A database trigger keeps additions to members of the
  * session's own team; the list can still name a coach who has since left, so
- * resolve it against the current roster rather than trusting it.
+ * resolve it against the team's current coaches rather than trusting it.
  */
 export interface SessionItem {
   id: string; blockId: string; kind: SessionItemKind; exerciseId: string | null; title: string;
@@ -151,14 +146,11 @@ export interface SessionBlock {
 export interface PlannedSession {
   id: string; teamId: string; title: string; startsAt: string | null; venue: string;
   plannedDurationMinutes: number; objective: string; notes: string; status: SessionStatus;
-  startedAt?: string | null; completedAt?: string | null; groupingKind?: SessionGroupingKind | null;
+  startedAt?: string | null; completedAt?: string | null;
   blocks: SessionBlock[]; createdBy: string; updatedBy: string; createdAt: string; updatedAt: string;
 }
 export interface Collaborator extends Profile { activeBlockId: string | null; }
 export interface TeamInvitation { id: string; teamId: string; email: string; role: TeamRole; token: string | null; expiresAt: string; acceptedAt: string | null; }
-export interface SessionAttendance { sessionId: string; playerId: string; isPresent: boolean; checkedInAt: string | null; }
-export interface PlayerGroup { id: string; label: string; playerIds: string[]; }
-export interface SessionGrouping { sessionId: string; kind: SessionGroupingKind; groups: PlayerGroup[]; generatedAt: string; }
 export interface AdminTeamMember extends Profile { teamRole: TeamRole; }
 /** A team as the platform owner sees it: every member and pending invitation, membership or not. */
 export interface AdminTeam { id: string; name: string; shortName: string; logoUrl: string | null; members: AdminTeamMember[]; invitations: TeamInvitation[]; }

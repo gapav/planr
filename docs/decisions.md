@@ -4,8 +4,8 @@ Numbered and append-only. Code, docs, issues and pull requests cite them by numb
 (“decision 3”), so a number is never reused or renumbered. To change one, add
 a new decision and strike the old one through with a pointer to it. Record
 only what the maintainer decided; a proposal waits under open questions or in
-an issue. The next number is **10**; 5 and 6 are held by decisions still in
-review.
+an issue. The next number is **13**; 5, 6 and 11 are held by decisions not
+recorded here yet.
 
 Decisions made before November 2026 are not back-filled. They are recorded
 where they took effect: the hard rules and architecture in `CLAUDE.md`, and
@@ -135,6 +135,29 @@ interactive lessons for coaches to show their players. The first is
 - The prototype's own look stays behind: Grep's type and tokens throughout,
   roles in Grep's brights, the court on `--court-*` tokens in both themes.
 - On a phone it lives in the «Mer» drawer; the bottom bar is unchanged.
+
+## 12. Grep holds no data about players (2026-11-23)
+
+Issue #42. Grep keeps no roster, no attendance and no drawn groups. Coaches
+plan and run sessions; Grep does not need to know who the players are, and
+holding nothing about them — many of them minors — removes the privacy risk
+rather than minimising it. It also removes the setup step between a coach and
+the session. This replaces the «Firstname L.» plus jersey-number rule, which
+covered data Grep no longer has.
+
+- `202611230001_remove_player_data.sql` drops `team_players`,
+  `session_attendance`, `session_groupings`, `player_belongs_to_session`,
+  `sessions.grouping_kind` and `session_grouping_kind`. Nothing is archived.
+- Starting a session is one `start_session(uuid)` call: «Start økten» on
+  `/sessions/[id]/live`, no attendance, no draw, no «Hopp over oppsett».
+  `start_session_without_setup` is gone with the old two-argument
+  `start_session`.
+- `/team` has no «Spillere» tab and opens on «Trenere»; the Hoopit roster
+  import is gone.
+- Untouched: Håndballskolen's court diagrams, the fixture calendar, and the
+  free-text session notes, which are coach text.
+- Backups taken before the migration still hold the rosters. Deleting them is
+  the maintainer's call.
 
 ## Open questions
 

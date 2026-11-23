@@ -6,8 +6,8 @@ paths:
 # Migrations and the security boundary
 
 The browser talks to PostgREST directly, so these files are Grep's
-authorization. Production holds real coaches and players, many of them
-minors.
+authorization. Production holds real coaches; it holds no player data
+(decision 12), and nothing should bring it back.
 
 ## Before you write
 
@@ -50,8 +50,8 @@ minors.
   unlocks it for the transaction the way the RPCs do:
   `set_config('plannr.unlocked_session', <session id>, true)` (see
   `202610140001`).
-- Player data keeps the `team_players_minimize_name` trigger
-  (`202609020004`): “Firstname L.” and jersey number only.
+- No player data (decision 12): no table or column that names, numbers or
+  tracks a player. `202611230001` dropped the roster, attendance and groups.
 
 ## After you write
 

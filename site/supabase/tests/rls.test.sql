@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(248);
+select plan(245);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -39,30 +39,8 @@ select '30000000-0000-0000-0000-000000000001', id, 'Live workflow test', now(), 
 from public.teams where id = current_setting('plannr.test_team')::uuid;
 
 insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)
-select '30000000-0000-0000-0000-000000000002', id, 'Skip setup workflow test', now(), 'published', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'
+select '30000000-0000-0000-0000-000000000002', id, 'Second workflow test', now(), 'published', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'
 from public.teams where id = current_setting('plannr.test_team')::uuid;
-
-insert into public.team_players (id, team_id, full_name)
-select player.id::uuid, team.id, player.full_name
-from public.teams team
-cross join (values
-  ('40000000-0000-0000-0000-000000000001', 'Ada L.'),
-  ('40000000-0000-0000-0000-000000000002', 'Mina B.')
-) as player(id, full_name)
-where team.id = current_setting('plannr.test_team')::uuid;
-
-insert into public.session_attendance (session_id, player_id, is_present, checked_in_at, updated_by)
-values
-  ('30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', true, now(), '10000000-0000-0000-0000-000000000001'),
-  ('30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000002', true, now(), '10000000-0000-0000-0000-000000000001');
-
-insert into public.session_groupings (session_id, kind, groups, generated_by)
-values (
-  '30000000-0000-0000-0000-000000000001',
-  'teams',
-  '[{"id":"team-1","label":"Team 1","playerIds":["40000000-0000-0000-0000-000000000001"]},{"id":"team-2","label":"Team 2","playerIds":["40000000-0000-0000-0000-000000000002"]}]'::jsonb,
-  '10000000-0000-0000-0000-000000000001'
-);
 
 insert into public.exercises (id, name, description, media_url, media_kind, thumbnail_url, created_by)
 values ('20000000-0000-0000-0000-000000000001', 'Public test exercise', 'A useful public exercise description.', 'https://example.com/exercise.jpg', 'image', 'https://example.com/exercise.jpg', '10000000-0000-0000-0000-000000000001');
@@ -151,9 +129,8 @@ select lives_ok($$ update public.team_memberships set role = 'coach' where profi
 select is((select role::text from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001'), 'admin', 'a team admin cannot change a team role');
 select lives_ok($$ delete from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001' $$, 'a membership delete by a team admin is filtered away rather than raised');
 select is((select count(*)::integer from public.team_memberships where profile_id = '10000000-0000-0000-0000-000000000001'), 1, 'a team admin cannot remove a member from their own team');
-select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a published session with current groups can start');
+select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001') $$, 'a published session can start');
 select throws_ok($$ update public.sessions set title = 'Changed while live', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'an in-progress plan is locked');
-select throws_ok($$ update public.session_attendance set is_present = false, updated_by = '10000000-0000-0000-0000-000000000001' where session_id = '30000000-0000-0000-0000-000000000001' and player_id = '40000000-0000-0000-0000-000000000001' $$, 'P0001', 'Denne økten pågår og er låst', 'in-progress attendance is locked');
 reset role;
 -- A samling is team property, not the property of the coach who started it:
 -- the policies are built from `is_team_member`, so a plain coach renames and
@@ -178,7 +155,7 @@ select is((select count(*)::integer from public.exercise_collections), 0, 'a coa
 select throws_ok($$ insert into public.exercise_collection_items (collection_id, exercise_id) values ('80000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001') $$, '42501', null, 'a coach outside the team cannot fill its samlinger');
 select lives_ok($$ delete from public.exercise_collections where id = '80000000-0000-0000-0000-000000000001' $$, 'a delete of another team samling is filtered away rather than raised');
 select throws_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reset another team workout');
-select throws_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot skip setup for another team workout');
+select throws_ok($$ select public.start_session('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot start another team workout');
 select throws_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot reopen another team workout');
 select throws_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001') $$, 'P0001', 'Økten ble ikke funnet', 'an unrelated coach cannot copy another team plan');
 reset role;
@@ -213,13 +190,13 @@ select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-0000000
 select is((select count(*)::integer from public.exercise_favorites where profile_id = '10000000-0000-0000-0000-000000000001'), 1, 'another coach delete never reached the favourite');
 select is((select count(*)::integer from public.exercise_collections where id = '80000000-0000-0000-0000-000000000001'), 1, 'another coach delete never reached the samling');
 select lives_ok($$ delete from public.exercise_favorites where exercise_id = '20000000-0000-0000-0000-000000000001' $$, 'a coach can remove their own favourite');
-select lives_ok($$ select public.start_session_without_setup('30000000-0000-0000-0000-000000000002') $$, 'a published workout can start without attendance or groups');
-select is((select status::text || ':' || coalesce(grouping_kind::text, 'none') from public.sessions where id = '30000000-0000-0000-0000-000000000002'), 'in_progress:none', 'skipping setup starts the workout without a grouping kind');
+select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000002') $$, 'a published workout starts with no setup step');
+select ok((select status = 'in_progress' and started_at is not null and completed_at is null from public.sessions where id = '30000000-0000-0000-0000-000000000002'), 'starting marks the workout in progress and records when it began');
 select lives_ok($$ select public.undo_session_start('30000000-0000-0000-0000-000000000001') $$, 'an in-progress workout can return to setup');
 select is((select status::text from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'published', 'resetting marks the session ready to start');
 select ok((select started_at is null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'resetting clears when the workout started');
 select lives_ok($$ update public.sessions set title = 'Corrected after test start', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'a reset workout is editable again');
-select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a reset workout can be started again with its saved attendance and groups');
+select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001') $$, 'a reset workout can be started again');
 select lives_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000001') $$, 'an in-progress workout can be finished');
 select is((select status::text from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'completed', 'finishing marks the session completed');
 select ok((select completed_at is not null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'finishing records when the workout ended');
@@ -237,7 +214,7 @@ select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-0000000
 select lives_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001', 'Kopiert økt', '2026-12-18T16:30:00Z'::timestamptz) $$, 'a coach can copy a finished plan on their own team');
 select set_config('plannr.test_copy', (select id::text from public.sessions where title = 'Kopiert økt'), true);
 select is((select status::text from public.sessions where id = current_setting('plannr.test_copy')::uuid), 'draft', 'a copy lands as a draft, never as a published session');
-select ok((select starts_at = '2026-12-18T16:30:00Z'::timestamptz and started_at is null and completed_at is null and grouping_kind is null from public.sessions where id = current_setting('plannr.test_copy')::uuid), 'a copy takes the date it was given and none of the record of the run');
+select ok((select starts_at = '2026-12-18T16:30:00Z'::timestamptz and started_at is null and completed_at is null from public.sessions where id = current_setting('plannr.test_copy')::uuid), 'a copy takes the date it was given and none of the record of the run');
 select ok((select created_by = '10000000-0000-0000-0000-000000000001' and updated_by = '10000000-0000-0000-0000-000000000001' from public.sessions where id = current_setting('plannr.test_copy')::uuid), 'a copy belongs to the coach who made it');
 select is((select array_agg(title order by position) from public.session_blocks where session_id = current_setting('plannr.test_copy')::uuid), array['Oppvarming', 'Hoveddel']::text[], 'the blocks come along in their own order');
 select is((select notes from public.session_blocks where session_id = current_setting('plannr.test_copy')::uuid and position = 0), 'Rolig start.', 'a block keeps the note written on it');
@@ -248,8 +225,6 @@ select ok((select item.exercise_id = '20000000-0000-0000-0000-000000000001' and 
 select is((select item.assigned_coach_ids
   from public.session_items item join public.session_blocks block on block.id = item.block_id
   where block.session_id = current_setting('plannr.test_copy')::uuid and block.position = 1), array['10000000-0000-0000-0000-000000000001']::uuid[], 'an activity shared with a coach who has left keeps only the colleague still on the team');
-select is((select count(*)::integer from public.session_attendance where session_id = current_setting('plannr.test_copy')::uuid), 0, 'attendance stays with the evening it was taken in');
-select is((select count(*)::integer from public.session_groupings where session_id = current_setting('plannr.test_copy')::uuid), 0, 'the groups stay with the workout they were drawn for');
 select lives_ok($$ update public.sessions set title = 'Kopiert økt, omdøpt', updated_by = '10000000-0000-0000-0000-000000000001' where id = current_setting('plannr.test_copy')::uuid $$, 'a copy of a locked plan is not itself locked');
 select lives_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000001') $$, 'a copy can be made without a name or a date');
 select is((select count(*)::integer from public.sessions where title = 'Corrected after test start' and status = 'draft' and starts_at is null), 1, 'an unnamed copy takes the source title and waits for a date');
@@ -258,12 +233,11 @@ select is((select count(*)::integer from public.sessions where title = 'Correcte
 select throws_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000002') $$, 'P0001', 'Bare en avsluttet økt kan gjenåpnes', 'a workout still in progress cannot be reopened');
 select lives_ok($$ select public.reopen_session('30000000-0000-0000-0000-000000000001') $$, 'a finished workout can be reopened');
 select is((select status::text from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'published', 'reopening marks the session ready to start again');
-select ok((select started_at is null and completed_at is null and grouping_kind is null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'reopening clears the record of the run it is undoing');
+select ok((select started_at is null and completed_at is null from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 'reopening clears the record of the run it is undoing');
 select lives_ok($$ update public.sessions set title = 'Corrected after reopening', updated_by = '10000000-0000-0000-0000-000000000001' where id = '30000000-0000-0000-0000-000000000001' $$, 'a reopened plan is editable again');
-select is((select count(*)::integer from public.session_attendance where session_id = '30000000-0000-0000-0000-000000000001'), 2, 'reopening keeps the attendance the workout was run with');
-select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001', 'teams') $$, 'a reopened workout can be run again on its saved attendance and groups');
+select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000001') $$, 'a reopened workout can be run again');
 select lives_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000001') $$, 'a reopened workout can be finished again');
-select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000001' $$, 'a finished session can still be deleted with its attendance and groups');
+select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000001' $$, 'a finished session can still be deleted');
 
 -- 202609020011 narrowed the profiles update grant. profiles_update_self still
 -- passes for these statements, so a column grant is the only thing stopping a
@@ -337,7 +311,6 @@ select throws_ok($$ select public.accept_team_invitation('50000000-0000-0000-000
 reset role;
 
 -- 202609020018: the platform owner administers every team without joining one,
--- and without reaching the player data of a team they do not coach.
 -- 202609250001: they do read every team's plans — but only read them.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
@@ -351,7 +324,6 @@ select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-00
 select is((select count(*)::integer from public.sessions where id = '30000000-0000-0000-0000-000000000001'), 1, 'reading a plan does not make it deletable');
 select throws_ok($$ insert into public.session_blocks (session_id, title, position, updated_by) values ('30000000-0000-0000-0000-000000000001', 'Owner block', 9, '10000000-0000-0000-0000-000000000004') $$, '42501', null, 'a global admin cannot add a block to a team plan they only read');
 select ok(not public.can_access_session_topic('session:30000000-0000-0000-0000-000000000001'), 'reading a plan does not open its live collaboration topic');
-select is((select count(*)::integer from public.team_players), 0, 'a global admin cannot read the roster of a team they do not coach');
 select is(jsonb_array_length(public.admin_list_teams()), 1, 'the admin console reads every team through its own RPC instead');
 select lives_ok(format($$ insert into public.team_memberships (team_id, profile_id, role) values ('%s', '10000000-0000-0000-0000-000000000003', 'coach') $$, current_setting('plannr.test_team')), 'a global admin can add a trainer to a team they are not on');
 select lives_ok(format($$ update public.team_memberships set role = 'admin' where team_id = '%s' and profile_id = '10000000-0000-0000-0000-000000000003' $$, current_setting('plannr.test_team')), 'a global admin can change a trainer role on a team they are not on');
@@ -376,8 +348,8 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
 select lives_ok(format($$ insert into public.team_fixtures (id, team_id, match_number, starts_at, home_team, away_team, our_teams, venue, tournament) values ('60000000-0000-0000-0000-000000000001', '%s', '41041006001', now() + interval '3 days', 'Langhus Gul', 'Nesodden Gul', array['Langhus Gul'], 'Langhushallen', 'Kortbaneserie Jenter 10') $$, current_setting('plannr.test_team')), 'a team admin can import a match');
-select lives_ok($ update public.team_fixtures set our_team_colors = '{"Langhus Gul":"honey"}'::jsonb where id = '60000000-0000-0000-0000-000000000001' $, 'a team admin can assign a palette identity');
-select throws_ok($ update public.team_fixtures set our_team_colors = '[]'::jsonb where id = '60000000-0000-0000-0000-000000000001' $, '23514', null, 'team colours must be an object');
+select lives_ok($$ update public.team_fixtures set our_team_colors = '{"Langhus Gul":"honey"}'::jsonb where id = '60000000-0000-0000-0000-000000000001' $$, 'a team admin can assign a palette identity');
+select throws_ok($$ update public.team_fixtures set our_team_colors = '[]'::jsonb where id = '60000000-0000-0000-0000-000000000001' $$, '23514', null, 'team colours must be an object');
 select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006001', now(), 'Langhus Gul', 'Ski Rod', array['Langhus Gul']) $$, current_setting('plannr.test_team')), '23505', null, 're-importing the same match number updates one row rather than doubling the calendar');
 select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006099', now(), 'Langhus Gul', 'Ski Rod', array[]::text[]) $$, current_setting('plannr.test_team')), '23514', null, 'a match must record which of our teams plays it');
 reset role;
@@ -385,7 +357,7 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
 select is((select count(*)::integer from public.team_fixtures), 1, 'a coach on the team can read the match calendar');
-select lives_ok($ update public.team_fixtures set our_team_colors = '{"Langhus Gul":"rose"}'::jsonb where id = '60000000-0000-0000-0000-000000000001' $, 'a non-admin colour update is filtered');
+select lives_ok($$ update public.team_fixtures set our_team_colors = '{"Langhus Gul":"rose"}'::jsonb where id = '60000000-0000-0000-0000-000000000001' $$, 'a non-admin colour update is filtered');
 select is((select our_team_colors->>'Langhus Gul' from public.team_fixtures where id = '60000000-0000-0000-0000-000000000001'), 'honey', 'a coach can read but cannot change the saved colour');
 select throws_ok(format($$ insert into public.team_fixtures (team_id, match_number, starts_at, home_team, away_team, our_teams) values ('%s', '41041006002', now(), 'Langhus Gul', 'Ski Rod', array['Langhus Gul']) $$, current_setting('plannr.test_team')), '42501', null, 'a coach who is not an admin cannot import matches');
 select lives_ok($$ delete from public.team_fixtures where id = '60000000-0000-0000-0000-000000000001' $$, 'a delete by a non-admin coach is filtered rather than raised');
@@ -397,7 +369,7 @@ select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-0000000
 select is((select count(*)::integer from public.team_fixtures), 0, 'an unrelated coach cannot read another team match calendar');
 reset role;
 
--- 202609020020 added the pre-match warm-up. Unlike the roster and the match
+-- 202609020020 added the pre-match warm-up. Unlike the match
 -- import, it is coaching content: every coach on the team may change it.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
