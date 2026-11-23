@@ -1,11 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
-import { CURRENT_VERSION, RELEASES } from "@/lib/changelog";
+import { demoTeams, demoUser } from "@/lib/demo-data";
+import { CURRENT_VERSION } from "@/lib/changelog";
 import { SEEN_VERSION_KEY } from "@/lib/release-notes";
 import { AppShell } from "./app-shell";
-import { WorkoutSession } from "./live-session";
 
 const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), replace: vi.fn(), push: vi.fn(), pathname: vi.fn(() => "/exercises") }));
 
@@ -33,7 +32,7 @@ function grepState(user: typeof demoUser | null, sidebarCollapsed = false) {
 }
 
 describe("AppShell navigation", () => {
-  // These are about navigation; the «Hva er nytt» dialog has its own tests below.
+  // These are about navigation; the (switched-off) «Hva er nytt» dialog has its own tests below.
   beforeEach(() => { mocks.useGrep.mockReset(); mocks.replace.mockReset(); mocks.push.mockReset(); mocks.pathname.mockReturnValue("/exercises"); window.localStorage.setItem(SEEN_VERSION_KEY, CURRENT_VERSION); });
 
   // Whatever the coach was looking at belonged to the old team, so the switch
@@ -172,6 +171,8 @@ describe("AppShell navigation", () => {
   });
 });
 
+// «Hva er nytt» is switched off (#44, decision 7): no coach is greeted,
+// whatever their device last saw.
 describe("AppShell «Velkommen tilbake!»", () => {
   const whatsNew = () => screen.queryByRole("dialog", { name: "Velkommen tilbake!" });
 
@@ -179,103 +180,25 @@ describe("AppShell «Velkommen tilbake!»", () => {
     mocks.useGrep.mockReset(); mocks.replace.mockReset(); mocks.push.mockReset(); mocks.pathname.mockReturnValue("/exercises");
     window.localStorage.clear();
   });
-  afterEach(() => { vi.restoreAllMocks(); window.localStorage.clear(); });
+  afterEach(() => { window.localStorage.clear(); });
 
-  it("greets a signed-in coach with nothing stored, one list per release", () => {
-    mocks.useGrep.mockReturnValue(grepState(demoUser));
-    render(<AppShell>Innhold</AppShell>);
-
-    const dialog = whatsNew();
-    expect(dialog).toBeInTheDocument();
-    expect(within(dialog!).getByText("Her er hva som er nytt siden sist.")).toBeInTheDocument();
-    expect(within(dialog!).getByRole("heading", { name: /Versjon 1\.2\.0/ })).toHaveTextContent("12. november 2026");
-    expect(within(dialog!).getByRole("heading", { name: /Versjon 1\.1\.0/ })).toHaveTextContent("12. november 2026");
-    expect(within(dialog!).queryByRole("heading", { name: /Versjon 1\.0\.0/ })).not.toBeInTheDocument();
-    expect(within(dialog!).getAllByRole("listitem")).toHaveLength(RELEASES.reduce((sum, release) => sum + release.highlights.length, 0));
-  });
-
-  it("stays closed when grep-seen-version is current", () => {
-    window.localStorage.setItem(SEEN_VERSION_KEY, CURRENT_VERSION);
+  it("does not open for a returning coach with nothing stored", () => {
     mocks.useGrep.mockReturnValue(grepState(demoUser));
     render(<AppShell>Innhold</AppShell>);
     expect(whatsNew()).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(SEEN_VERSION_KEY)).toBeNull();
   });
 
-  it("stores the current version and closes on «Skjønner»", () => {
-    mocks.useGrep.mockReturnValue(grepState(demoUser));
-    render(<AppShell>Innhold</AppShell>);
-    fireEvent.click(screen.getByRole("button", { name: "Skjønner" }));
-    expect(window.localStorage.getItem(SEEN_VERSION_KEY)).toBe(CURRENT_VERSION);
-    expect(whatsNew()).not.toBeInTheDocument();
-  });
-
-  it("stores the current version when closed with Escape or the backdrop", () => {
-    mocks.useGrep.mockReturnValue(grepState(demoUser));
-    const { unmount } = render(<AppShell>Innhold</AppShell>);
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(whatsNew()).not.toBeInTheDocument();
-    expect(window.localStorage.getItem(SEEN_VERSION_KEY)).toBe(CURRENT_VERSION);
-    unmount(); window.localStorage.clear();
-
-    render(<AppShell>Innhold</AppShell>);
-    fireEvent.pointerDown(screen.getByRole("dialog", { name: "Velkommen tilbake!" }).parentElement!);
-    expect(whatsNew()).not.toBeInTheDocument();
-    expect(window.localStorage.getItem(SEEN_VERSION_KEY)).toBe(CURRENT_VERSION);
-  });
-
-  it("shows a coach who last saw 1.0.0 what came after it", () => {
+  it("does not open for a coach who last saw an older release", () => {
     window.localStorage.setItem(SEEN_VERSION_KEY, "1.0.0");
     mocks.useGrep.mockReturnValue(grepState(demoUser));
     render(<AppShell>Innhold</AppShell>);
-    expect(whatsNew()).toBeInTheDocument();
-  });
-
-  it("waits until the user and teams are loaded", () => {
-    mocks.useGrep.mockReturnValue({ ...grepState(demoUser), workspaceLoaded: false });
-    const { rerender } = render(<AppShell>Innhold</AppShell>);
-    expect(whatsNew()).not.toBeInTheDocument();
-    mocks.useGrep.mockReturnValue({ ...grepState(demoUser), authLoading: true });
-    rerender(<AppShell>Innhold</AppShell>);
-    expect(whatsNew()).not.toBeInTheDocument();
-    mocks.useGrep.mockReturnValue(grepState(null));
-    rerender(<AppShell>Innhold</AppShell>);
     expect(whatsNew()).not.toBeInTheDocument();
   });
 
-  it("shows nothing when storage cannot be read", () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("SecurityError"); });
-    mocks.useGrep.mockReturnValue(grepState(demoUser));
-    expect(() => render(<AppShell>Innhold</AppShell>)).not.toThrow();
-    expect(whatsNew()).not.toBeInTheDocument();
-  });
-
-  it("waits while the support dialog is open", () => {
-    mocks.useGrep.mockReturnValue({ ...grepState(demoUser), sendSupportMessage: vi.fn() });
-    render(<AppShell>Innhold</AppShell>);
-    fireEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: "Kontakt support" }));
-    expect(screen.getByRole("dialog", { name: "Kontakt support" })).toBeInTheDocument();
-    expect(whatsNew()).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
-    expect(whatsNew()).toBeInTheDocument();
-  });
-
-  it("stays away from the immersive shell", () => {
-    mocks.useGrep.mockReturnValue(grepState(demoUser));
-    render(<AppShell immersive>Innhold</AppShell>);
-    expect(whatsNew()).not.toBeInTheDocument();
-  });
-
-  it("does not interrupt a live workout", () => {
-    const live = { ...demoSessions[0], status: "in_progress" as const };
-    mocks.useGrep.mockReturnValue({ ...grepState(demoUser), sessions: [live], undoWorkoutStart: vi.fn(), finishWorkout: vi.fn(), reopenSession: vi.fn(), copySession: vi.fn() });
-    render(<WorkoutSession sessionId={live.id} />);
-    expect(screen.getByText("Økten pågår")).toBeInTheDocument();
-    expect(whatsNew()).not.toBeInTheDocument();
-  });
-
-  it("greets a coach in demo mode the same way", () => {
+  it("does not open in demo mode either", () => {
     mocks.useGrep.mockReturnValue({ ...grepState(demoUser), isDemoMode: true });
-    expect(() => render(<AppShell>Innhold</AppShell>)).not.toThrow();
-    expect(whatsNew()).toBeInTheDocument();
+    render(<AppShell>Innhold</AppShell>);
+    expect(whatsNew()).not.toBeInTheDocument();
   });
 });

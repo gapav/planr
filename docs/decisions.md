@@ -91,6 +91,10 @@ There are no git tags or GitHub Releases.
 - «Last seen» is per device (`localStorage` `grep-seen-version`), not per
   account: no migration. Storage that cannot be read shows nothing.
 - There is no archive page and no way back to the dialog once it is closed.
+- **Switched off (2026-11-23, #44).** The signed-in shell no longer opens
+  the dialog, for any version. The Version line, `package.json`, `RELEASES`,
+  `lib/release-notes.ts` and `WhatsNewDialog` stay, so it can be switched on
+  again in `components/app-shell.tsx`.
 
 ## 8. The session builder's exercise picker is the library's rail (2026-11-12)
 
