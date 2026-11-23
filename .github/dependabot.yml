@@ -1,0 +1,26 @@
+# Dependabot: security updates only (decision 13). `open-pull-requests-limit: 0`
+# turns off routine version-bump PRs; security updates have their own limit and
+# still open. Each ecosystem's fixes arrive as one grouped PR, not one per
+# package. Needs "Dependabot alerts" and "Dependabot security updates" on under
+# Settings → Code security — no file can switch those on.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /site
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]

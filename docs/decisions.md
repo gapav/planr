@@ -4,7 +4,7 @@ Numbered and append-only. Code, docs, issues and pull requests cite them by numb
 (“decision 3”), so a number is never reused or renumbered. To change one, add
 a new decision and strike the old one through with a pointer to it. Record
 only what the maintainer decided; a proposal waits under open questions or in
-an issue. The next number is **13**; 5, 6 and 11 are held by decisions not
+an issue. The next number is **14**; 5, 6 and 11 are held by decisions not
 recorded here yet.
 
 Decisions made before November 2026 are not back-filled. They are recorded
@@ -162,6 +162,29 @@ covered data Grep no longer has.
   free-text session notes, which are coach text.
 - Backups taken before the migration still hold the rosters. Deleting them is
   the maintainer's call.
+
+## 13. Dependencies are scanned for known vulnerabilities in CI (2026-11-23)
+
+Issue #47. `.github/workflows/security.yml` checks `site/package-lock.json`
+— direct and transitive dependencies — against the npm advisory database.
+
+- `npm audit --omit=dev --audit-level=high` fails the check on a high or
+  critical advisory in a production dependency. Those are the packages that
+  ship to Vercel and run with coaches' sessions and the secret-key routes.
+  Dev-only packages (eslint, vitest, vite) run on a developer's machine and
+  in CI, never in production, and moderate/low advisories are usually
+  denial-of-service edge cases: both are printed in the same job's full
+  report and fixed when convenient, but they don't block a merge.
+- It runs on every pull request, every push to `main`, weekly on `main`
+  (Mondays 06:17 UTC) so new advisories in packages already shipped surface
+  without a PR, and by hand (`workflow_dispatch`).
+- On pull requests `actions/dependency-review-action` also fails when the PR
+  *adds* a high/critical vulnerable runtime package.
+- `.github/dependabot.yml` opens security updates only — no routine version
+  bumps — for `npm` in `/site` and `github-actions` in `/`, one grouped PR per
+  ecosystem.
+- The threshold is not lowered to make a red check pass: a finding is fixed,
+  or tracked in an issue while the check stays red.
 
 ## Open questions
 

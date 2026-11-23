@@ -13,7 +13,8 @@ All application code lives in `site/`. At the root:
   restore, and `make migrate-dev` / `migrate-prod` / `migrate-baseline`.
 - `docs/` — `decisions.md` (numbered, append-only, from November 2026) and
   `v1-plan.md` (the v1 checklist, archived).
-- `.github/` — CI (lint, test, build on every PR), the Claude agent
+- `.github/` — CI (lint, test, build on every PR), the dependency scan
+  (`security.yml`, `dependabot.yml`; decision 13), the Claude agent
   workflow, and the issue and PR templates.
 - `.claude/rules/` — notes for one area each, loaded when you open its files.
 
