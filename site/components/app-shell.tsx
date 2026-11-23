@@ -3,15 +3,12 @@
 import { BookOpen, CalendarDays, ChevronDown, GraduationCap, Home, LifeBuoy, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, Trophy, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGrep } from "./app-provider";
 import { Logo } from "./logo";
 import { SupportDialog } from "./support-dialog";
 import { TeamCrest } from "./team-crest";
 import { ThemeSwitch } from "./theme-switch";
-import { WhatsNewDialog } from "./whats-new-dialog";
-import { CURRENT_VERSION, RELEASES } from "@/lib/changelog";
-import { readSeenVersion, releasesToAnnounce, rememberSeenVersion, subscribeSeenVersion } from "@/lib/release-notes";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -32,7 +29,7 @@ const activeRoute = (pathname: string, href: string) => href === "/" ? pathname 
  */
 export function AppShell({ children, immersive = false, presenting = false }: { children: React.ReactNode; immersive?: boolean; presenting?: boolean }) {
   const bare = immersive || presenting;
-  const { user, authLoading, workspaceLoaded, isDemoMode, teams, currentTeam, setCurrentTeamId, sidebarCollapsed, setSidebarCollapsed, signOut, notice, clearNotice } = useGrep();
+  const { user, authLoading, isDemoMode, teams, currentTeam, setCurrentTeamId, sidebarCollapsed, setSidebarCollapsed, signOut, notice, clearNotice } = useGrep();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -40,15 +37,10 @@ export function AppShell({ children, immersive = false, presenting = false }: { 
   const drawer = useRef<HTMLDivElement>(null);
   const isGlobalAdmin = user?.isGlobalAdmin === true;
 
-  // «Hva er nytt» (decision 7). It waits until the user and their teams are in,
-  // so it never flashes before sign-in resolves; stays away from a live workout
-  // (the immersive shell); and lets any other dialog finish first. Storage that
-  // cannot be read (`false`) shows nothing rather than show it on every load.
-  const seenVersion = useSyncExternalStore(subscribeSeenVersion, readSeenVersion, () => false as const);
-  const [whatsNewDismissed, setWhatsNewDismissed] = useState(false);
-  const announce = seenVersion === false ? [] : releasesToAnnounce(seenVersion, RELEASES);
-  const whatsNewOpen = Boolean(user) && !authLoading && workspaceLoaded && !bare && !whatsNewDismissed && announce.length > 0 && !supportOpen && !mobileOpen;
-  function closeWhatsNew() { setWhatsNewDismissed(true); rememberSeenVersion(CURRENT_VERSION); }
+  // «Hva er nytt» (decision 7) is switched off (#44): the shell no longer
+  // renders `WhatsNewDialog`. The dialog, `lib/release-notes.ts` and
+  // `RELEASES` are kept, so it can be switched on again by restoring the
+  // state and the one `<WhatsNewDialog>` line this issue removed.
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -119,7 +111,6 @@ export function AppShell({ children, immersive = false, presenting = false }: { 
     </div>
     {mobileOpen && <div className="grep-drawer-overlay" onClick={(event) => { if (event.target === event.currentTarget) setMobileOpen(false); }}><div ref={drawer} id="mobile-navigation" className="grep-drawer" role="dialog" aria-modal="true" aria-label="Navigasjon">{navigation(true)}</div></div>}
     <SupportDialog open={supportOpen} onClose={() => setSupportOpen(false)} />
-    <WhatsNewDialog open={whatsNewOpen} releases={announce} onClose={closeWhatsNew} />
     {notice && <div role="status" className="grep-notice"><span>{notice}</span><button className="grep-icon-button" onClick={clearNotice} aria-label="Lukk meldingen"><X size={18} /></button></div>}
   </div>;
 }
