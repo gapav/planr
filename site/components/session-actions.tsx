@@ -94,7 +94,7 @@ export function CopySessionDialog({ session, onClose }: { session: PlannedSessio
     }
   }
 
-  return <Modal open onClose={() => { if (!busy) onClose(); }} title="Kopier økt" description="Bolker, aktiviteter og notater følger med til et nytt utkast. Oppmøte og grupper blir igjen hos den opprinnelige økten." size="sm">
+  return <Modal open onClose={() => { if (!busy) onClose(); }} title="Kopier økt" description="Bolker, aktiviteter og notater følger med til et nytt utkast." size="sm">
     {error && <p role="alert" className="mb-4 rounded-2xl bg-[var(--danger-bg)] px-4 py-3 text-sm font-bold text-[var(--danger)]">{error}</p>}
     <div className="grid gap-5">
       <Field label="Tittel"><input className={inputClass} value={title} autoFocus onChange={(event) => setTitle(event.target.value)} /></Field>
@@ -131,7 +131,7 @@ export function ReopenSessionDialog({ session, onClose }: { session: PlannedSess
     }
   }
 
-  return <Modal open onClose={() => { if (!busy) onClose(); }} title="Vil du gjenåpne økten?" description="Økten går tilbake til «Klar til start» og kan redigeres igjen. Oppmøtet og gruppene beholdes, slik at den kan rettes opp og kjøres på nytt." size="sm">
+  return <Modal open onClose={() => { if (!busy) onClose(); }} title="Vil du gjenåpne økten?" description="Økten går tilbake til «Klar til start» og kan redigeres igjen, slik at den kan rettes opp og kjøres på nytt." size="sm">
     {error && <p role="alert" className="mb-4 rounded-2xl bg-[var(--danger-bg)] px-4 py-3 text-sm font-bold text-[var(--danger)]">{error}</p>}
     <p className="rounded-xl bg-[var(--paper)] px-4 py-3 text-sm font-bold">{session.title}</p>
     {staysInPast && <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">Økten var satt til {formatSessionDate(session.startsAt)}, så den blir liggende under «Gjennomførte» til du gir den en ny dato.</p>}

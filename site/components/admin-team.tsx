@@ -231,7 +231,7 @@ function SettingsView({ team }: { team: AdminTeam }) {
     </Panel>
     <section className="rounded-[22px] border border-[var(--danger-line)] bg-[var(--danger-bg)]/50 p-4 sm:p-6">
       <h2 className="font-black text-[var(--danger-ink)]">Slett laget</h2>
-      <p className="mt-1.5 text-sm leading-6 text-[var(--danger-ink)]">Alle øktene, spillerne og kampene til laget slettes, og trenerne mister tilgangen. Kontoene deres beholdes. Dette kan ikke angres.</p>
+      <p className="mt-1.5 text-sm leading-6 text-[var(--danger-ink)]">Alle øktene og kampene til laget slettes, og trenerne mister tilgangen. Kontoene deres beholdes. Dette kan ikke angres.</p>
       <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end" onSubmit={remove}>
         <label className="grid gap-2 text-sm font-semibold"><span>Skriv <strong>{team.shortName}</strong> for å bekrefte</span><input className={inputClass} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" /></label>
         <Button type="submit" variant="danger" disabled={busy !== null || !confirmed}><Trash2 size={16} />{busy === "delete" ? "Sletter…" : "Slett laget"}</Button>

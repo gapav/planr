@@ -15,7 +15,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - This directory contains the full application: a Next.js 16 App Router frontend backed by Supabase.
 - Use `npm` and run project commands from this directory.
 - Supabase is the production source of truth. The in-memory demo data is only a fallback when the public Supabase environment variables are absent.
-- Preserve privacy minimization for imported player data: retain only the minimized player name and jersey number unless the user explicitly changes that requirement.
+- Grep stores no player data (decision 12): no roster, attendance or groups. Do not add any unless the user explicitly asks for it.
 
 ## Supabase migrations
 

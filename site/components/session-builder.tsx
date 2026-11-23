@@ -70,7 +70,7 @@ const TOUCH_HOLD_MS = 250;
  * its own: a pointer drag has to claim the gesture before the browser decides
  * the finger is scrolling, and it loses that race every time — the browser
  * scrolls, cancels the pointer, and the drag never starts. So a finger presses
- * and holds on the grip, the way it does on the grouping board, and an ordinary
+ * and holds on the grip, and an ordinary
  * swipe across the handle still scrolls the page.
  */
 function useReorderSensors() {

@@ -15,8 +15,8 @@ from. You are given the issue's text, the changed files and the diff.
    under “Out” was built.
 4. Check the rules in `CLAUDE.md` that the change touches: the
    `supabase === null` demo branch for a new mutation, and its rollback when
-   `persist` throws; no colour literals in components; player privacy
-   (“Firstname L.” and jersey number only); `SUPABASE_SECRET_KEY` read only
+   `persist` throws; no colour literals in components; no player data
+   stored at all (decision 12); `SUPABASE_SECRET_KEY` read only
    by the three routes allowed it; nothing secret in `NEXT_PUBLIC_*`;
    `PageProps`/`LayoutProps` types on pages; drafts never in the morning
    email; Norwegian copy in the UI.

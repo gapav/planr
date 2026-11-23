@@ -4,8 +4,7 @@ import type { TeamFixture, TeamFixtureInput } from "./types";
 
 // The export the clubs get out of the tournament system is one row per match
 // for a whole division, with Norwegian headings. Column order is not stable
-// between reports, so the header row is matched by name the same way the roster
-// import does it.
+// between reports, so the header row is matched by name.
 const aliases = {
   date: ["dato", "kampdato", "date"],
   time: ["tid", "kl", "klokkeslett", "starttid", "time"],

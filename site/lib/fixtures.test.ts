@@ -58,7 +58,7 @@ describe("parseFixtureRows", () => {
   });
 
   it("explains what is missing rather than importing nothing", () => {
-    expect(() => parseFixtureRows([["Navn", "Draktnummer"], ["Ada Lie", "7"]])).toThrow(/Dato/);
+    expect(() => parseFixtureRows([["Navn", "Nummer"], ["Ada Lie", "7"]])).toThrow(/Dato/);
     expect(() => parseFixtureRows([header])).toThrow(/ingen kamprader/);
   });
 });

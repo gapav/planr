@@ -17,7 +17,7 @@ describe("Grep screenshot introduction", () => {
 
   it("presents real screenshots and a separate interest path without a simulated app", () => {
     render(<GrepIntroduction />);
-    expect(screen.getAllByRole("img")).toHaveLength(6);
+    expect(screen.getAllByRole("img")).toHaveLength(5);
     expect(screen.getByRole("heading", { name: /En god idé/ })).toBeVisible();
     expect(screen.getByRole("heading", { name: /Planen i lomma/ })).toBeVisible();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
@@ -35,7 +35,7 @@ describe("Grep screenshot introduction", () => {
     render(<GrepIntroduction />);
     expect(observe).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: /Planen i lomma/ })).toBeVisible();
-    expect(screen.getAllByRole("img")).toHaveLength(6);
+    expect(screen.getAllByRole("img")).toHaveLength(5);
   });
   it("leaves the reveal to CSS where scroll timelines exist, and observes where they do not", () => {
     const observe = vi.fn();

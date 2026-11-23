@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { demoPlayers, demoSessions, demoTeams } from "@/lib/demo-data";
+import { demoSessions, demoTeams } from "@/lib/demo-data";
 import { LiveSession, WorkoutSession } from "./live-session";
 
 const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), push: vi.fn() }));
@@ -16,12 +16,7 @@ vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children: ReactNode; href: string }) => <a href={href} {...props}>{children}</a>,
 }));
 
-const liveSession = { ...demoSessions[0], status: "in_progress" as const, groupingKind: "teams" as const };
-const attendance = demoPlayers.slice(0, 4).map((player) => ({ sessionId: liveSession.id, playerId: player.id, isPresent: true, checkedInAt: null }));
-const groupings = [{ sessionId: liveSession.id, kind: "teams" as const, generatedAt: "2026-09-02T12:00:00.000Z", groups: [
-  { id: "group-1", label: "Lag 1", playerIds: [demoPlayers[0].id, demoPlayers[1].id] },
-  { id: "group-2", label: "Lag 2", playerIds: [demoPlayers[2].id, demoPlayers[3].id] },
-] }];
+const liveSession = { ...demoSessions[0], status: "in_progress" as const };
 
 describe("live session runner", () => {
   beforeEach(() => {
@@ -29,7 +24,7 @@ describe("live session runner", () => {
     reopenSession.mockReset().mockResolvedValue(undefined);
     copySession.mockReset().mockResolvedValue("session-copy");
     mocks.push.mockReset();
-    mocks.useGrep.mockReturnValue({ sessions: [liveSession], teams: demoTeams, players: demoPlayers, attendance, groupings, undoWorkoutStart, finishWorkout: vi.fn(), reopenSession, copySession });
+    mocks.useGrep.mockReturnValue({ sessions: [liveSession], teams: demoTeams, undoWorkoutStart, finishWorkout: vi.fn(), reopenSession, copySession });
   });
 
   it("shows one complete block and moves directly between blocks", () => {
@@ -71,14 +66,13 @@ describe("live session runner", () => {
     expect(screen.getByRole("heading", { name: "6 mot 6 med betingelser" })).toBeInTheDocument();
   });
 
-  it("keeps the saved teams one tap away", () => {
+  // Decision 12: Grep holds no player data, so there are no groups to show.
+  it("has no groups panel", () => {
     render(<WorkoutSession sessionId={liveSession.id} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Vis lag" }));
-
-    const teams = screen.getByRole("dialog", { name: "Dagens lag" });
-    expect(within(teams).getByText("Lag 1")).toBeInTheDocument();
-    expect(within(teams).getByText(demoPlayers[0].fullName)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Vis (lag|par)$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /Dagens (lag|par)/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ingen lagrede grupper/)).not.toBeInTheDocument();
   });
 
   it("offers to undo the workout start instead of going back from the first block", async () => {
@@ -88,7 +82,8 @@ describe("live session runner", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Angre start" })[0]);
 
     const confirmation = screen.getByRole("dialog", { name: "Vil du angre starten av økten?" });
-    expect(within(confirmation).getByText(/Oppmøte og grupper beholdes/)).toBeInTheDocument();
+    expect(within(confirmation).getByText(/tilbake til «Klar til start»/)).toBeInTheDocument();
+    expect(within(confirmation).queryByText(/oppmøte|grupper/i)).not.toBeInTheDocument();
     fireEvent.click(within(confirmation).getByRole("button", { name: "Angre start" }));
 
     await waitFor(() => expect(undoWorkoutStart).toHaveBeenCalledWith(liveSession.id));
@@ -105,7 +100,7 @@ describe("a finished workout", () => {
     reopenSession.mockReset().mockResolvedValue(undefined);
     copySession.mockReset().mockResolvedValue("session-copy");
     mocks.push.mockReset();
-    mocks.useGrep.mockReturnValue({ sessions: [finished], teams: demoTeams, players: demoPlayers, attendance, groupings, undoWorkoutStart, finishWorkout: vi.fn(), reopenSession, copySession });
+    mocks.useGrep.mockReturnValue({ sessions: [finished], teams: demoTeams, undoWorkoutStart, finishWorkout: vi.fn(), reopenSession, copySession });
   });
 
   it("neither finishes nor undoes the start again", () => {
@@ -120,7 +115,7 @@ describe("a finished workout", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Gjenåpne økt" }));
     const confirmation = screen.getByRole("dialog", { name: "Vil du gjenåpne økten?" });
-    expect(within(confirmation).getByText(/Oppmøtet og gruppene beholdes/)).toBeInTheDocument();
+    expect(within(confirmation).queryByText(/oppmøte|grupper/i)).not.toBeInTheDocument();
     expect(within(confirmation).getByText(/blir liggende under «Gjennomførte»/)).toBeInTheDocument();
     fireEvent.click(within(confirmation).getByRole("button", { name: "Gjenåpne økt" }));
 
@@ -145,8 +140,7 @@ describe("a finished workout", () => {
 
 // Decision 9: the live link and a refresh land before the workspace has loaded.
 describe("live session before the workspace has loaded", () => {
-  const published = { ...demoSessions[0], status: "published" as const };
-  const store = (workspaceLoaded: boolean, extra: Record<string, unknown> = {}) => ({ sessions: [], teams: demoTeams, players: [], attendance: [], groupings: [], workspaceLoaded, undoWorkoutStart, finishWorkout: vi.fn(), reopenSession, copySession, ...extra });
+  const store = (workspaceLoaded: boolean, extra: Record<string, unknown> = {}) => ({ sessions: [], teams: demoTeams, workspaceLoaded, undoWorkoutStart, finishWorkout: vi.fn(), reopenSession, copySession, ...extra });
 
   it.each([["setup", LiveSession], ["workout", WorkoutSession]])("%s: says the session is loading, not that it was not found", (_name, Screen) => {
     mocks.useGrep.mockReturnValue(store(false));
@@ -161,18 +155,54 @@ describe("live session before the workspace has loaded", () => {
     expect(screen.getByText("Økten ble ikke funnet")).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
+});
 
-  it("says the players are loading, not that the roster is missing", () => {
-    mocks.useGrep.mockReturnValue(store(false, { sessions: [published] }));
+// Decision 12: starting a workout is one button. No attendance, no draw.
+describe("starting a published session", () => {
+  const published = { ...demoSessions[0], status: "published" as const };
+  const startWorkout = vi.fn();
+  const store = (sessions: unknown[]) => ({ sessions, teams: demoTeams, workspaceLoaded: true, startWorkout, undoWorkoutStart, finishWorkout: vi.fn(), reopenSession, copySession });
+
+  beforeEach(() => { startWorkout.mockReset().mockResolvedValue(undefined); });
+
+  it("is ready to start, with no setup steps and no shortcut past them", () => {
+    mocks.useGrep.mockReturnValue(store([published]));
     render(<LiveSession sessionId={published.id} />);
-    expect(screen.getByRole("status")).toHaveTextContent("Henter spillerne …");
-    expect(screen.queryByText("Importer spillerlisten først")).not.toBeInTheDocument();
+
+    expect(screen.getByText("Klar til start")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Start økten/ })).toHaveLength(1);
+    for (const step of [/Registrer oppmøte/, /Velg trekning/, /Dagens (lag|par)/, /Hopp over/, /Generer grupper/]) {
+      expect(screen.queryByText(step)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByText(/oppmøte|spillerlist/i)).not.toBeInTheDocument();
   });
 
-  it("still asks for the roster when the team really has none", () => {
-    mocks.useGrep.mockReturnValue(store(true, { sessions: [published] }));
+  it("starts the session with one tap", async () => {
+    mocks.useGrep.mockReturnValue(store([published]));
     render(<LiveSession sessionId={published.id} />);
-    expect(screen.getByText("Importer spillerlisten først")).toBeInTheDocument();
-    expect(screen.queryByText("Henter spillerne …")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Start økten/ }));
+
+    await waitFor(() => expect(startWorkout).toHaveBeenCalledWith(published.id));
+    expect(startWorkout).toHaveBeenCalledTimes(1);
+  });
+
+  it("says why when the server refuses", async () => {
+    startWorkout.mockRejectedValue(new Error("Bare en publisert økt kan startes"));
+    mocks.useGrep.mockReturnValue(store([published]));
+    render(<LiveSession sessionId={published.id} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Start økten/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Bare en publisert økt kan startes");
+  });
+
+  it("will not start a draft", () => {
+    const draft = { ...published, status: "draft" as const };
+    mocks.useGrep.mockReturnValue(store([draft]));
+    render(<LiveSession sessionId={draft.id} />);
+
+    expect(screen.getByRole("button", { name: /Start økten/ })).toBeDisabled();
+    expect(screen.getByText("Publiser øktplanen før økten startes.")).toBeInTheDocument();
   });
 });

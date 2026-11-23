@@ -125,3 +125,31 @@ describe("workspace load", () => {
     expect(client.sessionCalls()).toBe(3);
   });
 });
+
+// Decision 12: starting a session is one call with no setup. Demo mode (no
+// Supabase env) has to run the whole way through on its own.
+describe("starting a workout", () => {
+  afterEach(() => { mocks.configured = false; mocks.client = null; });
+
+  function LifecycleProbe() {
+    const { sessions, startWorkout, finishWorkout } = useGrep();
+    const session = sessions.find((entry) => entry.id === "session-monday");
+    return <>
+      <p data-testid="status">{session?.status}</p>
+      <button onClick={() => void startWorkout("session-monday")}>start</button>
+      <button onClick={() => void finishWorkout("session-monday")}>finish</button>
+    </>;
+  }
+  const status = () => screen.getByTestId("status").textContent;
+
+  it("starts and finishes a published demo session", async () => {
+    render(<AppProvider><LifecycleProbe /></AppProvider>);
+    expect(status()).toBe("published");
+
+    await act(async () => { screen.getByRole("button", { name: "start" }).click(); });
+    await waitFor(() => expect(status()).toBe("in_progress"));
+
+    await act(async () => { screen.getByRole("button", { name: "finish" }).click(); });
+    await waitFor(() => expect(status()).toBe("completed"));
+  });
+});

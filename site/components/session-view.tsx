@@ -29,8 +29,7 @@ import { clockTime, cn, formatSessionDate, minutesLabel, noteLines } from "@/lib
  * is the read-only screen it already has.
  *
  * A global admin reading another team's plan from /admin gets this view with
- * every action removed: RLS lets them read the plan and nothing more, and the
- * workout view needs the roster they cannot see.
+ * every action removed: RLS lets them read the plan and nothing more.
  */
 export function SessionViewScreen({ sessionId }: { sessionId: string }) {
   const { sessions, adminSessions } = useGrep();

@@ -14,16 +14,6 @@ export function isStationBlock(block: Pick<SessionBlock, "kind">) { return block
 /** The rotation to show and to step from, standing in for a row written before the column existed. */
 export function stationRotation(block: Pick<SessionBlock, "rotationMinutes">) { return block.rotationMinutes ?? DEFAULT_ROTATION_MINUTES; }
 
-/**
- * How many groups the draw should propose: the biggest stations block in the
- * plan, since a team split four ways can still run a three-station block with
- * one group waiting, and the other way round leaves a station unmanned. Null
- * when the session has no stations at all and the coach's own choice stands.
- */
-export function suggestedGroupCount(session: Pick<PlannedSession, "blocks">) {
-  const counts = session.blocks.filter(isStationBlock).map((block) => block.items.length).filter((count) => count >= MIN_STATIONS);
-  return counts.length ? Math.max(...counts) : null;
-}
 export function sessionDuration(session: { blocks: ReadonlyArray<Parameters<typeof blockDuration>[0]> }) { return session.blocks.reduce((total, block) => total + blockDuration(block), 0); }
 
 /**
@@ -401,8 +391,8 @@ export function sessionCopyDefaults(session: PlannedSession, now = new Date(), t
 /**
  * The copy that `copy_session` makes, built in the browser for demo mode. The
  * two have to agree: the plan and everything in it comes along, the date is the
- * one the coach just chose, the status is always a fresh draft, and attendance
- * and groups stay behind with the evening they belong to.
+ * one the coach just chose, the status is always a fresh draft, and the record
+ * of a run (when it started and ended) stays behind.
  *
  * `memberIds` drops any of an activity's coaches who have left the team, matching
  * the database, where `validate_session_item_coach` would refuse the insert and
@@ -417,7 +407,7 @@ export function buildSessionCopy(source: PlannedSession, options: { id: string; 
     title: options.title.trim() || source.title,
     startsAt: options.startsAt,
     status: "draft",
-    startedAt: null, completedAt: null, groupingKind: null,
+    startedAt: null, completedAt: null,
     createdBy: options.userId, updatedBy: options.userId, createdAt: now, updatedAt: now,
     blocks: source.blocks.map((block) => {
       const blockId = options.makeId();

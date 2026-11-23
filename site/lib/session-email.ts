@@ -253,7 +253,7 @@ export function dailySessionDigestEmail({ recipient, sessions, siteUrl, timeZone
       "",
       sessions.map((session) => sessionText(session, recipient.profileId, siteUrl, timeZone)).join("\n\n---\n\n"),
       "",
-      "Vil du ikke ha denne e-posten? Skru av «Dagens økt på e-post» under Lag og spillere i Grep.",
+      "Vil du ikke ha denne e-posten? Skru av «Dagens økt på e-post» under Lag i Grep.",
     ].join("\n"),
   };
 }

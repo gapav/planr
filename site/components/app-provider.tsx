@@ -4,20 +4,19 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { mapAdminAccount, mapAdminTeam, partitionSessionsByMembership, shortTeamName, sortAdminAccounts, sortAdminTeams, type AdminAccountRow, type AdminTeamRow } from "@/lib/admin";
 import { authEventLoadsWorkspace, claimableInvitations, invitationUrl, isUnknownMagicLinkAddressError, keepSelectedTeamId, magicLinkRedirectUrl, seedProfile, WORKSPACE_RETRY_DELAYS_MS, type WorkspaceLoad, workspaceQueryFailures, workspaceSettle } from "@/lib/auth";
-import { demoCollections, demoExercises, demoFixtures, demoFocusPeriods, demoPlayers, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
+import { demoCollections, demoExercises, demoFixtures, demoFocusPeriods, demoWarmupRoutines, demoProfiles, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
 import { collectionNameError, normalizeCollectionName, sortCollections } from "@/lib/collections";
 import { canEditExercise, indexExercises, resolveAll, resolveSessionDisplay, resolveWarmupRoutineDisplay } from "@/lib/exercises";
 import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUpload } from "@/lib/media";
 import { displayNameError, normalizeDisplayName } from "@/lib/profile";
 import { CONNECTION_LOST_MESSAGE, isInvitationAlreadyUsed, isTransportFailure, norwegianServerMessage } from "@/lib/server-messages";
-import { planRosterImport } from "@/lib/roster";
 import { autoSessionTitle, buildSessionCopy, nextPosition, stationRotation, UNTITLED_SESSION_TITLE } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { DEFAULT_ROTATION_MINUTES } from "@/lib/types";
 import { FOCUS_MAX_WEEKS, FOCUS_NOTE_MAX_LENGTH, FOCUS_NOTES_MAX_LENGTH, FOCUS_TITLE_MAX_LENGTH, mondayOf, overlappingFocus } from "@/lib/focus";
 import { COACH_AVATAR_PEER, COACH_AVATAR_SELF, validTeamColors } from "@/lib/team-palette";
-import type { AdminAccount, AdminTeam, Exercise, ExerciseCollection, ExerciseInput, FocusPeriod, FocusPeriodInput, PlannedSession, PlayerGroup, Profile, SaveState, SessionAttendance, SessionBlock, SessionBlockKind, SessionGrouping, SessionGroupingKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamPlayer, TeamPlayerInput, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
+import type { AdminAccount, AdminTeam, Exercise, ExerciseCollection, ExerciseInput, FocusPeriod, FocusPeriodInput, PlannedSession, Profile, SaveState, SessionBlock, SessionBlockKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
 import { initials, makeUuid, noteLines } from "@/lib/utils";
 
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
@@ -118,13 +117,10 @@ interface GrepContextValue {
   collections: ExerciseCollection[];
   sessions: PlannedSession[];
   invitations: TeamInvitation[];
-  players: TeamPlayer[];
   fixtures: TeamFixture[];
   /** Every month focus for the coach's teams, keyed by `YYYY-MM`. Months without one are simply absent. */
   focusPeriods: FocusPeriod[];
   warmupRoutines: WarmupRoutine[];
-  attendance: SessionAttendance[];
-  groupings: SessionGrouping[];
   saveState: SaveState;
   notice: string | null;
   sidebarCollapsed: boolean;
@@ -177,8 +173,6 @@ interface GrepContextValue {
   adminRemoveMember(teamId: string, profileId: string): Promise<void>;
   deleteAccountPermanently(profileId: string, confirmationEmail: string): Promise<void>;
   sendSupportMessage(message: string, page: string): Promise<void>;
-  importPlayers(input: TeamPlayerInput[]): Promise<{ added: number; updated: number }>;
-  removePlayer(playerId: string): Promise<void>;
   importFixtures(input: TeamFixtureInput[]): Promise<{ added: number; updated: number }>;
   removeFixture(fixtureId: string): Promise<void>;
   clearFixtures(): Promise<void>;
@@ -199,11 +193,11 @@ interface GrepContextValue {
   updateSession(id: string, patch: SessionPatch): Promise<void>;
   deleteSession(id: string): Promise<void>;
   publishSession(id: string): Promise<void>;
-  startWorkout(id: string, groupingKind: SessionGroupingKind): Promise<void>;
-  startWorkoutWithoutSetup(id: string): Promise<void>;
+  /** Starts a published session. State changes only once the server has answered. */
+  startWorkout(id: string): Promise<void>;
   undoWorkoutStart(id: string): Promise<void>;
   finishWorkout(id: string): Promise<void>;
-  /** Returns a finished workout to «Klar til start», keeping attendance and groups. */
+  /** Returns a finished workout to «Klar til start». */
   reopenSession(id: string): Promise<void>;
   /** Copies a plan into a new draft and hands back its id. */
   copySession(sourceId: string, input: SessionCopyInput): Promise<string>;
@@ -217,8 +211,6 @@ interface GrepContextValue {
   deleteItem(sessionId: string, blockId: string, itemId: string): Promise<void>;
   reorderItems(sessionId: string, blockId: string, orderedIds: string[]): Promise<void>;
   reloadSession(id: string): Promise<void>;
-  setPlayerPresent(sessionId: string, playerId: string, isPresent: boolean): Promise<void>;
-  saveGrouping(sessionId: string, kind: SessionGroupingKind, groups: PlayerGroup[]): Promise<void>;
 }
 
 const GrepContext = createContext<GrepContextValue | null>(null);
@@ -238,10 +230,9 @@ interface DbBlock { id: string; session_id: string; title: string; notes?: strin
 interface DbSession {
   id: string; team_id: string; title: string; starts_at: string | null; venue: string; planned_duration_minutes: number;
   objective: string; notes: string; status: PlannedSession["status"]; created_by: string; updated_by: string;
-  started_at?: string | null; completed_at?: string | null; grouping_kind?: SessionGroupingKind | null;
+  started_at?: string | null; completed_at?: string | null;
   created_at: string; updated_at: string; session_blocks?: DbBlock[];
 }
-interface DbPlayer { id: string; team_id: string; full_name: string; jersey_number: string | null; created_at: string; updated_at: string; }
 interface DbFixture {
   id: string; team_id: string; match_number: string; starts_at: string; home_team: string; away_team: string;
   our_team_colors?: Record<string, string>; our_teams: string[]; result: string; venue: string; organizer: string; tournament: string; created_at: string; updated_at: string;
@@ -259,8 +250,6 @@ interface DbCollection {
   id: string; team_id: string; name: string; created_by: string; created_at: string; updated_at: string;
   exercise_collection_items?: Array<{ exercise_id: string }>;
 }
-interface DbAttendance { session_id: string; player_id: string; is_present: boolean; checked_in_at: string | null; }
-interface DbGrouping { session_id: string; kind: SessionGroupingKind; groups: PlayerGroup[]; generated_at: string; }
 
 function mapExercise(row: DbExercise): Exercise {
   return { id: row.id, name: row.name, description: row.description, category: row.category, ageGroups: row.age_groups ?? [], subtopics: row.subtopics ?? [], mediaUrl: row.media_url, mediaKind: row.media_kind,
@@ -270,7 +259,7 @@ function mapExercise(row: DbExercise): Exercise {
 function mapSession(row: DbSession): PlannedSession {
   return { id: row.id, teamId: row.team_id, title: row.title, startsAt: row.starts_at, venue: row.venue,
     plannedDurationMinutes: row.planned_duration_minutes, objective: row.objective, notes: row.notes, status: row.status,
-    startedAt: row.started_at ?? null, completedAt: row.completed_at ?? null, groupingKind: row.grouping_kind ?? null,
+    startedAt: row.started_at ?? null, completedAt: row.completed_at ?? null,
     createdBy: row.created_by, updatedBy: row.updated_by, createdAt: row.created_at, updatedAt: row.updated_at,
     blocks: (row.session_blocks ?? []).sort((a, b) => a.position - b.position).map((block) => ({
       id: block.id, sessionId: block.session_id, title: block.title, notes: block.notes ?? "", kind: block.kind ?? "sequence", rotationMinutes: block.rotation_minutes ?? null, position: block.position, updatedBy: block.updated_by,
@@ -307,9 +296,6 @@ function mapCollection(row: DbCollection): ExerciseCollection {
 function mapFocusPeriod(row: DbFocusPeriod): FocusPeriod {
   return { id: row.id, teamId: row.team_id, title: row.title, note: row.note ?? "", notes: row.notes ?? "", startsOn: row.starts_on, weeks: row.weeks, updatedAt: row.updated_at, updatedBy: row.updated_by };
 }
-function mapPlayer(row: DbPlayer): TeamPlayer {
-  return { id: row.id, teamId: row.team_id, fullName: row.full_name, jerseyNumber: row.jersey_number, createdAt: row.created_at, updatedAt: row.updated_at };
-}
 
 /**
  * What came of inviting a coach.
@@ -345,12 +331,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [collections, setCollections] = useState<ExerciseCollection[]>(() => isSupabaseConfigured ? [] : structuredClone(demoCollections));
   const [sessions, setSessions] = useState<PlannedSession[]>(() => isSupabaseConfigured ? [] : structuredClone(demoSessions));
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
-  const [players, setPlayers] = useState<TeamPlayer[]>(() => isSupabaseConfigured ? [] : structuredClone(demoPlayers));
   const [fixtures, setFixtures] = useState<TeamFixture[]>(() => isSupabaseConfigured ? [] : structuredClone(demoFixtures));
   const [focusPeriods, setFocusPeriods] = useState<FocusPeriod[]>(() => isSupabaseConfigured ? [] : structuredClone(demoFocusPeriods));
   const [warmupRoutines, setWarmupRoutines] = useState<WarmupRoutine[]>(() => isSupabaseConfigured ? [] : structuredClone(demoWarmupRoutines));
-  const [attendance, setAttendance] = useState<SessionAttendance[]>([]);
-  const [groupings, setGroupings] = useState<SessionGrouping[]>([]);
   const [adminTeams, setAdminTeams] = useState<AdminTeam[]>(() => isSupabaseConfigured ? [] : demoAdminTeams());
   const [adminTeamsLoaded, setAdminTeamsLoaded] = useState(!isSupabaseConfigured);
   const [adminSessions, setAdminSessions] = useState<PlannedSession[]>([]);
@@ -403,18 +386,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
       supabase.from("profiles").select("id, email, full_name, is_global_admin, session_digest_email").eq("id", authUser.id).single(),
-      supabase.from("team_players").select("id, team_id, full_name, jersey_number, created_at, updated_at").order("full_name"),
       supabase.from("team_fixtures").select("*").order("starts_at"),
       supabase.from("team_focus_periods").select("id, team_id, title, note, notes, starts_on, weeks, updated_at, updated_by"),
       supabase.from("warmup_routines").select("*, warmup_items(*)"),
-      supabase.from("session_attendance").select("session_id, player_id, is_present, checked_in_at"),
-      supabase.from("session_groupings").select("session_id, kind, groups, generated_at"),
       supabase.from("exercise_favorites").select("exercise_id"),
       // Embedded rather than a second round trip: a samling is its name and its
       // contents, and there is no view that wants one without the other.
       supabase.from("exercise_collections").select("id, team_id, name, created_by, created_at, updated_at, exercise_collection_items(exercise_id)"),
     ]);
-    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: playerRows }, { data: fixtureRows }, { data: focusRows }, { data: warmupRows }, { data: attendanceRows }, { data: groupingRows }, { data: favoriteRows }, { data: collectionRows }] = results;
+    const [{ data: memberships }, { data: sessionRows }, { data: invitationRows }, { data: profileRow, error: profileError }, { data: fixtureRows }, { data: focusRows }, { data: warmupRows }, { data: favoriteRows }, { data: collectionRows }] = results;
     // supabase-js does not fail a query it has no session for: it sends the
     // publishable key and runs it as `anon`, which every team-scoped policy
     // answers with zero rows and no error. That is what a tab opened on an
@@ -464,12 +444,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAdminSessions(others);
     }
     if (invitationRows) setInvitations((invitationRows as unknown as Array<{ id: string; team_id: string; email: string; role: TeamRole; token: string; expires_at: string; accepted_at: string | null }>).map((row) => ({ id: row.id, teamId: row.team_id, email: row.email, role: row.role, token: row.token, expiresAt: row.expires_at, acceptedAt: row.accepted_at })));
-    if (playerRows) setPlayers((playerRows as unknown as DbPlayer[]).map(mapPlayer));
     if (fixtureRows) setFixtures((fixtureRows as unknown as DbFixture[]).map(mapFixture));
     if (focusRows) setFocusPeriods((focusRows as unknown as DbFocusPeriod[]).map(mapFocusPeriod));
     if (warmupRows) setWarmupRoutines((warmupRows as unknown as DbWarmupRoutine[]).map(mapWarmupRoutine));
-    if (attendanceRows) setAttendance((attendanceRows as unknown as DbAttendance[]).map((row) => ({ sessionId: row.session_id, playerId: row.player_id, isPresent: row.is_present, checkedInAt: row.checked_in_at })));
-    if (groupingRows) setGroupings((groupingRows as unknown as DbGrouping[]).map((row) => ({ sessionId: row.session_id, kind: row.kind, groups: row.groups, generatedAt: row.generated_at })));
     if (favoriteRows) setFavoriteExerciseIds((favoriteRows as unknown as Array<{ exercise_id: string }>).map((row) => row.exercise_id));
     // A missing table — the migration not yet applied by hand — leaves this
     // null, which reads as "no samlinger" rather than taking the workspace down.
@@ -481,7 +458,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAdminTeamsLoaded(true);
       setAdminAccountsLoaded(true);
     }
-    // One query of the twelve failing on its own — the sessions one, the
+    // One query of the nine failing on its own — the sessions one, the
     // heaviest, cut off when iOS suspends or resumes the app — used to leave
     // its slice empty and still report success, so nothing ever retried it and
     // the calendar said «Kommende (0)» until the app was restarted. Everything
@@ -493,7 +470,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [loadAdminAccounts, loadAdminTeams, supabase]);
 
   // The workspace one page load already has. `shouldLoadWorkspace` reads it to
-  // decide whether an auth event is worth eleven more queries; see the comment
+  // decide whether an auth event is worth eight more queries; see the comment
   // there for the two events that made it worth tracking.
   const lastWorkspaceLoad = useRef<WorkspaceLoad | null>(null);
   // The load `settleWorkspace` has running, if any. A second auth event skipped
@@ -866,7 +843,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [persist, supabase, user]);
 
-  // Refetches teams, sessions, players and the rest for the signed-in coach.
+  // Refetches teams, sessions and the rest for the signed-in coach.
   // Anything that changes membership outside the normal mutation path — accepting
   // an invitation, creating a team — must call this, or the workspace stays empty
   // until the next sign-in.
@@ -1164,25 +1141,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!response.ok) throw new Error(payload.error ?? "Meldingen kunne ikke sendes.");
   }, [supabase]);
 
-  const importPlayers = useCallback(async (input: TeamPlayerInput[]) => {
-    if (!currentTeam) throw new Error("Velg et lag først");
-    const teamPlayers = players.filter((player) => player.teamId === currentTeam.id);
-    const { players: imported, added, updated } = planRosterImport(teamPlayers, input, { teamId: currentTeam.id, now: new Date().toISOString(), makeId: makeUuid });
-    const importedIds = new Set(imported.map((player) => player.id));
-    const rows = imported.map((player) => ({ id: player.id, team_id: player.teamId, full_name: player.fullName, jersey_number: player.jerseyNumber }));
-    await persist(supabase ? () => supabase.from("team_players").upsert(rows, { onConflict: "id" }) : null);
-    // After the write, like `importFixtures`: a refused import leaves the list as it was.
-    setPlayers((current) => [...current.filter((player) => player.teamId !== currentTeam.id || !importedIds.has(player.id)), ...imported].sort((a, b) => a.fullName.localeCompare(b.fullName, "nb")));
-    setNotice(`${added} ${added === 1 ? "spiller" : "spillere"} lagt til${updated ? `, ${updated} oppdatert` : ""}.`);
-    return { added, updated };
-  }, [currentTeam, persist, players, supabase]);
-
-  const removePlayer = useCallback(async (playerId: string) => {
-    setPlayers((current) => current.filter((player) => player.id !== playerId));
-    setAttendance((current) => current.filter((entry) => entry.playerId !== playerId));
-    await persist(supabase ? () => supabase.from("team_players").delete().eq("id", playerId) : null);
-  }, [persist, supabase]);
-
   // The schedule is re-published during the season, so an import is an upsert
   // on the match number rather than an append: a moved kick-off corrects the
   // match already on the calendar. A row the local state already knows keeps
@@ -1417,30 +1375,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [persist, supabase]);
 
-  const startWorkout = useCallback(async (id: string, groupingKind: SessionGroupingKind) => {
+  // One way to start (decision 12): no attendance, no groups. Like the other
+  // lifecycle RPCs the state changes only once the server has answered, so a
+  // refusal never reads as a started workout.
+  const startWorkout = useCallback(async (id: string) => {
     if (!user) return;
     const startedAt = new Date().toISOString();
     await persist(supabase ? async () => {
-      const result = await supabase.rpc("start_session", { target_session_id: id, selected_grouping_kind: groupingKind });
+      const result = await supabase.rpc("start_session", { target_session_id: id });
       if (result.error?.code === "PGRST202") {
-        return { ...result, error: { message: "Databaseoppdateringen for øktflyten mangler. Kjør Supabase-migrering 006 og 007, og prøv på nytt." } };
+        return { ...result, error: { message: "Databaseoppdateringen for å starte økter mangler. Kjør Supabase-migreringen 202611230001, og prøv på nytt." } };
       }
       return result;
     } : null);
-    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "in_progress", startedAt, groupingKind, updatedBy: user.id, updatedAt: startedAt } : session));
-  }, [persist, supabase, user]);
-
-  const startWorkoutWithoutSetup = useCallback(async (id: string) => {
-    if (!user) return;
-    const startedAt = new Date().toISOString();
-    await persist(supabase ? async () => {
-      const result = await supabase.rpc("start_session_without_setup", { target_session_id: id });
-      if (result.error?.code === "PGRST202") {
-        return { ...result, error: { message: "Databaseoppdateringen for å hoppe over oppsett mangler. Kjør Supabase-migrering 016, og prøv på nytt." } };
-      }
-      return result;
-    } : null);
-    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "in_progress", startedAt, groupingKind: null, updatedBy: user.id, updatedAt: startedAt } : session));
+    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "in_progress", startedAt, completedAt: null, updatedBy: user.id, updatedAt: startedAt } : session));
   }, [persist, supabase, user]);
 
   const undoWorkoutStart = useCallback(async (id: string) => {
@@ -1453,7 +1401,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       return result;
     } : null);
-    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "published", startedAt: null, groupingKind: null, updatedBy: user.id, updatedAt } : session));
+    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "published", startedAt: null, updatedBy: user.id, updatedAt } : session));
   }, [persist, supabase, user]);
 
   const finishWorkout = useCallback(async (id: string) => {
@@ -1470,8 +1418,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [persist, supabase, user]);
 
   // The inverse of finishing, one state further back than `undoWorkoutStart`:
-  // the plan unlocks and is ready to start again, with its attendance and
-  // groups still saved. The row only leaves the Past tab once it is given a
+  // the plan unlocks and is ready to start again. The row only leaves the Past tab once it is given a
   // date that has not been and gone — `reopenedSessionTab` is what the confirm
   // dialog reads to say so.
   const reopenSession = useCallback(async (id: string) => {
@@ -1484,7 +1431,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       return result;
     } : null);
-    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "published", startedAt: null, completedAt: null, groupingKind: null, updatedBy: user.id, updatedAt } : session));
+    setSessions((current) => current.map((session) => session.id === id ? { ...session, status: "published", startedAt: null, completedAt: null, updatedBy: user.id, updatedAt } : session));
   }, [persist, supabase, user]);
 
   // Copying is the one session mutation that is not optimistic: `copy_session`
@@ -1586,22 +1533,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const reloadSession = useCallback(async (id: string) => { if (!supabase) return; const { data } = await supabase.from("sessions").select("*, session_blocks(*, session_items(*))").eq("id", id).single(); if (data) setSessions((current) => current.map((session) => session.id === id ? mapSession(data as unknown as DbSession) : session)); }, [supabase]);
 
-  const setPlayerPresent = useCallback(async (sessionId: string, playerId: string, isPresent: boolean) => {
-    if (!user) return;
-    const checkedInAt = isPresent ? new Date().toISOString() : null;
-    const entry: SessionAttendance = { sessionId, playerId, isPresent, checkedInAt };
-    setAttendance((current) => [...current.filter((item) => item.sessionId !== sessionId || item.playerId !== playerId), entry]);
-    await persist(supabase ? () => supabase.from("session_attendance").upsert({ session_id: sessionId, player_id: playerId, is_present: isPresent, checked_in_at: checkedInAt, updated_by: user.id }, { onConflict: "session_id,player_id" }) : null);
-  }, [persist, supabase, user]);
-
-  const saveGrouping = useCallback(async (sessionId: string, kind: SessionGroupingKind, groups: PlayerGroup[]) => {
-    if (!user) return;
-    const generatedAt = new Date().toISOString();
-    const grouping: SessionGrouping = { sessionId, kind, groups, generatedAt };
-    setGroupings((current) => [...current.filter((entry) => entry.sessionId !== sessionId || entry.kind !== kind), grouping]);
-    await persist(supabase ? () => supabase.from("session_groupings").upsert({ session_id: sessionId, kind, groups, generated_by: user.id, generated_at: generatedAt }, { onConflict: "session_id,kind" }) : null);
-  }, [persist, supabase, user]);
-
   // The library wins over the copy a session or warm-up item took when it was
   // added, so an edit in Øvelsesbanken shows on every card linking to that
   // exercise. Resolved on the way out only: mutations below keep reading and
@@ -1611,7 +1542,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedAdminSessions = useMemo(() => resolveAll(adminSessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [adminSessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, exercisesLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, players, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping }), [user, authLoading, workspaceLoaded, exercisesLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, players, fixtures, focusPeriods, resolvedWarmupRoutines, attendance, groupings, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importPlayers, removePlayer, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, startWorkoutWithoutSetup, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession, setPlayerPresent, saveGrouping]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, exercisesLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession }), [user, authLoading, workspaceLoaded, exercisesLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, fixtures, focusPeriods, resolvedWarmupRoutines, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }

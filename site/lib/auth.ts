@@ -181,7 +181,7 @@ export function workspaceSettle(last: WorkspaceLoad | null, inFlightUserId: stri
  * The tables `loadPrivateData` reads, in the order of its batch. Only used to
  * name the ones that failed.
  */
-export const WORKSPACE_QUERIES = ["team_memberships", "sessions", "team_invitations", "profiles", "team_players", "team_fixtures", "team_focus_periods", "warmup_routines", "session_attendance", "session_groupings", "exercise_favorites", "exercise_collections"] as const;
+export const WORKSPACE_QUERIES = ["team_memberships", "sessions", "team_invitations", "profiles", "team_fixtures", "team_focus_periods", "warmup_routines", "exercise_favorites", "exercise_collections"] as const;
 
 /**
  * Which queries of the workspace batch came back with an error. supabase-js does
