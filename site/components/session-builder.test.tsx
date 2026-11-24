@@ -344,28 +344,108 @@ describe("suggestions in the builder", () => {
   }
   const acceptSuggestion = vi.fn();
   const dismissSuggestion = vi.fn();
+  const suggestAlternative = vi.fn();
+  const deleteItem = vi.fn();
   function renderBuilder(session: PlannedSession, user: Profile = demoUser) {
-    mocks.useGrep.mockReturnValue({ sessions: [session], teams: demoTeams, currentTeam: demoTeams[0], exercises: demoExercises, exercisesLoaded: true, collections: [], favoriteExerciseIds: [], user, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession, suggestAlternative: vi.fn(), acceptSuggestion, dismissSuggestion });
+    mocks.useGrep.mockReturnValue({ sessions: [session], teams: demoTeams, currentTeam: demoTeams[0], exercises: demoExercises, exercisesLoaded: true, collections: [], favoriteExerciseIds: [], user, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession, deleteItem, suggestAlternative, acceptSuggestion, dismissSuggestion });
     return render(<SessionBuilder sessionId={session.id} />);
+  }
+  function openMenu(title: string) {
+    fireEvent.click(screen.getByRole("button", { name: `Valg for ${title}` }));
+    return screen.getByRole("menu", { name: `Valg for ${title}` });
   }
   beforeEach(() => {
     acceptSuggestion.mockReset().mockResolvedValue(undefined);
     dismissSuggestion.mockReset().mockResolvedValue(undefined);
+    suggestAlternative.mockReset().mockResolvedValue(undefined);
+    deleteItem.mockReset().mockResolvedValue(undefined);
   });
 
-  it("offers «Foreslå alternativ» on a draft or published plan's exercises", () => {
+  // Decision 15: the ⋮ menu replaces the trash button and the dashed pill.
+  it("puts a ⋮ menu on every activity instead of a trash button or a dashed pill", () => {
+    renderBuilder(withSuggestions("draft", []));
+    const items = draft.blocks.flatMap((block) => block.items);
+    expect(screen.getAllByRole("button", { name: /^Valg for / })).toHaveLength(items.length);
+    expect(screen.queryByRole("button", { name: /^Fjern/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Foreslå alternativ")).not.toBeInTheDocument();
+  });
+
+  it("lists «Foreslå alternativ» and «Fjern» on a draft or published plan's exercises", () => {
     for (const status of ["draft", "published"] as const) {
       renderBuilder(withSuggestions(status, []));
-      expect(screen.getByRole("button", { name: `Foreslå alternativ til ${firstItem.title}` })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Foreslå alternativ til 6 mot 6 med betingelser" })).not.toBeInTheDocument();
+      const menu = openMenu(firstItem.title);
+      expect(within(menu).getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual(["Foreslå alternativ", "Fjern"]);
+      expect(within(menu).getByRole("menuitem", { name: "Foreslå alternativ" })).toHaveFocus();
       cleanup();
     }
   });
 
-  it("offers nothing once the workout has started or finished", () => {
+  it("lists only «Fjern» on a free-text activity", () => {
+    renderBuilder(withSuggestions("draft", []));
+    const menu = openMenu("6 mot 6 med betingelser");
+    expect(within(menu).getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual(["Fjern"]);
+  });
+
+  it("names the station a station's «Fjern» removes", () => {
+    renderBuilder(withSuggestions("draft", []));
+    const menu = openMenu(stations.items[1].title);
+    expect(within(menu).getByRole("menuitem", { name: "Fjern stasjon 2" })).toBeInTheDocument();
+  });
+
+  it("removes the activity with «Fjern» and closes the menu", () => {
+    renderBuilder(withSuggestions("draft", []));
+    const menu = openMenu(firstItem.title);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Fjern" }));
+    expect(deleteItem).toHaveBeenCalledWith(draft.id, draft.blocks[0].id, firstItem.id);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("closes on Escape with focus back on ⋮, and on a click outside", () => {
+    renderBuilder(withSuggestions("draft", []));
+    openMenu(firstItem.title);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `Valg for ${firstItem.title}` })).toHaveFocus();
+    openMenu(firstItem.title);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("moves between the entries with the arrow keys", () => {
+    renderBuilder(withSuggestions("draft", []));
+    const menu = openMenu(firstItem.title);
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(within(menu).getByRole("menuitem", { name: "Fjern" })).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(within(menu).getByRole("menuitem", { name: "Foreslå alternativ" })).toHaveFocus();
+  });
+
+  it("opens the picker in suggest mode from the menu and suggests with a comment", async () => {
+    renderBuilder(withSuggestions("draft", []));
+    fireEvent.click(within(openMenu(firstItem.title)).getByRole("menuitem", { name: "Foreslå alternativ" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Foreslå alternativ" });
+    // The exercise the activity already has is not offered.
+    expect(within(dialog).queryByRole("button", { name: `Velg ${firstItem.title}` })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Foreslå" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: `Velg ${patient.name}` }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /Kommentar \(valgfritt\)/ }), { target: { value: "Mindre kø" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Foreslå" }));
+    await waitFor(() => expect(suggestAlternative).toHaveBeenCalledWith(draft.id, firstItem.id, expect.objectContaining({ id: patient.id }), "Mindre kø"));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Foreslå alternativ" })).not.toBeInTheDocument());
+  });
+
+  it("pre-fills the picker with one's own earlier suggestion", () => {
+    renderBuilder(withSuggestions("draft"), nora);
+    fireEvent.click(within(openMenu(firstItem.title)).getByRole("menuitem", { name: "Foreslå alternativ" }));
+    const dialog = screen.getByRole("dialog", { name: "Foreslå alternativ" });
+    expect(within(dialog).getByRole("textbox", { name: /Kommentar \(valgfritt\)/ })).toHaveValue("Mindre kø, flere ballberøringer");
+  });
+
+  it("offers only «Fjern» once the workout has started or finished", () => {
     for (const status of ["in_progress", "completed"] as const) {
       renderBuilder(withSuggestions(status));
-      expect(screen.queryByRole("button", { name: /^Foreslå alternativ/ })).not.toBeInTheDocument();
+      expect(screen.queryByText("Foreslå alternativ")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /^Bytt/ })).not.toBeInTheDocument();
       cleanup();
     }

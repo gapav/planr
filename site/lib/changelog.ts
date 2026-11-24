@@ -20,7 +20,7 @@ export const RELEASES: readonly Release[] = [
     version: "1.6.0",
     date: "2026-11-24",
     highlights: [
-      "Trykk «Foreslå alternativ» på en øvelse i en plan for å foreslå en annen øvelse fra øvelsesbanken, gjerne med en kort kommentar.",
+      "Når du redigerer en plan, velger du «Foreslå alternativ» i ⋮-menyen på en øvelse for å foreslå en annen øvelse fra øvelsesbanken, gjerne med en kort kommentar.",
       "Kortet viser hvor mange forslag øvelsen har, hvem som foreslo dem og hvorfor.",
       "Med «Bytt» setter hvem som helst på trenerteamet inn forslaget — tid, stikkord og ansvarlige trenere blir stående.",
     ],
