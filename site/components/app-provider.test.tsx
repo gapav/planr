@@ -153,3 +153,110 @@ describe("starting a workout", () => {
     await waitFor(() => expect(status()).toBe("completed"));
   });
 });
+
+// «Foreslå alternativ» (decision 14): suggesting and dismissing are optimistic
+// and roll back on a refusal; accepting changes the plan only once
+// `accept_item_suggestion` has answered. Demo mode runs all three locally.
+describe("suggestions", () => {
+  afterEach(() => { mocks.configured = false; mocks.client = null; });
+
+  const coach = { id: "coach-1", email: "coach@example.com" };
+  const stamp = "2026-11-01T10:00:00Z";
+  const exerciseRow = (id: string, name: string) => ({ id, name, description: `${name} beskrevet.`, category: "Angrep", age_groups: [], subtopics: [], media_url: `https://example.com/${id}.jpg`, media_kind: "image", thumbnail_url: `https://example.com/${id}-thumb.jpg`, created_by: "coach-2", archived_at: null, created_at: stamp, updated_at: stamp });
+  const sessionRow = {
+    id: "session-1", team_id: "team-1", title: "Tirsdagstrening", starts_at: "2026-11-25T17:00:00Z", venue: "", planned_duration_minutes: 60, objective: "", notes: "", status: "published", created_by: coach.id, updated_by: coach.id, created_at: stamp, updated_at: stamp,
+    session_blocks: [{ id: "block-1", session_id: "session-1", title: "Hoveddel", notes: "", kind: "sequence", rotation_minutes: null, position: 0, updated_by: coach.id, session_items: [{
+      id: "item-1", block_id: "block-1", kind: "exercise", exercise_id: "ex-1", title: "Første", description: "Første beskrevet.", media_url: null, thumbnail_url: null, duration_minutes: 12, coaching_notes: "Stikkord", assigned_coach_ids: [coach.id], position: 0, updated_by: coach.id,
+      session_item_suggestions: [{ id: "s-1", item_id: "item-1", exercise_id: "ex-2", suggested_by: "coach-2", comment: "Bedre", created_at: stamp, updated_at: stamp, exercise: exerciseRow("ex-2", "Andre") }],
+    }] }],
+  };
+
+  /** A signed-in coach on one plan with one suggestion; writes answer `write`, the accept RPC `accept`. */
+  function clientWith(write: Result, accept: Result) {
+    const calls: string[] = [];
+    const client = fakeClient(coach, () => Promise.resolve({ data: [exerciseRow("ex-1", "Første"), exerciseRow("ex-2", "Andre"), exerciseRow("ex-3", "Tredje")], error: null }));
+    return {
+      ...client,
+      calls,
+      from: (table: string) => {
+        if (table === "exercises") return client.from(table);
+        return query(() => {
+          if (table === "profiles") return Promise.resolve({ data: { id: coach.id, email: coach.email, full_name: "Coach One", is_global_admin: false, session_digest_email: true }, error: null });
+          if (table === "team_memberships") return Promise.resolve({ data: [{ team_id: "team-1", profile_id: coach.id, role: "coach", teams: { id: "team-1", name: "Kolbotn - B2020", logo_url: null }, profiles: { id: coach.id, email: coach.email, full_name: "Coach One", avatar_url: null } }], error: null });
+          if (table === "sessions") return Promise.resolve({ data: [sessionRow], error: null });
+          if (table === "session_item_suggestions") { calls.push(table); return Promise.resolve(write); }
+          return Promise.resolve({ data: [], error: null });
+        });
+      },
+      rpc: (name: string) => query(() => { calls.push(name); return Promise.resolve(name === "accept_item_suggestion" ? accept : refused); }),
+    };
+  }
+
+  function SuggestionProbe({ sessionId, itemId }: { sessionId: string; itemId: string }) {
+    const { sessions, exercises, suggestAlternative, acceptSuggestion, dismissSuggestion } = useGrep();
+    const item = sessions.find((session) => session.id === sessionId)?.blocks.flatMap((block) => block.items).find((entry) => entry.id === itemId);
+    const exercise = exercises.find((entry) => entry.id !== item?.exerciseId && !item?.suggestions?.some((suggestion) => suggestion.exerciseId === entry.id));
+    const first = item?.suggestions?.[0];
+    return <>
+      <p data-testid="item">{item ? `${item.exerciseId}|${item.title}|${item.durationMinutes}|${item.coachingNotes}` : "none"}</p>
+      <p data-testid="suggestions">{(item?.suggestions ?? []).map((suggestion) => `${suggestion.exerciseId}:${suggestion.comment}`).join(",")}</p>
+      <button onClick={() => exercise && void suggestAlternative(sessionId, itemId, exercise, "  Mindre kø  ").catch(() => undefined)}>suggest</button>
+      <button onClick={() => first && void acceptSuggestion(sessionId, first.id).catch(() => undefined)}>accept</button>
+      <button onClick={() => first && void dismissSuggestion(sessionId, first.id).catch(() => undefined)}>dismiss</button>
+    </>;
+  }
+  const text = (id: string) => screen.getByTestId(id).textContent;
+  const click = async (name: string) => { await act(async () => { screen.getByRole("button", { name }).click(); }); };
+
+  it("suggests, swaps and dismisses on the demo plan with local state", async () => {
+    render(<AppProvider><SuggestionProbe sessionId="session-friday" itemId="item-activation" /></AppProvider>);
+    expect(text("suggestions")).toBe("exercise-6:Mindre kø, flere ballberøringer");
+    // The demo user's first suggestion is added beside Nora's.
+    await click("suggest");
+    expect(text("suggestions")).toMatch(/^exercise-6:Mindre kø, flere ballberøringer,exercise-\d:Mindre kø$/);
+    await click("accept");
+    await waitFor(() => expect(text("item")).toMatch(/^exercise-6\|Tålmodig angrep 6 mot 5\|10\|/));
+    expect(text("suggestions")).toMatch(/^exercise-\d:Mindre kø$/);
+    await click("dismiss");
+    expect(text("suggestions")).toBe("");
+  });
+
+  it("rolls a refused suggestion back", async () => {
+    mocks.configured = true;
+    mocks.client = clientWith(refused, refused);
+    render(<AppProvider><SuggestionProbe sessionId="session-1" itemId="item-1" /></AppProvider>);
+    await waitFor(() => expect(text("suggestions")).toBe("ex-2:Bedre"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "suggest" })).toBeInTheDocument());
+    await click("suggest");
+    await waitFor(() => expect((mocks.client as ReturnType<typeof clientWith>).calls).toContain("session_item_suggestions"));
+    await waitFor(() => expect(text("suggestions")).toBe("ex-2:Bedre"));
+  });
+
+  it("rolls a refused dismissal back", async () => {
+    mocks.configured = true;
+    mocks.client = clientWith(refused, refused);
+    render(<AppProvider><SuggestionProbe sessionId="session-1" itemId="item-1" /></AppProvider>);
+    await waitFor(() => expect(text("suggestions")).toBe("ex-2:Bedre"));
+    await click("dismiss");
+    await waitFor(() => expect(text("suggestions")).toBe("ex-2:Bedre"));
+  });
+
+  it("keeps the plan as it was when the accept is refused, and swaps once it is answered", async () => {
+    mocks.configured = true;
+    mocks.client = clientWith({ data: null, error: null }, refused);
+    const { unmount } = render(<AppProvider><SuggestionProbe sessionId="session-1" itemId="item-1" /></AppProvider>);
+    await waitFor(() => expect(text("suggestions")).toBe("ex-2:Bedre"));
+    await click("accept");
+    await waitFor(() => expect((mocks.client as ReturnType<typeof clientWith>).calls).toContain("accept_item_suggestion"));
+    expect(text("item")).toBe("ex-1|Første|12|Stikkord");
+    expect(text("suggestions")).toBe("ex-2:Bedre");
+    unmount();
+
+    mocks.client = clientWith({ data: null, error: null }, { data: null, error: null });
+    render(<AppProvider><SuggestionProbe sessionId="session-1" itemId="item-1" /></AppProvider>);
+    await waitFor(() => expect(text("suggestions")).toBe("ex-2:Bedre"));
+    await click("accept");
+    await waitFor(() => expect(text("item")).toBe("ex-2|Andre|12|Stikkord"));
+    expect(text("suggestions")).toBe("");
+  });
+});

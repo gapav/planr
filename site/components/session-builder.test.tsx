@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { demoExercises, demoFocusPeriods, demoSessions, demoTeams } from "@/lib/demo-data";
+import { demoExercises, demoFocusPeriods, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
+import type { PlannedSession, Profile } from "@/lib/types";
 import { SessionBuilder } from "./session-builder";
 
 const mocks = vi.hoisted(() => ({ useGrep: vi.fn(), useSessionRealtime: vi.fn() }));
@@ -327,5 +328,70 @@ describe("session builder before the workspace has loaded", () => {
     render(<SessionBuilder sessionId="missing" />);
     expect(screen.getByText("Økten ble ikke funnet")).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});
+
+// «Foreslå alternativ» (decision 14, issue #52) — the same card section as the plan view.
+describe("suggestions in the builder", () => {
+  const [nora, sam] = [demoTeams[0].members[1], demoTeams[0].members[2]];
+  const [kontring, , , , , patient] = demoExercises;
+  const twoSuggestions = [
+    { id: "s-nora", itemId: firstItem.id, exerciseId: patient.id, suggestedBy: nora.id, comment: "Mindre kø, flere ballberøringer", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z", exercise: patient },
+    { id: "s-sam", itemId: firstItem.id, exerciseId: kontring.id, suggestedBy: sam.id, comment: "Mer fart fra start", createdAt: "2026-09-01T09:00:00.000Z", updatedAt: "2026-09-01T09:00:00.000Z", exercise: kontring },
+  ];
+  function withSuggestions(status: PlannedSession["status"], suggestions = twoSuggestions): PlannedSession {
+    return { ...draft, status, blocks: draft.blocks.map((block, index) => ({ ...block, items: block.items.map((item, itemIndex) => ({ ...item, suggestions: index === 0 && itemIndex === 0 ? suggestions : [] })) })) };
+  }
+  const acceptSuggestion = vi.fn();
+  const dismissSuggestion = vi.fn();
+  function renderBuilder(session: PlannedSession, user: Profile = demoUser) {
+    mocks.useGrep.mockReturnValue({ sessions: [session], teams: demoTeams, currentTeam: demoTeams[0], exercises: demoExercises, exercisesLoaded: true, collections: [], favoriteExerciseIds: [], user, saveState: "saved", isDemoMode: true, reloadSession: vi.fn(), updateItem, updateBlock, updateSession, suggestAlternative: vi.fn(), acceptSuggestion, dismissSuggestion });
+    return render(<SessionBuilder sessionId={session.id} />);
+  }
+  beforeEach(() => {
+    acceptSuggestion.mockReset().mockResolvedValue(undefined);
+    dismissSuggestion.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("offers «Foreslå alternativ» on a draft or published plan's exercises", () => {
+    for (const status of ["draft", "published"] as const) {
+      renderBuilder(withSuggestions(status, []));
+      expect(screen.getByRole("button", { name: `Foreslå alternativ til ${firstItem.title}` })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Foreslå alternativ til 6 mot 6 med betingelser" })).not.toBeInTheDocument();
+      cleanup();
+    }
+  });
+
+  it("offers nothing once the workout has started or finished", () => {
+    for (const status of ["in_progress", "completed"] as const) {
+      renderBuilder(withSuggestions(status));
+      expect(screen.queryByRole("button", { name: /^Foreslå alternativ/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Bytt/ })).not.toBeInTheDocument();
+      cleanup();
+    }
+  });
+
+  it("shows the card's two suggestions with their exercises, coaches and comments", () => {
+    renderBuilder(withSuggestions("draft"));
+    expect(screen.getByText("2 forslag")).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: `Forslag til ${firstItem.title}` });
+    expect(within(list).getByRole("button", { name: patient.name })).toBeInTheDocument();
+    expect(within(list).getByRole("button", { name: kontring.name })).toBeInTheDocument();
+    expect(within(list).getByText("Foreslått av Nora Vik")).toBeInTheDocument();
+    expect(within(list).getByText("Foreslått av Sam Østby")).toBeInTheDocument();
+    expect(within(list).getByText("«Mindre kø, flere ballberøringer»")).toBeInTheDocument();
+    expect(within(list).getByText("«Mer fart fra start»")).toBeInTheDocument();
+  });
+
+  it("calls the provider for «Bytt», «Avvis» and «Trekk tilbake»", () => {
+    renderBuilder(withSuggestions("draft"));
+    fireEvent.click(screen.getByRole("button", { name: `Bytt til ${kontring.name}` }));
+    expect(acceptSuggestion).toHaveBeenCalledWith(draft.id, "s-sam");
+    fireEvent.click(screen.getByRole("button", { name: "Avvis forslaget fra Nora Vik" }));
+    expect(dismissSuggestion).toHaveBeenCalledWith(draft.id, "s-nora");
+    cleanup();
+    renderBuilder(withSuggestions("draft"), sam);
+    fireEvent.click(screen.getByRole("button", { name: "Trekk tilbake forslaget ditt" }));
+    expect(dismissSuggestion).toHaveBeenCalledWith(draft.id, "s-sam");
   });
 });

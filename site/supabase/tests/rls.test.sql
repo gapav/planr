@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(245);
+select plan(307);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, aud, role)
 values
@@ -484,6 +484,137 @@ select is((select rotation_minutes from public.session_blocks block join public.
 select lives_ok($$ delete from public.sessions where title = 'Kopi med stasjoner' $$, 'the copied session is removed again');
 select lives_ok($$ delete from public.sessions where id = '30000000-0000-0000-0000-000000000003' $$, 'the assignment test session is removed with its blocks and activities');
 reset role;
+
+-- 202611240001: «Foreslå alternativ». A coach on the team proposes another
+-- exercise for an activity; one suggestion per coach per activity. Reading,
+-- suggesting and dismissing follow the activity's own access, a suggestion is
+-- written only in the coach's own name, accepting is one RPC, and nothing is
+-- suggested or accepted once the workout has started.
+insert into public.sessions (id, team_id, title, starts_at, status, created_by, updated_by)
+select '30000000-0000-0000-0000-000000000005', id, 'Forslag test', now() + interval '1 day', 'draft', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'
+from public.teams where id = current_setting('plannr.test_team')::uuid;
+insert into public.session_blocks (id, session_id, title, position, updated_by)
+values ('34000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000005', 'Hoveddel', 0, '10000000-0000-0000-0000-000000000001');
+insert into public.session_items (id, block_id, kind, exercise_id, title, description, duration_minutes, coaching_notes, assigned_coach_ids, position, updated_by)
+values
+  ('35000000-0000-0000-0000-000000000001', '34000000-0000-0000-0000-000000000001', 'exercise', '20000000-0000-0000-0000-000000000001', 'Public test exercise', 'A useful public exercise description.', 14, 'Høyt tempo.', array['10000000-0000-0000-0000-000000000002']::uuid[], 0, '10000000-0000-0000-0000-000000000001'),
+  ('35000000-0000-0000-0000-000000000002', '34000000-0000-0000-0000-000000000001', 'custom', null, 'Fritt spill', '', 10, '', '{}', 1, '10000000-0000-0000-0000-000000000001'),
+  ('35000000-0000-0000-0000-000000000003', '34000000-0000-0000-0000-000000000001', 'exercise', '20000000-0000-0000-0000-000000000001', 'Public test exercise', 'A useful public exercise description.', 10, '', '{}', 2, '10000000-0000-0000-0000-000000000001');
+insert into public.exercises (id, name, description, media_url, media_kind, thumbnail_url, created_by)
+values ('20000000-0000-0000-0000-000000000009', 'Soon archived alternative', 'An exercise its author archives after suggesting it.', 'https://example.com/archived.jpg', 'image', 'https://example.com/archived.jpg', '10000000-0000-0000-0000-000000000001');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select lives_ok($$ insert into public.session_item_suggestions (id, item_id, exercise_id, comment) values ('36000000-0000-0000-0000-000000000001', '35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', '  Mindre kø  ') $$, 'a team coach can suggest an alternative exercise for an activity');
+select is((select suggested_by::text || '|' || comment from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000001'), '10000000-0000-0000-0000-000000000002|Mindre kø', 'a team coach reads the suggestion back, in their own name and with the comment tidied');
+select throws_ok($$ insert into public.session_item_suggestions (item_id, exercise_id, suggested_by) values ('35000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001') $$, '42501', null, 'a coach cannot write a suggestion in someone else''s name');
+select throws_ok($$ insert into public.session_item_suggestions (item_id, exercise_id) values ('35000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002') $$, 'P0001', 'Bare øvelser kan få forslag til alternativ', 'a free-text activity takes no suggestions');
+select throws_ok($$ insert into public.session_item_suggestions (item_id, exercise_id) values ('35000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001') $$, 'P0001', 'Øvelsen er allerede i planen', 'a suggestion cannot name the exercise the activity already has');
+select throws_ok(format($$ insert into public.session_item_suggestions (item_id, exercise_id, comment) values ('35000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', '%s') $$, repeat('x', 201)), '23514', null, 'a suggestion comment is at most 200 characters');
+select lives_ok($$ insert into public.session_item_suggestions (item_id, exercise_id, comment) values ('35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003', 'Flere ballberøringer') on conflict (item_id, suggested_by) do update set exercise_id = excluded.exercise_id, comment = excluded.comment $$, 'suggesting again on the same activity is an upsert of the coach''s own suggestion');
+select is((select string_agg(exercise_id::text || '|' || comment, ',') from public.session_item_suggestions where item_id = '35000000-0000-0000-0000-000000000001'), '20000000-0000-0000-0000-000000000003|Flere ballberøringer', 'the second suggestion replaces the coach''s first rather than adding to it');
+select throws_ok($$ update public.session_item_suggestions set item_id = '35000000-0000-0000-0000-000000000003' where id = '36000000-0000-0000-0000-000000000001' $$, '42501', null, 'a suggestion stays on the activity it was made for');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok($$ insert into public.session_item_suggestions (id, item_id, exercise_id, comment) values ('36000000-0000-0000-0000-000000000002', '35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Kortere køer') $$, 'a second coach adds their own suggestion beside the first');
+select is((select count(*)::integer from public.session_item_suggestions where item_id = '35000000-0000-0000-0000-000000000001'), 2, 'an activity holds one suggestion per coach');
+select lives_ok($$ update public.session_item_suggestions set comment = 'Overskrevet' where id = '36000000-0000-0000-0000-000000000001' $$, 'an edit of a colleague''s suggestion is filtered away rather than raised');
+select is((select comment from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000001'), 'Flere ballberøringer', 'a coach cannot change a colleague''s suggestion');
+select lives_ok($$ insert into public.session_item_suggestions (id, item_id, exercise_id) values ('36000000-0000-0000-0000-000000000004', '35000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000009') $$, 'a coach can suggest one of their own exercises');
+reset role;
+
+-- The author archives the exercise after suggesting it.
+update public.exercises set archived_at = now() where id = '20000000-0000-0000-0000-000000000009';
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","email":"outsider@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.session_item_suggestions), 0, 'a coach outside the team cannot read the team''s suggestions');
+select throws_ok($$ insert into public.session_item_suggestions (item_id, exercise_id) values ('35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003') $$, 'P0001', 'Aktiviteten ble ikke funnet', 'a coach outside the team cannot suggest on its plan, and learns nothing about the activity');
+select lives_ok($$ delete from public.session_item_suggestions where item_id = '35000000-0000-0000-0000-000000000001' $$, 'a dismissal from outside the team is filtered away rather than raised');
+select throws_ok($$ select public.accept_item_suggestion('36000000-0000-0000-0000-000000000002') $$, 'P0001', 'Forslaget ble ikke funnet', 'a coach outside the team cannot accept a suggestion');
+select is((select count(*)::integer from public.exercises where id = '20000000-0000-0000-0000-000000000009'), 0, 'an archived exercise suggested on another team''s plan stays out of reach');
+reset role;
+
+select is((select count(*)::integer from public.session_item_suggestions where item_id = '35000000-0000-0000-0000-000000000001'), 2, 'nothing outside the team dismissed a suggestion');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","email":"owner@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.session_item_suggestions), 3, 'a global admin reads every team''s suggestions');
+select throws_ok($$ insert into public.session_item_suggestions (item_id, exercise_id) values ('35000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002') $$, 'P0001', 'Aktiviteten ble ikke funnet', 'a global admin cannot suggest on a plan of a team they do not coach');
+select throws_ok($$ select public.accept_item_suggestion('36000000-0000-0000-0000-000000000002') $$, 'P0001', 'Forslaget ble ikke funnet', 'a global admin cannot accept a suggestion');
+select lives_ok($$ delete from public.session_item_suggestions $$, 'a global admin''s dismissal is filtered away rather than raised');
+reset role;
+
+select is((select count(*)::integer from public.session_item_suggestions), 3, 'a global admin dismissed nothing');
+
+set local role anon;
+select throws_ok($$ select count(*) from public.session_item_suggestions $$, '42501', null, 'anonymous visitors cannot read suggestions');
+select throws_ok($$ select public.accept_item_suggestion('36000000-0000-0000-0000-000000000002') $$, '42501', null, 'anonymous visitors cannot accept a suggestion');
+reset role;
+
+-- A third coach's suggestion naming the same exercise as the one about to be
+-- accepted. Written as the superuser: the test team has two coaches. The
+-- trigger still asks whether the signed-in coach can reach the activity.
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+insert into public.session_item_suggestions (id, item_id, exercise_id, suggested_by, comment)
+values ('36000000-0000-0000-0000-000000000003', '35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000004', 'Samme øvelse');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select is((select count(*)::integer from public.exercises where id = '20000000-0000-0000-0000-000000000009'), 1, 'an archived exercise stays readable to the team while it is suggested on their plan');
+select throws_ok($$ insert into public.session_item_suggestions (item_id, exercise_id) values ('35000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000009') $$, 'P0001', 'Øvelsen ble ikke funnet', 'a coach cannot newly suggest an exercise somebody else has archived');
+-- Copying a plan carries no suggestions.
+select lives_ok($$ select public.copy_session('30000000-0000-0000-0000-000000000005', 'Kopi uten forslag', null) $$, 'a plan holding suggestions can be copied');
+select is((select count(*)::integer from public.session_item_suggestions suggestion join public.session_items item on item.id = suggestion.item_id join public.session_blocks block on block.id = item.block_id join public.sessions copy on copy.id = block.session_id where copy.title = 'Kopi uten forslag'), 0, 'a copied plan starts without suggestions');
+select is((select count(*)::integer from public.session_items item join public.session_blocks block on block.id = item.block_id join public.sessions copy on copy.id = block.session_id where copy.title = 'Kopi uten forslag'), 3, 'the copy still has every activity');
+select lives_ok($$ delete from public.sessions where title = 'Kopi uten forslag' $$, 'the copy is removed again');
+select lives_ok($$ select public.accept_item_suggestion('36000000-0000-0000-0000-000000000002') $$, 'a team coach can accept a colleague''s suggestion');
+select is((select exercise_id::text || '|' || title || '|' || description || '|' || media_url || '|' || updated_by::text from public.session_items where id = '35000000-0000-0000-0000-000000000001'), '20000000-0000-0000-0000-000000000002|Multi-age exercise|This exercise suits two age bands.|https://example.com/exercise.jpg|10000000-0000-0000-0000-000000000002', 'accepting swaps in the exercise and its display data, as the coach who accepted');
+select is((select position::text || '|' || duration_minutes::text || '|' || coaching_notes || '|' || assigned_coach_ids::text from public.session_items where id = '35000000-0000-0000-0000-000000000001'), '0|14|Høyt tempo.|{10000000-0000-0000-0000-000000000002}', 'the activity keeps its position, minutes, stikkord and coaches');
+select is((select count(*)::integer from public.session_item_suggestions where id in ('36000000-0000-0000-0000-000000000002', '36000000-0000-0000-0000-000000000003')), 0, 'the accepted suggestion goes, and so does another naming the same exercise');
+select is((select count(*)::integer from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000001'), 1, 'the other alternatives for the activity survive the swap');
+select lives_ok($$ select public.accept_item_suggestion('36000000-0000-0000-0000-000000000004') $$, 'an exercise archived after it was suggested can still be swapped in');
+select is((select exercise_id::text from public.session_items where id = '35000000-0000-0000-0000-000000000003'), '20000000-0000-0000-0000-000000000009', 'the activity now has the archived exercise');
+select is((select count(*)::integer from public.exercises where id = '20000000-0000-0000-0000-000000000009'), 0, 'the archived exercise drops out of reach once no suggestion names it');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","email":"admin@example.com","role":"authenticated"}', true);
+select lives_ok($$ delete from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000001' $$, 'a team coach can dismiss a colleague''s suggestion');
+select is((select count(*)::integer from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000001'), 0, 'the dismissed suggestion is gone');
+select lives_ok($$ insert into public.session_item_suggestions (id, item_id, exercise_id) values ('36000000-0000-0000-0000-000000000005', '35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003') $$, 'a coach suggests again after a dismissal');
+select lives_ok($$ delete from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000005' $$, 'a coach can withdraw their own suggestion');
+select is((select count(*)::integer from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000005'), 0, 'the withdrawn suggestion is gone');
+-- Deleting the activity takes its suggestions with it.
+select lives_ok($$ insert into public.session_item_suggestions (id, item_id, exercise_id) values ('36000000-0000-0000-0000-000000000006', '35000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003') $$, 'a coach suggests on the activity about to be deleted');
+select lives_ok($$ delete from public.session_items where id = '35000000-0000-0000-0000-000000000003' $$, 'a coach deletes an activity holding a suggestion');
+select is((select count(*)::integer from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000006'), 0, 'deleting the activity removes its suggestions');
+-- The rest runs on a started and then a finished workout.
+select lives_ok($$ insert into public.session_item_suggestions (id, item_id, exercise_id) values ('36000000-0000-0000-0000-000000000007', '35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003') $$, 'a suggestion made before the workout starts');
+select lives_ok($$ select public.publish_session('30000000-0000-0000-0000-000000000005') $$, 'the suggestion plan is published');
+select lives_ok($$ update public.session_item_suggestions set comment = 'Fortsatt aktuelt' where id = '36000000-0000-0000-0000-000000000007' $$, 'a coach can still edit their suggestion on a published plan');
+select lives_ok($$ select public.start_session('30000000-0000-0000-0000-000000000005') $$, 'the suggestion plan is started');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","email":"coach@example.com","role":"authenticated"}', true);
+select throws_ok($$ insert into public.session_item_suggestions (item_id, exercise_id) values ('35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001') $$, 'P0001', 'Denne økten pågår og er låst', 'nothing can be suggested once the workout is in progress');
+select throws_ok($$ select public.accept_item_suggestion('36000000-0000-0000-0000-000000000007') $$, 'P0001', 'Denne økten pågår og er låst', 'nothing can be accepted once the workout is in progress');
+select lives_ok($$ select public.finish_session('30000000-0000-0000-0000-000000000005') $$, 'the suggestion plan is finished');
+select throws_ok($$ insert into public.session_item_suggestions (item_id, exercise_id) values ('35000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001') $$, 'P0001', 'Denne økten er avsluttet og låst', 'nothing can be suggested once the workout is completed');
+select throws_ok($$ select public.accept_item_suggestion('36000000-0000-0000-0000-000000000007') $$, 'P0001', 'Denne økten er avsluttet og låst', 'nothing can be accepted once the workout is completed');
+select throws_ok($$ delete from public.session_item_suggestions where id = '36000000-0000-0000-0000-000000000007' $$, 'P0001', 'Denne økten er avsluttet og låst', 'nothing can be dismissed once the workout is completed');
+reset role;
+
+select is((select exercise_id::text from public.session_items where id = '35000000-0000-0000-0000-000000000001'), '20000000-0000-0000-0000-000000000002', 'the locked activity kept its exercise');
+-- Deleting the suggested exercise removes its suggestions. The plan is
+-- finished, so the data fix unlocks it for the statement, as the RPCs do.
+select set_config('plannr.unlocked_session', '30000000-0000-0000-0000-000000000005', true);
+select lives_ok($$ delete from public.exercises where id = '20000000-0000-0000-0000-000000000003' $$, 'a suggested exercise can be deleted');
+select set_config('plannr.unlocked_session', '', true);
+select is((select count(*)::integer from public.session_item_suggestions where exercise_id = '20000000-0000-0000-0000-000000000003'), 0, 'deleting the suggested exercise removes its suggestions');
 
 -- 202609020026 moved the confirmation and shared-library rules into the schema.
 -- 202609020027 retires the forced-password flag because every account now uses
