@@ -12,9 +12,14 @@ import type { Exercise, PlannedSession, Profile, SessionItem } from "@/lib/types
 import { cn } from "@/lib/utils";
 
 /**
- * «Foreslå alternativ» on one activity's card (decision 14), in the plan view
- * and the builder alike: the suggestions coaches on the team have made for it,
- * each with what they can do about it, and the way to make one.
+ * The suggestions on one activity's card (decisions 14 and 15), in the plan
+ * view and the builder alike: what coaches on the team have suggested for it,
+ * each with what they can do about it.
+ *
+ * Making one is an editing action, so only the builder offers it — from the
+ * activity's ⋮ menu, which owns `picking` and hands it here: this component
+ * mounts the picker because it knows one's own earlier suggestion to pre-fill.
+ * The plan view passes no `picking`, so it never opens.
  *
  * Nothing here prints (`data-print="hide"`), and the live session never
  * renders it: suggestions are the plan's conversation, not the plan.
@@ -22,20 +27,22 @@ import { cn } from "@/lib/utils";
  * `readOnly` is a global admin reading another team's plan: the suggestions
  * show, and nothing can be done with them.
  */
-export function ItemSuggestions({ session, item, members, readOnly = false, className }: {
+export function ItemSuggestions({ session, item, members, readOnly = false, picking = false, onClosePicker, className }: {
   session: PlannedSession;
   item: SessionItem;
   members: readonly Profile[];
   readOnly?: boolean;
+  /** The picker in suggest mode is open (the builder's «Foreslå alternativ»). */
+  picking?: boolean;
+  onClosePicker?(): void;
   className?: string;
 }) {
   const { user, exercises, suggestAlternative, acceptSuggestion, dismissSuggestion } = useGrep();
-  const [picking, setPicking] = useState(false);
   const [preview, setPreview] = useState<Exercise | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const library = useMemo(() => new Map((exercises ?? []).map((exercise) => [exercise.id, exercise])), [exercises]);
   const views = suggestionsForItem(item, { session, library, members, userId: user?.id ?? null, canAct: !readOnly && Boolean(user) });
-  const canSuggest = !readOnly && Boolean(user) && canSuggestOnItem(item, session);
+  const canSuggest = picking && !readOnly && Boolean(user) && canSuggestOnItem(item, session);
   if (!views.length && !canSuggest) return null;
   const mine = ownSuggestion(item, user?.id ?? null);
 
@@ -46,16 +53,13 @@ export function ItemSuggestions({ session, item, members, readOnly = false, clas
   }
 
   return <div data-print="hide" className={cn("grid gap-2", className)}>
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      {views.length > 0 ? <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-fill)] px-2.5 py-1 text-xs font-black text-[var(--on-accent)]"><Lightbulb size={13} aria-hidden />{suggestionCountLabel(views.length)}</span> : <span />}
-      {canSuggest && <button type="button" onClick={() => setPicking(true)} aria-label={`Foreslå alternativ til ${item.title}`} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-[var(--lilac-line)] px-2.5 text-[var(--lilac-ink)] transition hover:border-[var(--accent)] hover:bg-[var(--lilac-wash)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"><Lightbulb size={13} aria-hidden /><span className="text-xs font-bold">Foreslå alternativ</span></button>}
-    </div>
+    {views.length > 0 && <span className="inline-flex items-center gap-1.5 justify-self-start rounded-full bg-[var(--accent-fill)] px-2.5 py-1 text-xs font-black text-[var(--on-accent)]"><Lightbulb size={13} aria-hidden />{suggestionCountLabel(views.length)}</span>}
     {views.length > 0 && <ul aria-label={`Forslag til ${item.title}`} className="grid gap-2">
       {views.map((view) => <li key={view.suggestion.id}><SuggestionRow view={view} busy={busy === view.suggestion.id} onPreview={() => view.exercise && setPreview(view.exercise)}
         onAccept={() => void act(view.suggestion.id, () => acceptSuggestion(session.id, view.suggestion.id))}
         onDismiss={() => void act(view.suggestion.id, () => dismissSuggestion(session.id, view.suggestion.id))} /></li>)}
     </ul>}
-    {picking && <ExercisePicker open sessionId={session.id} blockId={null} blockTitle="" teamId={session.teamId} onClose={() => setPicking(false)}
+    {canSuggest && <ExercisePicker open sessionId={session.id} blockId={null} blockTitle="" teamId={session.teamId} onClose={() => onClosePicker?.()}
       suggest={{ itemTitle: item.title, currentExerciseId: item.exerciseId, initialExerciseId: mine?.exerciseId ?? null, initialComment: mine?.comment ?? "", onSubmit: (exercise, comment) => suggestAlternative(session.id, item.id, exercise, comment) }} />}
     <ExerciseDetail key={preview?.id ?? "none"} exercise={preview} exerciseId={preview && !preview.archivedAt ? preview.id : null} onClose={() => setPreview(null)} />
   </div>;

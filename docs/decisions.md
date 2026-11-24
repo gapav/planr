@@ -239,6 +239,21 @@ scan.)
 - Suggestions load with the plan (embedded in the sessions query) and are
   broadcast on `session:<id>` like every other plan write.
 
+## 15. «Foreslå alternativ» only in the builder, from a ⋮ menu (2026-11-24)
+
+Issue #55; amends 14. The dashed pill on every card cluttered a plan coaches
+mostly just read, and making a suggestion is an editing action.
+
+- The plan view (`/sessions/<id>`) shows the suggestions already made, with
+  their count pill and «Bytt» / «Avvis» / «Trekk tilbake», but offers no way to
+  make one.
+- In the builder each activity's trash button is now a ⋮ menu in the same
+  spot: «Foreslå alternativ» (exercises, while the plan is a draft or
+  published) and «Fjern» («Fjern stasjon N» on a station). The block header's
+  «Slett» stays a button.
+- Who may suggest, accept or dismiss is unchanged, as are the data model, the
+  RPCs and RLS.
+
 ## Open questions
 
 None recorded yet.

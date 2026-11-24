@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { demoExercises, demoSessions, demoTeams, demoUser } from "@/lib/demo-data";
@@ -122,12 +122,19 @@ describe("suggestions on a plan's card", () => {
     dismissSuggestion.mockReset().mockResolvedValue(undefined);
   });
 
-  it("offers «Foreslå alternativ» on each exercise of a draft or published plan", () => {
+  // Decision 15: making a suggestion is an editing action, so it lives in the
+  // builder's ⋮ menu; the plan a coach is reading only shows what is there.
+  it("offers no way to make a suggestion, while the ones made still show", () => {
     for (const status of ["draft", "published"] as const) {
       renderView(withSuggestions(status, []));
-      const exerciseItems = draft.blocks.flatMap((block) => block.items).filter((item) => item.kind === "exercise");
-      expect(screen.getAllByRole("button", { name: /^Foreslå alternativ til / })).toHaveLength(exerciseItems.length);
-      expect(screen.queryByRole("button", { name: "Foreslå alternativ til 6 mot 6 med betingelser" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Foreslå alternativ")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Foreslå alternativ/ })).not.toBeInTheDocument();
+      cleanup();
+      renderView(withSuggestions(status));
+      expect(screen.queryByRole("button", { name: /Foreslå alternativ/ })).not.toBeInTheDocument();
+      expect(screen.getByText("2 forslag")).toBeInTheDocument();
+      expect(screen.getByRole("list", { name: `Forslag til ${firstItem.title}` })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: `Bytt til ${patient.name}` })).toBeInTheDocument();
       cleanup();
     }
   });
@@ -174,20 +181,6 @@ describe("suggestions on a plan's card", () => {
     expect(screen.queryByRole("button", { name: "Avvis forslaget fra Nora Vik" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Trekk tilbake forslaget ditt" }));
     expect(dismissSuggestion).toHaveBeenCalledWith(draft.id, "s-nora");
-  });
-
-  it("suggests one exercise from the library with a comment", async () => {
-    renderView(withSuggestions("draft", []));
-    fireEvent.click(screen.getByRole("button", { name: `Foreslå alternativ til ${firstItem.title}` }));
-    const dialog = screen.getByRole("dialog", { name: "Foreslå alternativ" });
-    // The exercise the activity already has is not offered.
-    expect(within(dialog).queryByRole("button", { name: `Velg ${firstItem.title}` })).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Foreslå" })).toBeDisabled();
-    fireEvent.click(within(dialog).getByRole("button", { name: `Velg ${patient.name}` }));
-    fireEvent.change(within(dialog).getByRole("textbox", { name: /Kommentar \(valgfritt\)/ }), { target: { value: "Mindre kø" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Foreslå" }));
-    await waitFor(() => expect(suggestAlternative).toHaveBeenCalledWith(draft.id, firstItem.id, expect.objectContaining({ id: patient.id }), "Mindre kø"));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Foreslå alternativ" })).not.toBeInTheDocument());
   });
 
   it("shows a global admin the suggestions on another team's plan, with nothing to do about them", () => {
