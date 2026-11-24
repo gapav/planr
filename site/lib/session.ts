@@ -413,7 +413,9 @@ export function buildSessionCopy(source: PlannedSession, options: { id: string; 
       const blockId = options.makeId();
       return {
         ...block, id: blockId, sessionId: options.id, updatedBy: options.userId,
-        items: block.items.map((item) => ({ ...item, id: options.makeId(), blockId, assignedCoachIds: item.assignedCoachIds.filter(keepsCoach), updatedBy: options.userId })),
+        // Suggestions are the source plan's conversation; a copy starts clean,
+        // as `copy_session` does.
+        items: block.items.map((item) => ({ ...item, id: options.makeId(), blockId, assignedCoachIds: item.assignedCoachIds.filter(keepsCoach), updatedBy: options.userId, suggestions: [] })),
       };
     }),
   };

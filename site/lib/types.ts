@@ -131,6 +131,24 @@ export interface SessionItem {
   id: string; blockId: string; kind: SessionItemKind; exerciseId: string | null; title: string;
   description: string; mediaUrl: string | null; thumbnailUrl: string | null; durationMinutes: number;
   coachingNotes: string; assignedCoachIds: string[]; position: number; updatedBy: string;
+  /**
+   * «Foreslå alternativ»: other exercises coaches on the team propose for this
+   * slot, one per coach (decision 14). Absent and empty read the same. They are
+   * the plan's conversation, not the plan, so a copy never carries them.
+   */
+  suggestions?: SessionItemSuggestion[];
+}
+/** `session_item_suggestions.comment` is checked `char_length(comment) <= 200`. */
+export const SUGGESTION_COMMENT_MAX_LENGTH = 200;
+/**
+ * A coach's proposal to swap an activity's exercise for another. The row holds
+ * only the exercise id; the card shows the library's exercise, and `exercise`
+ * is the copy read with the suggestion — the one a card falls back to once the
+ * exercise has been archived and drops out of the library.
+ */
+export interface SessionItemSuggestion {
+  id: string; itemId: string; exerciseId: string; suggestedBy: string; comment: string;
+  createdAt: string; updatedAt: string; exercise: Exercise | null;
 }
 /**
  * One part of the plan. `items` are activities run in order — unless `kind` is

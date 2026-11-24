@@ -186,6 +186,35 @@ Issue #47. `.github/workflows/security.yml` checks `site/package-lock.json`
 - The threshold is not lowered to make a red check pass: a finding is fixed,
   or tracked in an issue while the check stays red.
 
+## 14. Coaches suggest a replacement exercise on a plan's card (2026-11-24)
+
+Issue #52. A colleague who thinks an exercise in someone else's plan should be
+swapped proposes it on the card instead of editing behind the author's back.
+(The issue named this decision 13; that number had gone to the dependency
+scan.)
+
+- «Foreslå alternativ» on every exercise activity in `/sessions/<id>` and the
+  builder while the plan is a draft or published. It opens the library picker
+  in a pick-one mode with an optional comment of at most 200 characters.
+- One suggestion per coach per activity, in `session_item_suggestions`
+  (`202611240001`); suggesting again replaces one's own. The row holds the
+  exercise id only — the card shows the library's exercise.
+- «Bytt» (any coach on the team) is `accept_item_suggestion`: the activity
+  takes the exercise and its display data and keeps its position, minutes,
+  stikkord and coaches, in one transaction with deleting the suggestion and
+  any other one naming the same exercise. «Avvis» (any coach) and «Trekk
+  tilbake» (the suggester) are the same delete.
+- Nothing is suggested, dismissed or accepted once the workout has started:
+  the lock trigger covers the table like the rest of the plan.
+- An exercise archived after it was suggested still shows, marked «Arkivert»,
+  and can still be swapped in: `exercises_read_suggested` lets the team read
+  exactly the exercises suggested on their own plans. A coach cannot newly
+  suggest one somebody else has archived.
+- `copy_session` copies no suggestions. Live session and print show none, and
+  nothing is mailed about them.
+- Suggestions load with the plan (embedded in the sessions query) and are
+  broadcast on `session:<id>` like every other plan write.
+
 ## Open questions
 
 None recorded yet.

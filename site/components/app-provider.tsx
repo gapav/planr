@@ -11,12 +11,13 @@ import { resolveExerciseMedia, validateExerciseMediaUpload, validateTeamLogoUplo
 import { displayNameError, normalizeDisplayName } from "@/lib/profile";
 import { CONNECTION_LOST_MESSAGE, isInvitationAlreadyUsed, isTransportFailure, norwegianServerMessage } from "@/lib/server-messages";
 import { autoSessionTitle, buildSessionCopy, nextPosition, stationRotation, UNTITLED_SESSION_TITLE } from "@/lib/session";
+import { acceptedItem, normalizeSuggestionComment, suggestionError, upsertSuggestion } from "@/lib/suggestions";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { DEFAULT_ROTATION_MINUTES } from "@/lib/types";
 import { FOCUS_MAX_WEEKS, FOCUS_NOTE_MAX_LENGTH, FOCUS_NOTES_MAX_LENGTH, FOCUS_TITLE_MAX_LENGTH, mondayOf, overlappingFocus } from "@/lib/focus";
 import { COACH_AVATAR_PEER, COACH_AVATAR_SELF, validTeamColors } from "@/lib/team-palette";
-import type { AdminAccount, AdminTeam, Exercise, ExerciseCollection, ExerciseInput, FocusPeriod, FocusPeriodInput, PlannedSession, Profile, SaveState, SessionBlock, SessionBlockKind, SessionItem, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
+import type { AdminAccount, AdminTeam, Exercise, ExerciseCollection, ExerciseInput, FocusPeriod, FocusPeriodInput, PlannedSession, Profile, SaveState, SessionBlock, SessionBlockKind, SessionItem, SessionItemSuggestion, Team, TeamFixture, TeamFixtureInput, TeamInvitation, TeamRole, WarmupItem, WarmupItemPatch, WarmupRoutine, WarmupRoutinePatch } from "@/lib/types";
 import { initials, makeUuid, noteLines } from "@/lib/utils";
 
 type SessionPatch = Partial<Pick<PlannedSession, "title" | "startsAt" | "venue" | "plannedDurationMinutes" | "objective" | "notes">>;
@@ -210,6 +211,15 @@ interface GrepContextValue {
   updateItem(sessionId: string, blockId: string, itemId: string, patch: ItemPatch): Promise<void>;
   deleteItem(sessionId: string, blockId: string, itemId: string): Promise<void>;
   reorderItems(sessionId: string, blockId: string, orderedIds: string[]): Promise<void>;
+  /**
+   * «Foreslå alternativ»: proposes `exercise` in place of the activity's own.
+   * One per coach per activity — suggesting again replaces the coach's own.
+   */
+  suggestAlternative(sessionId: string, itemId: string, exercise: Exercise, comment: string): Promise<void>;
+  /** «Bytt». State changes only once `accept_item_suggestion` has answered. */
+  acceptSuggestion(sessionId: string, suggestionId: string): Promise<void>;
+  /** «Avvis» a colleague's suggestion, or «Trekk tilbake» one's own: the same delete. */
+  dismissSuggestion(sessionId: string, suggestionId: string): Promise<void>;
   reloadSession(id: string): Promise<void>;
 }
 
@@ -225,7 +235,19 @@ interface DbItem {
   id: string; block_id: string; kind: SessionItem["kind"]; exercise_id: string | null; title: string; description: string;
   media_url: string | null; thumbnail_url: string | null; duration_minutes: number; coaching_notes: string;
   assigned_coach_ids: string[] | null; position: number; updated_by: string;
+  session_item_suggestions?: DbSuggestion[] | null;
 }
+interface DbSuggestion {
+  id: string; item_id: string; exercise_id: string; suggested_by: string; comment: string | null; created_at: string; updated_at: string;
+  exercise?: DbExercise | null;
+}
+/**
+ * A plan as every screen reads it. Suggestions are embedded with their
+ * activity, and the exercise with each suggestion: an exercise archived since
+ * it was suggested is out of the library list, and this copy is what the card
+ * falls back to (`exercises_read_suggested` lets the team read it).
+ */
+const SESSION_SELECT = "*, session_blocks(*, session_items(*, session_item_suggestions(*, exercise:exercises(*))))";
 interface DbBlock { id: string; session_id: string; title: string; notes?: string; kind?: SessionBlockKind; rotation_minutes?: number | null; position: number; updated_by: string; session_items?: DbItem[]; }
 interface DbSession {
   id: string; team_id: string; title: string; starts_at: string | null; venue: string; planned_duration_minutes: number;
@@ -256,6 +278,10 @@ function mapExercise(row: DbExercise): Exercise {
     thumbnailUrl: row.thumbnail_url, createdBy: row.created_by, createdByName: row.profiles?.full_name ?? "Trenerfellesskapet",
     archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at };
 }
+function mapSuggestion(row: DbSuggestion): SessionItemSuggestion {
+  return { id: row.id, itemId: row.item_id, exerciseId: row.exercise_id, suggestedBy: row.suggested_by, comment: row.comment ?? "",
+    createdAt: row.created_at, updatedAt: row.updated_at, exercise: row.exercise ? mapExercise(row.exercise) : null };
+}
 function mapSession(row: DbSession): PlannedSession {
   return { id: row.id, teamId: row.team_id, title: row.title, startsAt: row.starts_at, venue: row.venue,
     plannedDurationMinutes: row.planned_duration_minutes, objective: row.objective, notes: row.notes, status: row.status,
@@ -268,6 +294,7 @@ function mapSession(row: DbSession): PlannedSession {
         description: item.description, mediaUrl: item.media_url, thumbnailUrl: item.thumbnail_url,
         durationMinutes: item.duration_minutes, coachingNotes: item.coaching_notes,
         assignedCoachIds: item.assigned_coach_ids ?? [], position: item.position, updatedBy: item.updated_by,
+        suggestions: (item.session_item_suggestions ?? []).map(mapSuggestion),
       })),
     })) };
 }
@@ -383,7 +410,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return true;
     const results = await Promise.all([
       supabase.from("team_memberships").select("team_id, profile_id, role, teams(id, name, logo_url), profiles(id, email, full_name, avatar_url)"),
-      supabase.from("sessions").select("*, session_blocks(*, session_items(*))").order("updated_at", { ascending: false }),
+      supabase.from("sessions").select(SESSION_SELECT).order("updated_at", { ascending: false }),
       supabase.from("team_invitations").select("id, team_id, email, role, token, expires_at, accepted_at").is("accepted_at", null).gt("expires_at", new Date().toISOString()),
       supabase.from("profiles").select("id, email, full_name, is_global_admin, session_digest_email").eq("id", authUser.id).single(),
       supabase.from("team_fixtures").select("*").order("starts_at"),
@@ -1461,7 +1488,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // `persist` throws on an error, so a missing id here means the RPC answered
     // without one — there is nothing to navigate to.
     if (!copyId) throw new Error("Kopien kunne ikke lages.");
-    const { data } = await supabase.from("sessions").select("*, session_blocks(*, session_items(*))").eq("id", copyId).single();
+    const { data } = await supabase.from("sessions").select(SESSION_SELECT).eq("id", copyId).single();
     if (data) setSessions((current) => [mapSession(data as unknown as DbSession), ...current]);
     // The copy exists either way, so a failed read is not an error — the plan
     // it opens on arrives with the next workspace load.
@@ -1531,7 +1558,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteItem = useCallback(async (sessionId: string, blockId: string, itemId: string) => { dropItem(sessionId, blockId, itemId); await persist(supabase ? () => supabase.from("session_items").delete().eq("id", itemId) : null); }, [dropItem, persist, supabase]);
   const reorderItems = useCallback(async (sessionId: string, blockId: string, orderedIds: string[]) => { setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, blocks: session.blocks.map((block) => block.id === blockId ? { ...block, items: orderedIds.flatMap((id, position) => { const item = block.items.find((entry) => entry.id === id); return item ? [{ ...item, position }] : []; }) } : block) } : session)); await persist(supabase ? () => supabase.rpc("reorder_block_items", { target_block_id: blockId, ordered_item_ids: orderedIds }) : null); }, [persist, supabase]);
 
-  const reloadSession = useCallback(async (id: string) => { if (!supabase) return; const { data } = await supabase.from("sessions").select("*, session_blocks(*, session_items(*))").eq("id", id).single(); if (data) setSessions((current) => current.map((session) => session.id === id ? mapSession(data as unknown as DbSession) : session)); }, [supabase]);
+  // Suggestions live on their activity, so each mutation rewrites one item's list.
+  const setItemSuggestions = useCallback((sessionId: string, itemId: string, next: (current: SessionItemSuggestion[]) => SessionItemSuggestion[]) => {
+    setSessions((current) => current.map((session) => session.id !== sessionId ? session : { ...session, blocks: session.blocks.map((block) => block.items.some((item) => item.id === itemId) ? { ...block, items: block.items.map((item) => item.id === itemId ? { ...item, suggestions: next(item.suggestions ?? []) } : item) } : block) }));
+  }, []);
+  const findItem = useCallback((sessionId: string, itemId: string) => sessions.find((session) => session.id === sessionId)?.blocks.flatMap((block) => block.items).find((item) => item.id === itemId) ?? null, [sessions]);
+  const findSuggestion = useCallback((sessionId: string, suggestionId: string) => {
+    for (const block of sessions.find((session) => session.id === sessionId)?.blocks ?? []) {
+      for (const item of block.items) {
+        const suggestion = item.suggestions?.find((entry) => entry.id === suggestionId);
+        if (suggestion) return { item, suggestion };
+      }
+    }
+    return null;
+  }, [sessions]);
+
+  const suggestAlternative = useCallback(async (sessionId: string, itemId: string, exercise: Exercise, comment: string) => {
+    const item = findItem(sessionId, itemId);
+    if (!item) throw new Error("Aktiviteten ble ikke funnet");
+    const refusal = suggestionError(item, exercise.id);
+    if (refusal) { setNotice(refusal); throw new Error(refusal); }
+    const userId = user?.id ?? demoUser.id;
+    const previous = item.suggestions ?? [];
+    const own = previous.find((entry) => entry.suggestedBy === userId);
+    const text = normalizeSuggestionComment(comment);
+    const now = new Date().toISOString();
+    const next: SessionItemSuggestion = { id: own?.id ?? makeUuid(), itemId, exerciseId: exercise.id, suggestedBy: userId, comment: text, createdAt: own?.createdAt ?? now, updatedAt: now, exercise };
+    setItemSuggestions(sessionId, itemId, (current) => upsertSuggestion(current, next));
+    try {
+      // The coach's own row is edited in place — the grant covers only the
+      // exercise and the comment — and a first one is inserted with the id
+      // already on screen, so «Trekk tilbake» finds it before any reload. An
+      // edit that matched nothing (a colleague dismissed it meanwhile) is
+      // inserted afresh rather than reported as saved.
+      await persist(supabase ? async () => {
+        if (own) {
+          const updated = await supabase.from("session_item_suggestions").update({ exercise_id: exercise.id, comment: text }).eq("id", own.id).select("id");
+          if (updated.error || (updated.data?.length ?? 0) > 0) return updated;
+        }
+        return supabase.from("session_item_suggestions").insert({ id: next.id, item_id: itemId, exercise_id: exercise.id, suggested_by: userId, comment: text });
+      } : null);
+    } catch (error) {
+      setItemSuggestions(sessionId, itemId, () => previous);
+      throw error;
+    }
+  }, [findItem, persist, setItemSuggestions, supabase, user]);
+
+  // Like the lifecycle RPCs, the swap is shown only once the server has made
+  // it: it rewrites the activity, and a refusal must not read as swapped.
+  const acceptSuggestion = useCallback(async (sessionId: string, suggestionId: string) => {
+    const found = findSuggestion(sessionId, suggestionId);
+    if (!found) throw new Error("Forslaget ble ikke funnet");
+    const exercise = exercises.find((entry) => entry.id === found.suggestion.exerciseId) ?? found.suggestion.exercise;
+    if (!exercise) { setNotice("Øvelsen ble ikke funnet"); throw new Error("Øvelsen ble ikke funnet"); }
+    const userId = user?.id ?? demoUser.id;
+    await persist(supabase ? () => supabase.rpc("accept_item_suggestion", { target_suggestion_id: suggestionId }) : null);
+    setSessions((current) => current.map((session) => session.id !== sessionId ? session : { ...session, blocks: session.blocks.map((block) => block.id !== found.item.blockId ? block : { ...block, items: block.items.map((item) => item.id === found.item.id ? acceptedItem(item, found.suggestion, exercise, userId) : item) }) }));
+  }, [exercises, findSuggestion, persist, supabase, user]);
+
+  const dismissSuggestion = useCallback(async (sessionId: string, suggestionId: string) => {
+    const found = findSuggestion(sessionId, suggestionId);
+    if (!found) return;
+    const previous = found.item.suggestions ?? [];
+    setItemSuggestions(sessionId, found.item.id, (current) => current.filter((entry) => entry.id !== suggestionId));
+    try {
+      await persist(supabase ? () => supabase.from("session_item_suggestions").delete().eq("id", suggestionId) : null);
+    } catch (error) {
+      setItemSuggestions(sessionId, found.item.id, () => previous);
+      throw error;
+    }
+  }, [findSuggestion, persist, setItemSuggestions, supabase]);
+
+  const reloadSession = useCallback(async (id: string) => { if (!supabase) return; const { data } = await supabase.from("sessions").select(SESSION_SELECT).eq("id", id).single(); if (data) setSessions((current) => current.map((session) => session.id === id ? mapSession(data as unknown as DbSession) : session)); }, [supabase]);
 
   // The library wins over the copy a session or warm-up item took when it was
   // added, so an edit in Øvelsesbanken shows on every card linking to that
@@ -1542,7 +1640,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resolvedAdminSessions = useMemo(() => resolveAll(adminSessions, (session) => resolveSessionDisplay(session, exerciseLibrary)), [adminSessions, exerciseLibrary]);
   const resolvedWarmupRoutines = useMemo(() => resolveAll(warmupRoutines, (routine) => resolveWarmupRoutineDisplay(routine, exerciseLibrary)), [warmupRoutines, exerciseLibrary]);
 
-  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, exercisesLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession }), [user, authLoading, workspaceLoaded, exercisesLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, fixtures, focusPeriods, resolvedWarmupRoutines, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, reloadSession]);
+  const value = useMemo<GrepContextValue>(() => ({ user, authLoading, workspaceLoaded, exercisesLoaded, isDemoMode: !supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, sessions: resolvedSessions, invitations, fixtures, focusPeriods, warmupRoutines: resolvedWarmupRoutines, saveState, notice, sidebarCollapsed, setSidebarCollapsed, setCurrentTeamId: selectTeam, clearNotice: () => setNotice(null), signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, adminSessions: resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, suggestAlternative, acceptSuggestion, dismissSuggestion, reloadSession }), [user, authLoading, workspaceLoaded, exercisesLoaded, supabase, teams, currentTeam, exercises, favoriteExerciseIds, collections, resolvedSessions, invitations, fixtures, focusPeriods, resolvedWarmupRoutines, saveState, notice, sidebarCollapsed, selectTeam, signIn, requestMagicLink, signOut, addExercise, updateExercise, uploadExerciseMedia, discardExerciseMedia, archiveExercise, toggleFavoriteExercise, createCollection, renameCollection, deleteCollection, toggleCollectionExercise, setSessionDigestEmail, setDisplayName, createTeam, saveTeamLogo, refreshWorkspace, adminTeams, adminTeamsLoaded, resolvedAdminSessions, adminAccounts, adminAccountsLoaded, renameTeam, deleteTeam, adminInviteMember, adminResendInvitation, adminSendLoginLink, adminRevokeInvitation, adminSetMemberRole, adminSetDisplayName, adminRemoveMember, deleteAccountPermanently, sendSupportMessage, importFixtures, removeFixture, clearFixtures, createFocusPeriod, updateFocusPeriod, deleteFocusPeriod, ensureWarmupRoutine, updateWarmupRoutine, addWarmupExercise, addCustomWarmupItem, updateWarmupItem, deleteWarmupItem, reorderWarmupItems, createSession, updateSession, deleteSession, publishSession, startWorkout, undoWorkoutStart, finishWorkout, reopenSession, copySession, addBlock, updateBlock, deleteBlock, reorderBlocks, addExerciseItem, addCustomItem, updateItem, deleteItem, reorderItems, suggestAlternative, acceptSuggestion, dismissSuggestion, reloadSession]);
 
   return <GrepContext.Provider value={value}>{children}</GrepContext.Provider>;
 }
