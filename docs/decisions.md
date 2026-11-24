@@ -140,6 +140,30 @@ interactive lessons for coaches to show their players. The first is
   roles in Grep's brights, the court on `--court-*` tokens in both themes.
 - On a phone it lives in the «Mer» drawer; the bottom bar is unchanged.
 
+## 11. Grep is installed as a PWA, not from the App Store (2026-11-18)
+
+Many coaches find installing a web app awkward, so the App Store was
+considered: a Capacitor shell around the live site. It is set aside for now
+because publishing, TestFlight and Apple push all need the paid Apple
+Developer Program. We make the PWA easy to install instead.
+
+- Sign-in works inside the installed app. On iOS a home-screen app keeps
+  its own storage, apart from Safari's, and a magic link always opens in
+  Safari, so the emails also carry a **code** that the coach types in. It
+  is 8 digits, the existing `otp_length`, and lasts the existing 24 hours.
+  The links still work.
+- The «Sjekk e-posten din» screen on /sign-in always shows a code field, in
+  the browser and in the installed app alike.
+- Invitation and login emails from `app/api/admin/auth-link` carry the code
+  too. A code gets the same protection as a link: a team admin is never
+  given one for an account that already existed.
+- Follow-up work: an install guide and prompts, then a service worker with
+  web push (on iOS, push works only in an installed app), then a measure of
+  how many coaches have installed it.
+- Reopen the App Store question when the $99 fee is acceptable. The plan
+  then is the Capacitor shell, self-service account deletion (Apple requires
+  it; today only a global admin can delete an account) and a review account.
+
 ## 12. Grep holds no data about players (2026-11-23)
 
 Issue #42. Grep keeps no roster, no attendance and no drawn groups. Coaches

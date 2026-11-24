@@ -2,8 +2,9 @@
 # Shared helpers for the disaster-recovery scripts (scripts/backup.sh,
 # scripts/restore.sh). Sourced, never run directly.
 #
-# Design rule: no secret is ever stored, echoed, or passed on a command line.
-# The database password is read with `read -rs` into PGPASSWORD, which pg_dump
+# Design rule: no secret is ever echoed, passed on a command line, or written
+# to a file. The database password comes from the macOS Keychain (stored by
+# `make keychain`) or is read with `read -rs`, into PGPASSWORD, which pg_dump
 # and psql pick up from the environment, so it never appears in `ps` output,
 # in the shell history, or in any file this script writes.
 
@@ -132,11 +133,78 @@ require_supabase_cli() {
 
 PGHOST_V="" PGPORT_V="" PGUSER_V="" PGDATABASE_V="" PROJECT_REF=""
 
-# Ask for the connection string the dashboard hands out, then the password
-# separately. Pasting the dashboard string means we never have to guess whether
-# this project wants the direct host or the pooler, or which username form.
-prompt_connection() {
-  local purpose="$1" raw userinfo hostpart
+# The macOS Keychain holds two items per project, both keyed by project ref
+# (the account) and both written only by `make keychain`:
+#
+#   plannr-db-uri   the Session pooler URI, with no password in it
+#   plannr-db       the database password
+#
+# The password goes from `security`'s stdout straight into PGPASSWORD; it is
+# never on a command line or in a file. Without an item the scripts ask, as
+# they always have.
+KEYCHAIN_URI_SERVICE="plannr-db-uri"
+KEYCHAIN_PW_SERVICE="plannr-db"
+
+have_keychain() { command -v security >/dev/null 2>&1; }
+
+# keychain_get <service> <ref> — print the secret, or fail quietly.
+keychain_get() {
+  have_keychain || return 1
+  security find-generic-password -s "$1" -a "$2" -w 2>/dev/null
+}
+
+# keychain_has <service> <ref> — true if the item exists. Reads no secret.
+keychain_has() {
+  have_keychain || return 1
+  security find-generic-password -s "$1" -a "$2" >/dev/null 2>&1
+}
+
+project_name() {
+  case "$1" in
+    "$PROD_REF") printf '%s' "grep-prod" ;;
+    "$DEV_REF")  printf '%s' "planr-dev" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# parse_connection_uri <uri> — fill PG*_V and PROJECT_REF. Fails on garbage.
+# Any password in the URI is ignored; the password always comes separately.
+parse_connection_uri() {
+  local raw="$1" body userinfo hostpart
+  raw="${raw%%\?*}"                 # drop ?sslmode=… etc
+  raw="$(printf '%s' "$raw" | tr -d '[:space:]')"
+  [[ "$raw" == postgresql://* || "$raw" == postgres://* ]] || return 1
+
+  # Split on the LAST "@": a pasted real password may itself contain one,
+  # and splitting on the first would take part of it as the hostname.
+  body="${raw#*://}"
+  userinfo="${body%@*}"
+  hostpart="${body##*@}"
+  PGUSER_V="${userinfo%%:*}"
+  PGDATABASE_V="${hostpart#*/}"
+  [[ "$PGDATABASE_V" == "$hostpart" ]] && PGDATABASE_V=""
+  hostpart="${hostpart%%/*}"
+  PGHOST_V="${hostpart%%:*}"
+  PGPORT_V="${hostpart##*:}"
+  [[ "$PGPORT_V" == "$PGHOST_V" ]] && PGPORT_V=5432
+  [[ -n "$PGHOST_V" && -n "$PGUSER_V" && "$body" == *@* ]] || return 1
+  [[ -z "$PGDATABASE_V" ]] && PGDATABASE_V=postgres
+
+  # postgres.<ref> on the pooler, or db.<ref>.supabase.co direct.
+  if [[ "$PGUSER_V" == postgres.* ]]; then PROJECT_REF="${PGUSER_V#postgres.}"
+  elif [[ "$PGHOST_V" =~ ^db\.([a-z0-9]+)\.supabase\.co$ ]]; then PROJECT_REF="${BASH_REMATCH[1]}"
+  else PROJECT_REF=""; fi
+  return 0
+}
+
+# The parsed connection as a URI without the password — what the Keychain holds.
+connection_uri() {
+  printf 'postgresql://%s@%s:%s/%s' "$PGUSER_V" "$PGHOST_V" "$PGPORT_V" "$PGDATABASE_V"
+}
+
+# prompt_uri <purpose> — ask for the dashboard's Session pooler URI.
+prompt_uri() {
+  local purpose="$1" raw
   say ""
   say "Open the Supabase dashboard for the project you want to ${BOLD}$purpose${RST}:"
   say ""
@@ -154,31 +222,12 @@ prompt_connection() {
   while :; do
     printf '%s' "Connection URI: "
     read -r raw </dev/tty || die "No input."
-    raw="${raw%%\?*}"                 # drop ?sslmode=… etc
-    raw="$(printf '%s' "$raw" | tr -d '[:space:]')"
-    [[ "$raw" == postgresql://* || "$raw" == postgres://* ]] || { warn "That does not look like a postgres:// URI. Try again."; continue; }
-
-    # Split on the LAST "@": a pasted real password may itself contain one,
-    # and splitting on the first would take part of it as the hostname.
-    local body="${raw#*://}"
-    userinfo="${body%@*}"
-    hostpart="${body##*@}"
-    PGUSER_V="${userinfo%%:*}"
-    PGDATABASE_V="${hostpart#*/}"
-    hostpart="${hostpart%%/*}"
-    PGHOST_V="${hostpart%%:*}"
-    PGPORT_V="${hostpart##*:}"
-    [[ "$PGPORT_V" == "$PGHOST_V" ]] && PGPORT_V=5432
-    [[ -n "$PGHOST_V" && -n "$PGUSER_V" ]] || { warn "Could not parse host/user out of that. Try again."; continue; }
-    [[ -z "$PGDATABASE_V" ]] && PGDATABASE_V=postgres
-    break
+    parse_connection_uri "$raw" && break
+    warn "That does not look like a postgres:// URI with a user and host. Try again."
   done
+}
 
-  # postgres.<ref> on the pooler, or db.<ref>.supabase.co direct.
-  if [[ "$PGUSER_V" == postgres.* ]]; then PROJECT_REF="${PGUSER_V#postgres.}"
-  elif [[ "$PGHOST_V" =~ ^db\.([a-z0-9]+)\.supabase\.co$ ]]; then PROJECT_REF="${BASH_REMATCH[1]}"
-  else PROJECT_REF=""; fi
-
+describe_connection() {
   say ""
   info "  host     $PGHOST_V"
   info "  port     $PGPORT_V"
@@ -194,14 +243,86 @@ prompt_connection() {
     warn "That is the IPv6-only direct host and this machine has no IPv6 route."
     confirm "Continue anyway?" || die "Stopped. Use the Session pooler URI instead."
   fi
+}
 
+export_connection() {
+  export PGPASSWORD PGHOST="$PGHOST_V" PGPORT="$PGPORT_V" PGUSER="$PGUSER_V" PGDATABASE="$PGDATABASE_V"
+  export PGSSLMODE="${PGSSLMODE:-require}"
+}
+
+# Password: from the Keychain if it holds one for this project, else asked.
+obtain_password() {
+  local pw=""
+  if [[ -n "$PROJECT_REF" ]] && pw="$(keychain_get "$KEYCHAIN_PW_SERVICE" "$PROJECT_REF")" && [[ -n "$pw" ]]; then
+    PGPASSWORD="$pw"
+    ok "Password from the macOS Keychain ($KEYCHAIN_PW_SERVICE / $PROJECT_REF)"
+    return 0
+  fi
   say ""
   printf '%s' "Database password (input hidden): "
   read -rs PGPASSWORD </dev/tty || die "No input."
   printf '\n'
   [[ -n "$PGPASSWORD" ]] || die "Empty password."
-  export PGPASSWORD PGHOST="$PGHOST_V" PGPORT="$PGPORT_V" PGUSER="$PGUSER_V" PGDATABASE="$PGDATABASE_V"
-  export PGSSLMODE="${PGSSLMODE:-require}"
+}
+
+# connect_ref <ref> <purpose> — connect to a known project: URI from the
+# Keychain, or pasted (and refused if it is another project's).
+connect_ref() {
+  local ref="$1" purpose="$2" uri=""
+  if uri="$(keychain_get "$KEYCHAIN_URI_SERVICE" "$ref")" && [[ -n "$uri" ]] && parse_connection_uri "$uri"; then
+    ok "Connection URI from the macOS Keychain ($KEYCHAIN_URI_SERVICE / $ref)"
+  else
+    info "No URI for $(project_name "$ref") in the Keychain (${BOLD}make keychain${RST}${DIM} stores one)."
+    prompt_uri "$purpose"
+  fi
+  if [[ "$PROJECT_REF" != "$ref" ]]; then
+    die "That URI is for ${PROJECT_REF:-an unknown project}$(project_label "$PROJECT_REF"), not $ref$(project_label "$ref"). Nothing was changed."
+  fi
+  describe_connection
+  obtain_password
+  export_connection
+}
+
+# prompt_connection <purpose> — choose the project, then connect to it.
+#
+# PLANNR_PROJECT=dev|prod|<ref> skips the question. PLANNR_REUSE_CONNECTION=1
+# takes the connection already in PGHOST/PGUSER/PGPASSWORD: migrate-prod sets
+# it when it runs make backup, so the backup does not ask a second time.
+prompt_connection() {
+  local purpose="$1" choice="${PLANNR_PROJECT:-}"
+
+  if [[ "${PLANNR_REUSE_CONNECTION:-0}" == "1" && -n "${PGHOST:-}" && -n "${PGUSER:-}" && -n "${PGPASSWORD:-}" ]]; then
+    PGHOST_V="$PGHOST" PGPORT_V="${PGPORT:-5432}" PGUSER_V="$PGUSER" PGDATABASE_V="${PGDATABASE:-postgres}"
+    parse_connection_uri "$(connection_uri)" || die "Could not reuse the connection."
+    ok "Reusing the connection to $(project_name "$PROJECT_REF") from the calling script"
+    describe_connection
+    export_connection
+    return 0
+  fi
+
+  if [[ -z "$choice" ]]; then
+    say ""
+    say "Which project do you want to ${BOLD}$purpose${RST}?"
+    say "  1) planr-dev  ${DIM}($DEV_REF)${RST}"
+    say "  2) grep-prod  ${DIM}($PROD_REF)${RST} ${RED}PRODUCTION${RST}"
+    say "  3) another project ${DIM}(paste its URI)${RST}"
+    while :; do
+      printf '%s' "Choose 1, 2 or 3: "
+      read -r choice </dev/tty || die "No input."
+      case "$choice" in 1|2|3) break ;; *) warn "Type 1, 2 or 3." ;; esac
+    done
+  fi
+
+  case "$choice" in
+    1|dev|"$DEV_REF")   connect_ref "$DEV_REF" "$purpose" ;;
+    2|prod|"$PROD_REF") connect_ref "$PROD_REF" "$purpose" ;;
+    3|other)
+      prompt_uri "$purpose"
+      describe_connection
+      obtain_password
+      export_connection ;;
+    *) connect_ref "$choice" "$purpose" ;;
+  esac
 }
 
 project_label() {

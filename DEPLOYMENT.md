@@ -338,7 +338,8 @@ roughly monthly:
 
 ```bash
 make doctor    # one-time: check this machine can do it at all
-make backup    # guided, read-only, prompts for the password
+make keychain  # optional, once per project: store URI + password in the macOS Keychain
+make backup    # guided, read-only, prompts for whatever the Keychain does not hold
 ```
 
 Three reasons not to reach for `supabase db dump` by hand here. It shells out to
@@ -407,12 +408,13 @@ make migrate-prod       # grep-prod  (fbbqdutatetfkybvlozx), after a full make b
 make migrate-baseline   # mark what a project already holds as applied, running nothing
 ```
 
-Each `migrate-*` names the project it targets, asks for its Session pooler
-URI (and refuses any other project's), prompts for the password without echo
-and passes it through the environment only, lists the pending files, shows
+Each `migrate-*` names the project it targets, takes its Session pooler URI
+and password from the macOS Keychain (`make keychain`) or asks for them —
+refusing any other project's URI — and passes the password through the
+environment only, lists the pending files, shows
 `supabase db push --dry-run`, waits for a typed `migrate <project>`, applies,
 and ends with `supabase migration list`. `migrate-prod` runs `make backup`
-first and applies nothing unless a fresh, checksummed backup of `grep-prod`
+first, on the same connection so it does not ask again, and applies nothing unless a fresh, checksummed backup of `grep-prod`
 lands in `backups/`. None of them use the CLI's link to `grep-prod`: every
 call gets `--db-url`, without the password in it.
 

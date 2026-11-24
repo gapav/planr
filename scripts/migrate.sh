@@ -10,10 +10,11 @@
 # lacks.
 #
 # The CLI in site/ is linked to grep-prod, so nothing here uses the link. Every
-# CLI call gets --db-url, built from the Session pooler URI you paste, WITHOUT
-# the password. The password is read with `read -rs` into PGPASSWORD, which
-# psql and the CLI's Postgres client both take from the environment. It never
-# appears on a command line, in `ps`, in a file, or in this script's output.
+# CLI call gets --db-url, built from the Session pooler URI, WITHOUT the
+# password. URI and password come from the macOS Keychain (`make keychain`) or
+# are asked for; the password goes into PGPASSWORD, which psql and the CLI's
+# Postgres client both take from the environment. It never appears on a
+# command line, in `ps`, in a file, or in this script's output.
 #
 # Agents never run this: .claude/settings.json denies `make migrate*`.
 
@@ -100,15 +101,16 @@ migration_file() {
 
 DB_URL=""
 
-# connect <expected ref or empty> — paste the Session pooler URI, give the
-# password, and refuse a project other than the one this run is for.
+# connect <expected ref or empty> — connect to the project this run is for
+# (URI and password from the Keychain, else asked), or, with no ref, ask which.
 connect() {
   local expected="$1"
-  prompt_connection "migrate"
-  [[ -n "$PROJECT_REF" ]] || die "Could not tell which project that URI is for. Paste the Session pooler URI (user postgres.<ref>)."
-  if [[ -n "$expected" && "$PROJECT_REF" != "$expected" ]]; then
-    die "That URI is for $PROJECT_REF$(project_label "$PROJECT_REF"), not $expected$(project_label "$expected"). Nothing was changed."
+  if [[ -n "$expected" ]]; then
+    connect_ref "$expected" "migrate"
+  else
+    prompt_connection "baseline"
   fi
+  [[ -n "$PROJECT_REF" ]] || die "Could not tell which project that URI is for. Paste the Session pooler URI (user postgres.<ref>)."
   test_connection
   # No password in the URL: the CLI's Postgres client reads PGPASSWORD.
   DB_URL="postgresql://${PGUSER_V}@${PGHOST_V}:${PGPORT_V}/${PGDATABASE_V}?sslmode=require"
@@ -176,7 +178,7 @@ run_push() {
   pause
 
   step 2 $total "Connect to $name ($ref)"
-  info "Paste the Session pooler URI of ${BOLD}$name${RST}${DIM}. Any other project is refused."
+  info "Only ${BOLD}$name${RST}${DIM} is accepted; a URI for any other project is refused."
   connect "$ref"
   pause
 
@@ -229,14 +231,14 @@ run_push() {
   if [[ "$env" == prod ]]; then
     step $s $total "Back up $name first"
     info "migrate-prod applies nothing without a complete, fresh backup. make backup"
-    info "asks for the URI and password again: it is its own script."
+    info "runs as its own script, on the connection made in step 2."
     local marker; marker="$(mktemp)"
     # Expanded now, not when the trap fires: the trap runs at script exit,
     # after this function has returned and `marker` is out of scope, and
     # `set -u` would turn that into an "unbound variable" exit 1 after a
     # successful push.
     trap "rm -f $(printf '%q' "$marker")" EXIT
-    if ! bash "$REPO_ROOT/scripts/backup.sh"; then
+    if ! PLANNR_REUSE_CONNECTION=1 bash "$REPO_ROOT/scripts/backup.sh"; then
       die "The backup failed. Nothing was applied."
     fi
     local dir=""
