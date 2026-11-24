@@ -79,8 +79,10 @@ Three facts that are easy to get wrong and expensive to discover late:
   unaccepted invitation, `202609020029` drops never-signed-in auth users. The
   bootstrap is for standing up an *empty* project, nothing else.
 
-Never put a database password on a command line or in a file; the scripts prompt
-for it and pass it through the environment.
+Never put a database password on a command line or in a file; the scripts read
+it from the macOS Keychain (stored by the maintainer with `make keychain`) or
+prompt for it, and pass it through the environment. Agents never read Keychain
+items or run `make keychain` — settings deny both.
 
 ## Hard rules
 
